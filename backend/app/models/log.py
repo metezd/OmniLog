@@ -18,16 +18,16 @@ class Log(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     media_id = Column(Integer, ForeignKey("media.id"), nullable=False, index=True)
-    episode_id = Column(Integer, ForeignKey("episodes.id"))  # Optional - episode-specific log
+    episode_id = Column(Integer, ForeignKey("episodes.id"))  # Optional - for episode-specific logging
     
-    # Rating & Status
-    rating = Column(Float)  # 0-5 or None
+    # Rating and status tracking
+    rating = Column(Float)  # 0-5 scale or None
     status = Column(Enum(LogStatus), default=LogStatus.WATCHING, index=True)
     
     # Time tracking
-    playtime_minutes = Column(Integer, default=0)  # Toplam oyun/izleme süresi
+    playtime_minutes = Column(Integer, default=0)  # Total playtime/watch time
     
-    # Notes
+    # User notes
     notes = Column(String(500))
     
     created_at = Column(DateTime, default=datetime.utcnow, index=True)

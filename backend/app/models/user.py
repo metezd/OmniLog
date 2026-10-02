@@ -15,7 +15,7 @@ class User(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
-    # Relationships
+    # Relationships with cascade delete
     logs = relationship("Log", back_populates="user", cascade="all, delete-orphan")
     choices = relationship("UserChoice", back_populates="user", cascade="all, delete-orphan")
     lists = relationship("CustomList", back_populates="user", cascade="all, delete-orphan")

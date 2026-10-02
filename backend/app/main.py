@@ -1,3 +1,4 @@
+"""OmniLog Backend API - Main Application"""
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import get_settings
@@ -5,7 +6,7 @@ from app.db import engine, Base
 
 settings = get_settings()
 
-# Create database tables
+# Create all database tables at startup
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
@@ -14,7 +15,7 @@ app = FastAPI(
     version=settings.app_version,
 )
 
-# CORS
+# Configure CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.allowed_origins,
@@ -26,6 +27,7 @@ app.add_middleware(
 
 @app.get("/")
 def read_root():
+    """Root endpoint - returns API information"""
     return {
         "message": "OmniLog Backend is running!",
         "version": settings.app_version,
@@ -35,6 +37,7 @@ def read_root():
 
 @app.get("/health")
 def health_check():
+    """Health check endpoint - verifies API is operational"""
     return {
         "status": "healthy",
         "environment": settings.environment,

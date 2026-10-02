@@ -6,7 +6,7 @@ from app.db.base import Base
 
 
 class MediaType(str, PyEnum):
-    """Media türü enum"""
+    """Media type enumeration"""
     GAME = "game"
     TV_SERIES = "tv_series"
 
@@ -17,7 +17,7 @@ class Media(Base):
     id = Column(Integer, primary_key=True, index=True)
     type = Column(Enum(MediaType), nullable=False, index=True)
     
-    # External APIs
+    # External API identifiers
     external_id = Column(String(100), index=True)  # IGDB game_id or TMDB series_id
     
     # Metadata
@@ -26,17 +26,17 @@ class Media(Base):
     cover_url = Column(String(500))
     release_date = Column(Date)
     
-    # Ratings & Stats
+    # Ratings and statistics
     imdb_rating = Column(Float)
     average_user_rating = Column(Float, default=0.0)
     
-    # Flexible metadata
-    metadata = Column(JSON, default={})  # genres, developers, platforms, etc.
+    # Flexible metadata stored as JSON (genres, developers, platforms, etc.)
+    metadata = Column(JSON, default={})
     
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
-    # Relationships
+    # Relationships with cascade delete
     episodes = relationship("Episode", back_populates="media", cascade="all, delete-orphan")
     logs = relationship("Log", back_populates="media", cascade="all, delete-orphan")
     
