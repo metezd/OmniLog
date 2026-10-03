@@ -15,7 +15,7 @@ from sqlalchemy.orm import relationship
 from app.core.database import Base
 
 
-# Medya türü ve liste durumları için sabit seçenekler (Enum)
+# Media types and tracking statuses
 class MediaType(str, enum.Enum):
     GAME = "GAME"
     SERIES = "SERIES"
@@ -28,7 +28,7 @@ class WatchStatus(str, enum.Enum):
     DROPPED = "DROPPED"  # Bıraktı / Yarım Kaldı
 
 
-# 1. KULLANICI TABLOSU
+# 1. USER TABLE
 class User(Base):
     __tablename__ = "users"
 
@@ -38,13 +38,13 @@ class User(Base):
     hashed_password = Column(String(255), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    # İlişki: Bir kullanıcının birden çok kütüphane kaydı olabilir
+    # Relationship: One user can have many library entries
     library_entries = relationship(
         "UserLibrary", back_populates="user", cascade="all, delete-orphan"
     )
 
 
-# 2. MEDYA ÖĞESİ TABLOSU (Oyunlar ve TV Dizileri)
+# 2. MEDIA ITEM TABLE (Games and TV Series)
 class MediaItem(Base):
     __tablename__ = "media_items"
 
@@ -54,14 +54,14 @@ class MediaItem(Base):
     poster_url = Column(String(500), nullable=True)
     release_date = Column(String(50), nullable=True)
 
-    # Musab'ın dış API'lerden çekeceği harici ID'ler (RAWG ID veya TMDB ID)
+    # External IDs from RAWG or TMDB APIs
     external_api_id = Column(Integer, index=True, nullable=True)
 
-    # İlişki: Bir medya öğesi birden çok kullanıcının listesinde olabilir
+    # Relationship: One media item can be in many users' libraries
     library_entries = relationship("UserLibrary", back_populates="media_item")
 
 
-# 3. KULLANICI KÜTÜPHANESİ TABLOSU (Takip Listesi / Ara Tablo)
+# 3. USER LIBRARY TABLE (Watchlist / Association Table)
 class UserLibrary(Base):
     __tablename__ = "user_libraries"
 
@@ -76,18 +76,18 @@ class UserLibrary(Base):
     status = Column(
         Enum(WatchStatus), default=WatchStatus.PLAN_TO_WATCH, nullable=False
     )
-    rating = Column(Float, nullable=True)  # 1 ile 10 arası puan
+    rating = Column(Float, nullable=True)  # Rating between 1 and 10
     updated_at = Column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
     )
 
-    # İlişkiler
+    # Relationships
     user = relationship("User", back_populates="library_entries")
     media_item = relationship("MediaItem", back_populates="library_entries")
 
-    # Kısıtlar (Constraints):
-    # 1. Bir kullanıcı aynı oyunu/diziyi listesine iki defa ekleyemesin (Unique)
-    # 2. Puan verilirse 1 ile 10 arasında olsun (Check)
+    # Constraints:
+    # 1. Prevent duplicate entries for the same user and media item
+    # 2. Restrict rating value between 1 and 10
     __table_args__ = (
         UniqueConstraint(
             "user_id", "media_item_id", name="uq_user_media_entry"
