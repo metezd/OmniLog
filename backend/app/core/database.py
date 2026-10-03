@@ -1,8 +1,8 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
-# Geliştirme aşamasında hızlı ilerlemek için şimdilik yerel SQLite kullanıyoruz.
-# PostgreSQL'e geçeceğimiz zaman sadece bu adresi değiştireceğiz!
+# SQLite is used locally for rapid development.
+# Only this URL will change when switching to PostgreSQL in production!
 SQLALCHEMY_DATABASE_URL = "sqlite:///./omnilog.db"
 
 engine = create_engine(
@@ -11,11 +11,11 @@ engine = create_engine(
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# Bütün modellerimizin miras alacağı ana sınıf:
+# Base class for all database models
 Base = declarative_base()
 
 
-# API isteklerinde veritabanı bağlantısını açıp kapatacak yardımcı fonksiyon
+# Dependency generator to manage database session lifecycle per request
 def get_db():
     db = SessionLocal()
     try:
