@@ -19,13 +19,14 @@ from app.core.database import Base
 class MediaType(str, enum.Enum):
     GAME = "GAME"
     SERIES = "SERIES"
+    MOVIE = "MOVIE"
 
 
 class WatchStatus(str, enum.Enum):
-    PLAN_TO_WATCH = "PLAN_TO_WATCH"  # Oynamayı/İzlemeyi Düşünüyor
-    IN_PROGRESS = "IN_PROGRESS"  # Şu an Oynuyor/İzliyor
-    COMPLETED = "COMPLETED"  # Bitirdi
-    DROPPED = "DROPPED"  # Bıraktı / Yarım Kaldı
+    PLAN_TO_WATCH = "PLAN_TO_WATCH"  # Planing to watch/play
+    IN_PROGRESS = "IN_PROGRESS"  # Currently playing/watching
+    COMPLETED = "COMPLETED"  # Finished
+    DROPPED = "DROPPED"  # Dropped / Didn't finish
 
 
 # 1. USER TABLE
