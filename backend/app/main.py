@@ -7,13 +7,13 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Frontend uygulamasının çalışacağı adresler
+# Allowed frontend origin URLs
 origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
 ]
 
-# Tarayıcının frontend isteklerini engellemesini önleyen middleware
+# CORS middleware to permit frontend origins
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
