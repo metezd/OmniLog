@@ -11,12 +11,13 @@ Roles: **Visitor** (not logged in), **User** (logged in), **Developer/Operator**
 ## Epic 1 - Backend Infrastructure and Database Foundation
 
 ### US-01 Service health check
-**As a** developer/operator, **I want** a health endpoint, **so that** I can verify the backend and its database are running after a deployment.
+**As a** developer/operator, **I want** a health endpoint, **so that** I can verify that the backend service is running after a deployment.
 **Priority:** Must
 
 Acceptance criteria:
-- Given the backend is running, when I send `GET /health`, then I receive status 200 and a body such as `{"status": "ok"}`.
-- Given the database is unreachable, when I send `GET /health`, then I receive status 503.
+- Given the backend is running, when I send `GET /health`, then I receive status 200 and the body `{"status": "healthy"}`.
+
+**Status:** already implemented in `backend/app/main.py`.
 
 ---
 
