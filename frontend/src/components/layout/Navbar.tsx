@@ -3,8 +3,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Gamepad2, Menu, X } from "lucide-react";
+import { Menu, X } from "lucide-react";
 
+import LogoMark from "@/components/layout/Logo";
 import { cn } from "@/lib/utils";
 
 const NAV_LINKS = [
@@ -29,10 +30,10 @@ export default function Navbar() {
       >
         <Link
           href="/"
-          className="flex items-center gap-2 text-lg font-semibold tracking-tight"
+          className="flex items-center gap-2.5 text-lg font-semibold tracking-tight"
           onClick={() => setIsOpen(false)}
         >
-          <Gamepad2 className="h-6 w-6" aria-hidden="true" />
+          <LogoMark size={32} />
           OmniLog
         </Link>
 
