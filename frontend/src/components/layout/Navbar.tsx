@@ -1,106 +1,138 @@
 "use client";
 
-import React, { useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import Logo from "./Logo";
+import { usePathname } from "next/navigation";
+import { Menu, X } from "lucide-react";
+
+import LogoMark from "@/components/layout/Logo";
+import { cn } from "@/lib/utils";
 
 const NAV_LINKS = [
-  { href: "/", label: "Dashboard" },
-  { href: "/login", label: "Sign In" },
-  { href: "/register", label: "Sign Up" },
-];
+  { href: "/library", label: "Library" },
+  { href: "/search", label: "Search" },
+  { href: "/dashboard", label: "Dashboard" },
+] as const;
 
 export default function Navbar() {
+  const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
 
+  // Highlights a link when the current route matches it or is nested under it.
+  const isActive = (href: string) =>
+    pathname === href || pathname.startsWith(`${href}/`);
+
   return (
-    <nav
-      aria-label="Main navigation"
-      className="sticky top-0 z-50 w-full border-b border-white/10 bg-horizon-abyss/85 backdrop-blur-xl transition-all duration-300 shadow-[0_4px_30px_rgba(0,0,0,0.5)]"
-    >
-      <div className="mx-auto flex h-20 max-w-6xl items-center justify-between px-4 sm:px-6">
-        {/* Brand / Logo */}
+    <header className="sticky top-0 z-50 border-b border-zinc-200 bg-white/80 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/80">
+      <nav
+        aria-label="Main navigation"
+        className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6"
+      >
         <Link
           href="/"
-          className="flex items-center gap-3 transition-transform duration-200 hover:scale-[1.03]"
+          className="flex items-center gap-2.5 text-lg font-semibold tracking-tight"
           onClick={() => setIsOpen(false)}
         >
-          <Logo size={52} showText={true} />
+          <LogoMark size={32} />
+          OmniLog
         </Link>
 
-        {/* Desktop Navigation Links & Action */}
-        <div className="hidden items-center gap-6 md:flex">
-          <ul className="flex items-center gap-1.5">
-            {NAV_LINKS.map(({ href, label }) => (
-              <li key={href}>
-                <Link
-                  href={href}
-                  className="rounded-lg px-3.5 py-2 text-sm font-medium text-slate-300 transition-all duration-200 hover:bg-white/5 hover:text-white hover:shadow-[0_0_12px_rgba(0,155,185,0.2)]"
-                >
-                  {label}
-                </Link>
-              </li>
-            ))}
-          </ul>
+        {/* Desktop navigation */}
+        <ul className="hidden items-center gap-1 md:flex">
+          {NAV_LINKS.map(({ href, label }) => (
+            <li key={href}>
+              <Link
+                href={href}
+                aria-current={isActive(href) ? "page" : undefined}
+                className={cn(
+                  "rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                  isActive(href)
+                    ? "bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-50"
+                    : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-50",
+                )}
+              >
+                {label}
+              </Link>
+            </li>
+          ))}
+        </ul>
 
+        {/* Desktop auth actions */}
+        <div className="hidden items-center gap-2 md:flex">
+          <Link
+            href="/login"
+            className="rounded-md px-3 py-2 text-sm font-medium text-zinc-600 transition-colors hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"
+          >
+            Log in
+          </Link>
           <Link
             href="/register"
-            className="rounded-lg border border-horizon-crimson/50 bg-horizon-crimson/20 px-4 py-2 text-sm font-medium text-white shadow-[0_0_15px_rgba(229,29,36,0.35)] backdrop-blur-md transition-all duration-200 hover:border-horizon-crimson hover:bg-horizon-crimson/40 hover:shadow-[0_0_22px_rgba(229,29,36,0.55)] active:scale-95"
+            className="rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-200"
           >
-            Get Started
+            Sign up
           </Link>
         </div>
 
-        {/* Mobile Hamburger Toggle Button */}
+        {/* Mobile menu toggle */}
         <button
           type="button"
-          onClick={() => setIsOpen(!isOpen)}
-          aria-label="Toggle navigation menu"
-          className="flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-slate-300 transition-colors hover:bg-white/10 hover:text-white md:hidden"
+          className="rounded-md p-2 text-zinc-600 hover:bg-zinc-100 md:hidden dark:text-zinc-400 dark:hover:bg-zinc-800"
+          aria-expanded={isOpen}
+          aria-controls="mobile-menu"
+          aria-label={isOpen ? "Close menu" : "Open menu"}
+          onClick={() => setIsOpen((open) => !open)}
         >
-          <svg
-            className="h-5 w-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            {isOpen ? (
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            ) : (
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-            )}
-          </svg>
+          {isOpen ? (
+            <X className="h-5 w-5" aria-hidden="true" />
+          ) : (
+            <Menu className="h-5 w-5" aria-hidden="true" />
+          )}
         </button>
-      </div>
+      </nav>
 
-      {/* Mobile Drawer Menu */}
+      {/* Mobile navigation */}
       {isOpen && (
-        <div className="border-b border-white/10 bg-horizon-abyss/95 px-4 pt-3 pb-6 backdrop-blur-2xl md:hidden">
-          <ul className="flex flex-col gap-2">
+        <div
+          id="mobile-menu"
+          className="border-t border-zinc-200 px-4 py-3 md:hidden dark:border-zinc-800"
+        >
+          <ul className="flex flex-col gap-1">
             {NAV_LINKS.map(({ href, label }) => (
               <li key={href}>
                 <Link
                   href={href}
+                  aria-current={isActive(href) ? "page" : undefined}
                   onClick={() => setIsOpen(false)}
-                  className="block rounded-lg px-3 py-2 text-base font-medium text-slate-200 transition-colors hover:bg-white/10 hover:text-white"
+                  className={cn(
+                    "block rounded-md px-3 py-2 text-sm font-medium",
+                    isActive(href)
+                      ? "bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-50"
+                      : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800",
+                  )}
                 >
                   {label}
                 </Link>
               </li>
             ))}
-            <li className="pt-2">
+            <li className="mt-2 flex gap-2 border-t border-zinc-200 pt-3 dark:border-zinc-800">
+              <Link
+                href="/login"
+                onClick={() => setIsOpen(false)}
+                className="flex-1 rounded-md border border-zinc-300 px-3 py-2 text-center text-sm font-medium dark:border-zinc-700"
+              >
+                Log in
+              </Link>
               <Link
                 href="/register"
                 onClick={() => setIsOpen(false)}
-                className="block text-center rounded-lg border border-horizon-crimson/50 bg-horizon-crimson/25 px-4 py-2.5 text-base font-medium text-white shadow-[0_0_15px_rgba(229,29,36,0.3)] transition-all hover:bg-horizon-crimson/40"
+                className="flex-1 rounded-md bg-zinc-900 px-3 py-2 text-center text-sm font-medium text-white dark:bg-zinc-50 dark:text-zinc-900"
               >
-                Get Started
+                Sign up
               </Link>
             </li>
           </ul>
         </div>
       )}
-    </nav>
+    </header>
   );
 }
