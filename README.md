@@ -113,23 +113,41 @@ Each step builds on the one before. A step is done when its tests pass.
 
 ## Project status
 
-The project is in the analysis phase. Requirements, tests and analysis documents are ready. Only the health endpoint is implemented. The requirement-level tests are written first, so most of them fail on purpose until the features are built.
+The project is in the analysis phase. Requirements, tests and analysis documents are ready. Roadmap step 1 (infrastructure) is in place: Docker Compose services, settings, migrations and a PostgreSQL test database. Only the health endpoint is implemented. The requirement-level tests are written first, so most of them fail on purpose until the features are built.
 
 ## Getting started
 
 ### Backend
 
+Start PostgreSQL and Redis first (the first start also creates the `omnilog_test` database):
+
+```bash
+docker compose up -d
+```
+
+Then set up the backend:
+
 ```bash
 cd backend
+cp .env.example .env
+# Set SECRET_KEY in .env (at least 32 characters). Generate one with:
+python -c "import secrets; print(secrets.token_urlsafe(32))"
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+alembic upgrade head
 uvicorn app.main:app --reload
 ```
 
 The API runs at `http://localhost:8000`. Interactive docs are at `http://localhost:8000/docs`.
 
-By default the backend uses a local SQLite file. Set the `DATABASE_URL` environment variable to use PostgreSQL.
+`DATABASE_URL` and `SECRET_KEY` are required, and the app stops with a clear error if either is missing. `DATABASE_URL` must point to PostgreSQL and `SECRET_KEY` must be at least 32 characters. The settings are read from `backend/.env` (see `backend/.env.example`).
+
+To create a new migration after changing a model:
+
+```bash
+alembic revision --autogenerate -m "describe the change"
+```
 
 ### Frontend
 
@@ -143,7 +161,7 @@ The app runs at `http://localhost:3000`.
 
 ### Tests
 
-From the repository root, with the virtual environment active:
+The tests use the separate `omnilog_test` database, so `docker compose up -d` must be running. From the repository root, with the virtual environment active:
 
 ```bash
 python -m pip install -r tests/requirements-test.txt
