@@ -1,5 +1,7 @@
 # ER Diagram Summary
 
+> **Note:** this document describes the baseline that is already implemented. The full E-R model and the data dictionary for all six epics are in [data/er-diagram.md](data/er-diagram.md).
+
 This document captures the logical data model for the current OmniLog implementation. It reflects the backend entities already defined in the project and the relationships needed to support personal media tracking.
 
 ## Entity list
