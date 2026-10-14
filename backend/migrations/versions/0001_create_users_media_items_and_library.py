@@ -2,7 +2,7 @@
 
 Revision ID: 0001
 Revises: 
-Create Date: 2026-10-14 18:24:26.483245
+Create Date: 2026-10-14 19:09:45.987157
 """
 from alembic import op
 import sqlalchemy as sa
@@ -26,7 +26,6 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_media_items_external_api_id'), 'media_items', ['external_api_id'], unique=False)
-    op.create_index(op.f('ix_media_items_id'), 'media_items', ['id'], unique=False)
     op.create_index(op.f('ix_media_items_title'), 'media_items', ['title'], unique=False)
     op.create_table('users',
     sa.Column('id', sa.Integer(), nullable=False),
@@ -37,7 +36,6 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_users_email'), 'users', ['email'], unique=True)
-    op.create_index(op.f('ix_users_id'), 'users', ['id'], unique=False)
     op.create_index(op.f('ix_users_username'), 'users', ['username'], unique=True)
     op.create_table('user_libraries',
     sa.Column('id', sa.Integer(), nullable=False),
@@ -52,18 +50,14 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('user_id', 'media_item_id', name='uq_user_media_entry')
     )
-    op.create_index(op.f('ix_user_libraries_id'), 'user_libraries', ['id'], unique=False)
 
 
 def downgrade() -> None:
-    op.drop_index(op.f('ix_user_libraries_id'), table_name='user_libraries')
     op.drop_table('user_libraries')
     op.drop_index(op.f('ix_users_username'), table_name='users')
-    op.drop_index(op.f('ix_users_id'), table_name='users')
     op.drop_index(op.f('ix_users_email'), table_name='users')
     op.drop_table('users')
     op.drop_index(op.f('ix_media_items_title'), table_name='media_items')
-    op.drop_index(op.f('ix_media_items_id'), table_name='media_items')
     op.drop_index(op.f('ix_media_items_external_api_id'), table_name='media_items')
     op.drop_table('media_items')
 
