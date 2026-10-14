@@ -1,157 +1,215 @@
-# DFD — Seviye 0 ve Seviye 1: OmniLog API Entegrasyon Bağlamı
+# DFD Level 0 and Level 1: OmniLog
 
-Bu belge, OmniLog'un API entegrasyon katmanını iki ayrıntı seviyesinde açıklar:
+This document shows the whole OmniLog system at two levels of detail.
 
-- **Seviye 0:** Sistemin dış aktörler ve harici servislerle olan genel veri alışverişi
-- **Seviye 1:** Katalog sorgulama, önbellek kontrolü, harici API çağrısı, normalizasyon ve senkronizasyon süreçlerinin ayrıştırılmış görünümü
+- **Level 0** is the context diagram. It shows the system as one process and its data exchange with the outside world.
+- **Level 1** splits the system into six main processes. Each process matches one epic.
 
-Belge, özellikle Epic 3 kapsamındaki IGDB, TMDB ve Redis entegrasyonlarıyla uyumludur.
+Each Level 1 process is explained in more detail (Level 2) in its own document:
 
-## 1. Seviye 0 — Bağlam diyagramı
+| Process | Epic | Level 2 document |
+|---|---|---|
+| 2.0 User and Journal Management | 2 | [dfd-epic2-journal.md](dfd-epic2-journal.md) |
+| 3.0 Catalog Aggregation | 3 | [dfd-epic3-catalog.md](dfd-epic3-catalog.md) |
+| 4.0 Episodic and Decision Logging | 4 | [dfd-epic4-episodic.md](dfd-epic4-episodic.md) |
+| 5.0 AI Engine | 5 | [dfd-epic5-ai.md](dfd-epic5-ai.md) |
+| 6.0 Analytics | 6 | [dfd-epic6-analytics.md](dfd-epic6-analytics.md) |
 
-### Dış varlıklar
+Process 1.0 (API gateway and access control) belongs to Epic 1. It is small and is explained in this document only.
 
-- **Frontend / Client:** Katalog arama ve medya detay isteklerini gönderir.
-- **Admin UI:** Manuel senkronizasyon veya yeniden indeksleme işlemlerini başlatır.
-- **IGDB API:** Oyun metadata'sı sağlayan harici kaynak.
-- **TMDB API:** Film ve dizi metadata'sı sağlayan harici kaynak.
-- **Auth Provider / Secret Manager:** Harici servis anahtarlarının güvenli yönetimini sağlar.
+## 1. Level 0: context diagram
 
-### Ana sistem
+### External entities
 
-- **OmniLog API Integration:** İstekleri karşılar, cache ve veritabanını kontrol eder, gerektiğinde harici servislerden veri alır, veriyi normalize eder ve sonucu istemciye sunar.
-
-### Seviye 0 veri akışı
+| Entity | Description |
+|---|---|
+| Visitor | A person who is not logged in. Can register and log in |
+| User | A logged-in person who tracks media |
+| Operator | A team member who runs the system and starts manual syncs (the Admin UI) |
+| IGDB API | Outside source of game data |
+| TMDB API | Outside source of movie and series data |
+| Embedding and LLM Provider | Outside service for embeddings and language models (OpenAI or Hugging Face) |
+| Secret Manager | Keeps API keys and tokens safe |
 
 ```mermaid
 flowchart LR
-    Client[Frontend / Client]
-    Admin[Admin UI]
-    API[OmniLog API Integration]
+    Visitor[Visitor]
+    User[User]
+    Operator[Operator]
     IGDB[IGDB API]
     TMDB[TMDB API]
-    Secrets[Auth Provider / Secret Manager]
+    AI[Embedding and LLM Provider]
+    Secrets[Secret Manager]
+    System((OmniLog Platform))
 
-    Client -->|catalog request| API
-    Admin -->|manual sync request| API
-    API -->|game metadata request| IGDB
-    API -->|movie/series metadata request| TMDB
-    Secrets -->|API keys and tokens| API
-    API -->|normalized catalog response| Client
-    API -->|sync status| Admin
+    Visitor -->|"registration and login data"| System
+    System -->|"account confirmation and access token"| Visitor
+    User -->|"library, journal, rating, review and stats requests"| System
+    System -->|"library, catalog, diary, recommendations and statistics"| User
+    Operator -->|"health check and manual sync request"| System
+    System -->|"health status and sync status"| Operator
+    System -->|"game search and detail requests"| IGDB
+    IGDB -->|"game metadata"| System
+    System -->|"movie and series search and detail requests"| TMDB
+    TMDB -->|"movie and series metadata"| System
+    System -->|"text for embedding and review text"| AI
+    AI -->|"vectors and spoiler scores"| System
+    Secrets -->|"API keys and tokens"| System
 ```
 
-## 2. Seviye 1 — API entegrasyon süreçleri
+## 2. Level 1: main processes
 
-Seviye 1'de ana sistem aşağıdaki süreçlere ayrılır:
+### Processes
 
-1. **Request Router:** İstek kaynağını, medya türünü ve dış kaynak bilgisini belirler.
-2. **Cache Read / Cache Write:** Redis üzerinde hızlı okuma ve TTL kontrollü yazma yapar.
-3. **Persistent DB Check:** Kalıcı veritabanında mevcut veya güncel katalog kaydını arar.
-4. **Fetch From External:** IGDB veya TMDB API'sine güvenli çağrı yapar.
-5. **Normalize & Transform:** Kaynaklara özgü yanıtları ortak OmniLog katalog formatına dönüştürür.
-6. **Catalog Persistence:** Normalize edilen kaydı kalıcı veritabanına ekler veya günceller.
-7. **Scheduled Sync:** Toplu ve periyodik senkronizasyon görevlerini yürütür.
-8. **Error Handling & Retry:** Rate limit, timeout ve geçici harici servis hatalarını yönetir.
-9. **Sync Job Log:** Senkronizasyon ve entegrasyon sonuçlarını gözlemlenebilir hale getirir.
+| ID | Process | Epic | Stories | Short description |
+|---|---|---|---|---|
+| 1.0 | API Gateway and Access Control | 1 | US-01, NFR-02 | Receives every request, checks the token, answers the health check, and sends the request to the right process |
+| 2.0 | User and Journal Management | 2 | US-02 to US-07, NFR-03 | Accounts, login, library, custom lists and activity diary |
+| 3.0 | Catalog Aggregation | 3 | US-08, US-09, NFR-01, NFR-04 | Search and details of titles. Fetches, normalizes, caches and stores outside data |
+| 4.0 | Episodic and Decision Logging | 4 | US-10 to US-12 | Chapter ratings, playtime and branching decisions |
+| 5.0 | AI Engine | 5 | US-13, US-14 | Embeddings, recommendations, reviews and spoiler detection |
+| 6.0 | Analytics | 6 | US-15 | Personal statistics |
 
-### Seviye 1 veri akışı
+### Data stores
+
+All stores live in one PostgreSQL database, except the cache. The split below is logical. The tables are listed in [../data/er-diagram.md](../data/er-diagram.md).
+
+| ID | Data store | Main tables or keys |
+|---|---|---|
+| D1 | Users | `users` |
+| D2 | Library | `user_libraries` |
+| D3 | Lists | `custom_lists`, `custom_list_items` |
+| D4 | Activity Log | `activity_events` |
+| D5 | Catalog (Persistent DB) | `media_items`, `genres`, `media_item_genres`, `seasons`, `chapters`, `decision_points`, `decision_options`, `external_sources` |
+| D6 | Episodic Log | `chapter_progress`, `playtime_logs`, `user_decisions` |
+| D7 | Reviews | `reviews` |
+| D8 | Vector Store | `media_embeddings`, `user_taste_vectors` |
+| D9 | Redis Cache | Keys that start with `omni:` |
+| D10 | Sync Job Log | `sync_job_logs` |
 
 ```mermaid
 flowchart TB
-    Client[Frontend / Client]
-    Admin[Admin UI]
-    Router[1. Request Router]
-    Cache[(Redis Cache)]
-    DB[(Persistent DB)]
-    Fetch[4. Fetch From External]
-    Normalize[5. Normalize & Transform]
-    Persist[6. Catalog Persistence]
-    Sync[7. Scheduled Sync]
-    Retry[8. Error Handling & Retry]
-    Log[(Sync Job Log)]
+    Visitor[Visitor]
+    User[User]
+    Operator[Operator]
     IGDB[IGDB API]
     TMDB[TMDB API]
-    Secrets[Auth Provider / Secret Manager]
+    AI[Embedding and LLM Provider]
+    Secrets[Secret Manager]
 
-    Client -->|GET catalog / search| Router
-    Admin -->|manual sync| Sync
-    Router -->|cache lookup| Cache
-    Cache -->|hit: cached response| Router
-    Router -->|miss or stale| DB
-    DB -->|fresh record| Router
-    DB -->|missing or stale record| Fetch
-    Sync -->|bulk fetch request| Fetch
-    Secrets -->|credentials| Fetch
-    Fetch -->|game request| IGDB
-    Fetch -->|movie/series request| TMDB
-    IGDB -->|raw payload| Normalize
-    TMDB -->|raw payload| Normalize
-    Fetch -->|timeout / 429 / 5xx| Retry
-    Retry -->|retry or failure result| Fetch
-    Retry -->|error details| Log
-    Normalize -->|canonical media record| Persist
-    Persist -->|upsert| DB
-    Persist -->|TTL cache entry| Cache
-    Persist -->|success result| Router
-    Router -->|catalog response| Client
-    Sync -->|job status| Log
+    P1("1.0 API Gateway and Access Control")
+    P2("2.0 User and Journal Management")
+    P3("3.0 Catalog Aggregation")
+    P4("4.0 Episodic and Decision Logging")
+    P5("5.0 AI Engine")
+    P6("6.0 Analytics")
+
+    D1[("D1 Users")]
+    D2[("D2 Library")]
+    D3[("D3 Lists")]
+    D4[("D4 Activity Log")]
+    D5[("D5 Catalog")]
+    D6[("D6 Episodic Log")]
+    D7[("D7 Reviews")]
+    D8[("D8 Vector Store")]
+    D9[("D9 Redis Cache")]
+    D10[("D10 Sync Job Log")]
+
+    Visitor -->|"HTTP requests"| P1
+    User -->|"HTTP requests with token"| P1
+    Operator -->|"health and sync requests"| P1
+    P1 -->|"responses"| Visitor
+    P1 -->|"responses"| User
+    P1 -->|"health and sync status"| Operator
+
+    P1 -->|"auth, library, list and diary requests"| P2
+    P1 -->|"catalog and sync requests"| P3
+    P1 -->|"chapter requests"| P4
+    P1 -->|"recommendation and review requests"| P5
+    P1 -->|"statistics requests"| P6
+
+    P2 <-->|"accounts"| D1
+    P2 <-->|"library entries"| D2
+    P2 <-->|"lists and items"| D3
+    P2 -->|"diary events"| D4
+    P2 -->|"title lookup"| P3
+
+    Secrets -->|"API keys"| P3
+    P3 <-->|"game requests and metadata"| IGDB
+    P3 <-->|"movie and series requests and metadata"| TMDB
+    P3 <-->|"catalog records"| D5
+    P3 <-->|"cached records and search results"| D9
+    P3 -->|"job results"| D10
+    P3 -->|"new or changed titles"| P5
+
+    P4 -->|"chapter and decision point lookup"| D5
+    P4 -->|"ownership check"| D2
+    P4 <-->|"ratings, playtime and decisions"| D6
+    P4 -->|"diary events"| D4
+
+    P5 -->|"title data"| D5
+    P5 -->|"library data"| D2
+    P5 <-->|"vectors"| D8
+    P5 <-->|"reviews"| D7
+    P5 <-->|"recommendation cache"| D9
+    P5 -->|"diary events"| D4
+    P5 <-->|"text and vectors or scores"| AI
+
+    P6 -->|"library data"| D2
+    P6 -->|"titles and genres"| D5
+    P6 -->|"playtime data"| D6
+    P6 <-->|"statistics cache"| D9
 ```
 
-## 3. Temel akışlar
+### Main data flows between processes
 
-### 3.1 Cache hit
+| Flow | From | To | Content |
+|---|---|---|---|
+| F-01 | 1.0 | 2.0, 3.0, 4.0, 5.0, 6.0 | The request and the id of the logged-in user |
+| F-02 | 2.0 | 3.0 | Check that a title exists before it is added to a library or list |
+| F-03 | 3.0 | 5.0 | A new or changed title that needs an embedding |
+| F-04 | 2.0, 4.0, 5.0 | D4 | A diary event for each user action |
+| F-05 | 2.0, 4.0 | D9 | Delete the cached statistics of the user after a change |
 
-1. Client katalog isteği gönderir.
-2. Request Router, Redis anahtarını kontrol eder.
-3. Geçerli cache kaydı bulunursa veri doğrudan istemciye döndürülür.
-4. Harici API çağrısı yapılmaz.
+## 3. Process 1.0: API Gateway and Access Control
 
-Önerilen anahtar biçimi:
+| Step | Description |
+|---|---|
+| 1 | Receive the HTTP request. |
+| 2 | If the path is `/health`, answer `{"status": "healthy"}` with status 200 (US-01). |
+| 3 | If the path starts with `/auth`, send the request to 2.0 without a token check. |
+| 4 | For all other protected paths, read the bearer token and check its signature and expiry. |
+| 5 | If the token is missing or not valid, answer 401 (NFR-02). |
+| 6 | If the token is valid, add the user id to the request and send it to the right process. |
+| 7 | Convert errors into clear HTTP answers. An outside failure must give cached data or 503, never an unhandled 500 (NFR-04). |
 
-```text
-omni:catalog:{source}:{external_id}
-```
+Protected paths are `/library`, `/lists`, `/diary`, `/stats`, `/recommendations` and the chapter paths. Catalog paths also need a token. Admin paths need a token of a user with `is_admin` set.
 
-### 3.2 Cache miss veya stale kayıt
+## 4. Data store rules
 
-1. Redis'te kayıt bulunamaz veya TTL sona ermiş olur.
-2. Persistent DB kontrol edilir.
-3. Veritabanında güncel kayıt varsa istemciye sunulur ve cache yenilenebilir.
-4. Kayıt yoksa veya stale ise IGDB/TMDB çağrısı başlatılır.
-5. Yanıt normalize edilir, DB'ye yazılır ve Redis'e TTL ile eklenir.
-6. Normalize edilmiş sonuç istemciye döndürülür.
-
-### 3.3 Manuel veya zamanlanmış senkronizasyon
-
-1. Admin UI manuel sync isteği gönderir veya Scheduler görevi başlatır.
-2. Kaynak ve medya türüne göre toplu fetch işlemi planlanır.
-3. Her dış API çağrısı için sonuç, hata ve süre bilgisi tutulur.
-4. Başarılı kayıtlar normalize edilerek DB ve Redis'e yazılır.
-5. İş özeti `sync_job_log` kaydına eklenir.
-
-### 3.4 Rate limit ve hata yönetimi
-
-- HTTP 429 durumunda exponential backoff uygulanır.
-- Geçici timeout ve 5xx hataları sınırlı sayıda yeniden denenir.
-- Maksimum deneme sayısı aşıldığında hata loglanır ve istemciye kontrollü bir hata yanıtı verilir.
-- Harici servis kullanılamıyorsa mevcut cache verisi varsa tercih edilir; yoksa uygun bir 503 yanıtı döndürülür.
-
-## 4. Veri depoları ve tutarlılık kuralları
-
-| Veri deposu | Sorumluluk | Tutarlılık kuralı |
+| Data store | Responsibility | Consistency rule |
 |---|---|---|
-| Redis Cache | Düşük gecikmeli katalog okuma | TTL dolduğunda kayıt stale kabul edilir |
-| Persistent DB | Kalıcı normalize katalog verisi | Aynı kaynak ve dış ID için tek kanonik kayıt tutulur |
-| Sync Job Log | Senkronizasyon ve hata geçmişi | Her iş için başlangıç, bitiş ve durum bilgisi tutulur |
-| Secret Manager / Env | API anahtarı ve token yönetimi | Gizli bilgiler kaynak koduna yazılmaz |
+| D1 Users | Accounts | Username and email are unique. Only password hashes are stored |
+| D2 Library | Personal state of each title | One entry for each user and title |
+| D3 Lists | Custom lists | One title appears once in a list |
+| D4 Activity Log | Diary | Events are only appended. Newest first when read |
+| D5 Catalog | Shared normalized catalog | One record for each (source, external id) |
+| D6 Episodic Log | Chapter data of users | One progress row for each library entry and chapter. The playtime total is the sum of the entries |
+| D7 Reviews | Reviews and spoiler flags | One review for each library entry |
+| D8 Vector Store | Embeddings | One vector for each title and model. Rebuilt when the source text changes |
+| D9 Redis Cache | Fast reads | A record is stale when its TTL has ended |
+| D10 Sync Job Log | Sync history | Every job has a start time, an end time and a status |
 
-## 5. İlgili belgeler
+Secrets are never stored in the database or in source code. They are read from environment variables or the Secret Manager.
 
-- `docs/analysis/behavior/dfd-epic3-catalog.md`
-- `docs/analysis/data/traceability-epic3.md`
-- `docs/analysis/requirement-analysis-report.md`
-- `docs/analysis/data/domain-model.md`
-- `docs/analysis/data/er-diagram.md`
+## 5. Related documents
 
-Bu belge, Epic 3 gereksinimlerinin DFD süreçleri, veri depoları ve entegrasyon sınırlarıyla izlenebilir biçimde eşleştirilmesi için üst seviye referans olarak kullanılır.
+- [dfd-epic2-journal.md](dfd-epic2-journal.md)
+- [dfd-epic3-catalog.md](dfd-epic3-catalog.md)
+- [dfd-epic4-episodic.md](dfd-epic4-episodic.md)
+- [dfd-epic5-ai.md](dfd-epic5-ai.md)
+- [dfd-epic6-analytics.md](dfd-epic6-analytics.md)
+- [../data/domain-model.md](../data/domain-model.md)
+- [../data/er-diagram.md](../data/er-diagram.md)
+- [../data/traceability.md](../data/traceability.md)
+- [../requirement-analysis-report.md](../requirement-analysis-report.md)
