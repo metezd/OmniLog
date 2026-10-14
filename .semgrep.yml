@@ -1,7 +1,6 @@
 rules:
   - id: python-subprocess-shell
-    languages:
-      - python
+    languages: [python]
     message: "Avoid shell=True in subprocess calls when possible; it can enable command injection."
     severity: WARNING
     patterns:
@@ -14,8 +13,7 @@ rules:
           - pattern: os.system(...)
 
   - id: python-requests-verify-false
-    languages:
-      - python
+    languages: [python]
     message: "Disabling TLS verification can expose traffic to interception and tampering."
     severity: WARNING
     patterns:
@@ -28,8 +26,7 @@ rules:
           - pattern: requests.request(..., verify=False, ...)
 
   - id: python-pickle-load
-    languages:
-      - python
+    languages: [python]
     message: "Loading untrusted data with pickle can lead to arbitrary code execution."
     severity: WARNING
     patterns:
@@ -38,18 +35,14 @@ rules:
           - pattern: pickle.loads(...)
 
   - id: javascript-eval
-    languages:
-      - javascript
-      - typescript
+    languages: [javascript, typescript]
     message: "Avoid eval() because it can execute arbitrary code."
     severity: WARNING
     pattern: eval(...)
 
   - id: javascript-dangerously-set-inner-html
-    languages:
-      - javascript
-      - typescript
-    message: "Using dangerouslySetInnerHTML can introduce XSS risks. Sanitize the content first."
+    languages: [javascript, typescript]
+    message: "Using dangerouslySetInnerHTML can introduce XSS risks."
     severity: WARNING
     patterns:
       - pattern: dangerouslySetInnerHTML={...}

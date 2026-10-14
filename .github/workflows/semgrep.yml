@@ -1,20 +1,16 @@
-name: Semgrep Code Scanning
+name: Semgrep
 
 on:
   push:
     branches:
       - main
-
   pull_request:
     branches:
       - main
-
   workflow_dispatch:
 
 permissions:
   contents: read
-  actions: read
-  security-events: write
 
 jobs:
   semgrep:
@@ -45,15 +41,16 @@ jobs:
             --sarif \
             --output semgrep.sarif
 
-      - name: Upload Semgrep SARIF results
+      - name: Upload Semgrep SARIF as artifact
         if: always() && hashFiles('semgrep.sarif') != ''
-        uses: github/codeql-action/upload-sarif@v4
+        uses: actions/upload-artifact@v4
         with:
-          sarif_file: semgrep.sarif
-          category: semgrep
+          name: semgrep-results
+          path: semgrep.sarif
+          if-no-files-found: error
 
-      - name: Check Semgrep result
+      - name: Fail if Semgrep execution failed unexpectedly
         if: steps.semgrep.outcome == 'failure'
         run: |
-          echo "Semgrep found issues or failed to complete."
+          echo "Semgrep failed unexpectedly."
           exit 1
