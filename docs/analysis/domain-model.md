@@ -1,5 +1,7 @@
 # Domain Model
 
+> **Note:** this document describes the baseline that is already implemented. The full analysis model for all six epics is in [data/domain-model.md](data/domain-model.md).
+
 This document summarizes the current domain model for OmniLog as represented in the backend data model and aligned with the project requirements. The scope is intentionally limited to the entities that already exist in the codebase and the relationships needed to support media tracking and personal library management.
 
 ## Core entities
@@ -39,7 +41,7 @@ Important fields:
 - `media_type`: enum value (`GAME`, `SERIES`, `MOVIE`)
 - `poster_url`: optional URL to the cover art
 - `release_date`: optional release or first-air information
-- `external_api_id`: optional external reference from a third-party service such as RAWG or TMDB
+- `external_api_id`: optional external reference from a third-party service such as IGDB or TMDB
 
 Responsibilities:
 - Provides a canonical catalog item for each title
