@@ -12,14 +12,9 @@ import sys
 from pathlib import Path
 
 import pytest
-
-# Tests always run against the separate test database, never the development one.
-# This must be set before any `app` module is imported, because the engine is
-# created at import time.
-os.environ["DATABASE_URL"] = os.getenv(
-    "TEST_DATABASE_URL",
-    "postgresql+psycopg2://omnilog:omnilog@localhost:5432/omnilog_test",
-)
+from dotenv import load_dotenv
+from sqlalchemy import create_engine, text
+from sqlalchemy.engine import make_url
 
 from helpers import (
     add_to_library,
@@ -32,6 +27,44 @@ from helpers import (
 BACKEND_DIR = Path(__file__).resolve().parents[2] / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
+
+# Load backend/.env first so TEST_DATABASE_URL set there is respected.
+# Variables that are already set in the shell keep priority.
+load_dotenv(BACKEND_DIR / ".env")
+
+# Tests always run against the separate test database, never the development one.
+# This must be set before any `app` module is imported, because the engine is
+# created at import time.
+os.environ["DATABASE_URL"] = os.getenv(
+    "TEST_DATABASE_URL",
+    "postgresql+psycopg2://omnilog:omnilog@localhost:5432/omnilog_test",
+)
+# A fixed key for tests so they do not depend on a local .env file.
+os.environ.setdefault("SECRET_KEY", "test-only-secret-key-not-for-production-use")
+
+
+def _ensure_test_database_exists(url: str) -> None:
+    """Create the test database if it is missing.
+
+    The init script in docker-compose.yml only runs on the first start of an
+    empty volume, so an older volume would not have the test database.
+    """
+    target = make_url(url)
+    admin = create_engine(target.set(database="postgres"), isolation_level="AUTOCOMMIT")
+    try:
+        with admin.connect() as conn:
+            exists = conn.execute(
+                text("SELECT 1 FROM pg_database WHERE datname = :name"),
+                {"name": target.database},
+            ).scalar()
+            if not exists:
+                # Database names cannot be bound as parameters, so quote it safely
+                conn.execute(text(f'CREATE DATABASE "{target.database}"'))
+    finally:
+        admin.dispose()
+
+
+_ensure_test_database_exists(os.environ["DATABASE_URL"])
 
 
 @pytest.fixture(scope="session", autouse=True)

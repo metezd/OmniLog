@@ -18,10 +18,19 @@ def _require(name: str) -> str:
 # postgresql+psycopg2://omnilog:omnilog@localhost:5432/omnilog
 DATABASE_URL = _require("DATABASE_URL")
 
-# Secret used to sign JWT tokens (needed from Step 2 on)
-SECRET_KEY = os.getenv("SECRET_KEY", "change-me-in-production")
+# Secret used to sign JWT tokens. It has no default on purpose: a public
+# default value would let anyone forge tokens. Generate one with:
+#   python -c "import secrets; print(secrets.token_urlsafe(32))"
+SECRET_KEY = _require("SECRET_KEY")
+if len(SECRET_KEY) < 32:
+    raise RuntimeError("SECRET_KEY must be at least 32 characters long")
 
-# Comma separated list of allowed frontend origins for CORS
-CORS_ORIGINS = os.getenv(
-    "CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000"
-).split(",")
+# Comma separated list of allowed frontend origins for CORS.
+# Whitespace is trimmed and empty entries (e.g. a trailing comma) are ignored.
+CORS_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv(
+        "CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000"
+    ).split(",")
+    if origin.strip()
+]

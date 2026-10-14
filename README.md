@@ -130,6 +130,8 @@ Then set up the backend:
 ```bash
 cd backend
 cp .env.example .env
+# Set SECRET_KEY in .env (at least 32 characters). Generate one with:
+python -c "import secrets; print(secrets.token_urlsafe(32))"
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
@@ -139,7 +141,7 @@ uvicorn app.main:app --reload
 
 The API runs at `http://localhost:8000`. Interactive docs are at `http://localhost:8000/docs`.
 
-`DATABASE_URL` is required and must point to PostgreSQL. The settings are read from `backend/.env` (see `backend/.env.example`).
+`DATABASE_URL` and `SECRET_KEY` are required, and the app stops with a clear error if either is missing. `DATABASE_URL` must point to PostgreSQL and `SECRET_KEY` must be at least 32 characters. The settings are read from `backend/.env` (see `backend/.env.example`).
 
 To create a new migration after changing a model:
 
