@@ -3,16 +3,8 @@ name: Backend CI
 on:
   push:
     branches: [main]
-    paths:
-      - "backend/**"
-      - "tests/**"
-      - ".github/workflows/backend-ci.yml"
   pull_request:
-    branches: [main]
-    paths:
-      - "backend/**"
-      - "tests/**"
-      - ".github/workflows/backend-ci.yml"
+    branches: [main] # Sadece main'e açılan PR'larda çalışır
   workflow_dispatch:
 
 permissions:
@@ -26,9 +18,8 @@ jobs:
   test:
     name: pytest (Python 3.11)
     runs-on: ubuntu-latest
-    # Requirement tests are written to FAIL until the features are implemented.
-    # Set repository variable ENFORCE_BACKEND_TESTS=true (Settings > Variables)
-    # once the implementation starts, and this job becomes blocking.
+    # Eğer Settings > Variables kısmında ENFORCE_BACKEND_TESTS=true yapmazsanız, 
+    # testler fail olsa bile workflow 'yeşil' yanmaya devam eder.
     continue-on-error: ${{ vars.ENFORCE_BACKEND_TESTS != 'true' }}
 
     steps:
@@ -50,8 +41,6 @@ jobs:
           pip install -r backend/requirements.txt -r tests/requirements-test.txt
 
       - name: Run tests with coverage
-        # Run from repo root: conftest.py adds backend/ to sys.path.
-        # Threshold is 70% per NFR-05 in requirements-specification.md.
         run: >
           pytest tests/requirements -v
           --cov=backend/app
