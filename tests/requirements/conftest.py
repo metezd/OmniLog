@@ -12,10 +12,12 @@ import sys
 from pathlib import Path
 
 import pytest
+from dotenv import load_dotenv
 
 # Tests always run against the separate test database, never the development one.
 # This must be set before any `app` module is imported, because the engine is
 # created at import time.
+load_dotenv(Path(__file__).resolve().parents[2] / "backend" / ".env")
 os.environ["DATABASE_URL"] = os.getenv(
     "TEST_DATABASE_URL",
     "postgresql+psycopg2://omnilog:omnilog@localhost:5432/omnilog_test",
