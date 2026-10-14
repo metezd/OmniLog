@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main] # Sadece main'e açılan PR'larda çalışır
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -18,8 +18,6 @@ jobs:
   test:
     name: pytest (Python 3.11)
     runs-on: ubuntu-latest
-    # Eğer Settings > Variables kısmında ENFORCE_BACKEND_TESTS=true yapmazsanız, 
-    # testler fail olsa bile workflow 'yeşil' yanmaya devam eder.
     continue-on-error: ${{ vars.ENFORCE_BACKEND_TESTS != 'true' }}
 
     steps:
