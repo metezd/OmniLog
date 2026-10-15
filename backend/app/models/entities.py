@@ -121,10 +121,6 @@ class CustomList(Base):
     name = Column(String(200), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
-    __table_args__ = (
-        UniqueConstraint("user_id", "name", name="uq_user_list_name"),
-    )
-
     # Relationships
     user = relationship("User", back_populates="custom_lists")
     items = relationship(
@@ -162,13 +158,11 @@ class DiaryEntry(Base):
     user_id = Column(
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    # Empty for events that are not about one title, such as LIST_CREATED
     media_item_id = Column(
-        Integer, ForeignKey("media_items.id", ondelete="CASCADE"), nullable=True
+        Integer, ForeignKey("media_items.id", ondelete="CASCADE"), nullable=False
     )
-    # One of the DiaryAction values in app/services/diary_service.py
-    action = Column(String(50), nullable=False)
-    details = Column(String(255), nullable=True)  # e.g. "Rated 9"
+    action = Column(String(50), nullable=False)  # örn: "ADDED", "RATED", "STATUS_UPDATED"
+    details = Column(String(255), nullable=True)  # örn: "Rating: 9"
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     # Relationships
