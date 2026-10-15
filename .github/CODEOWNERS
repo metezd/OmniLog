@@ -1,0 +1,5 @@
+README.md @metezd
+docs/ @metezd
+.editorconfig .gitattributes .semgrep.yml env.example docker-compose.yml @metezd
+backend/ @metezd
+.github/ @metezd
