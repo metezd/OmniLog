@@ -10,6 +10,13 @@ from app.schemas.library import (
     UserLibraryUpdate,
     UserLibraryResponse,
 )
+from app.schemas.journal import (
+    CustomListCreate,
+    CustomListItemCreate,
+    CustomListItemResponse,
+    CustomListResponse,
+    DiaryEntryResponse,
+)
 
 __all__ = [
     "UserCreate",
@@ -21,4 +28,9 @@ __all__ = [
     "UserLibraryCreate",
     "UserLibraryUpdate",
     "UserLibraryResponse",
+    "CustomListCreate",
+    "CustomListItemCreate",
+    "CustomListItemResponse",
+    "CustomListResponse",
+    "DiaryEntryResponse",
 ]
