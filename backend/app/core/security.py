@@ -13,6 +13,10 @@ from app.core.config import ACCESS_TOKEN_EXPIRE_MINUTES, SECRET_KEY
 
 JWT_ALGORITHM = "HS256"
 
+# bcrypt only uses the first 72 bytes of a password and silently ignores the rest.
+# Registration rejects longer passwords, so a longer login password can never match.
+BCRYPT_MAX_BYTES = 72
+
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 

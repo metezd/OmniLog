@@ -2,6 +2,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
+from app.core.security import BCRYPT_MAX_BYTES
 from app.core.usernames import canonical_username
 
 
@@ -34,16 +35,15 @@ class UserCreate(BaseModel):
     @classmethod
     def password_is_valid(cls, value: str) -> str:
         _reject_nul(value)
-        # bcrypt only looks at the first 72 bytes and rejects longer input
-        if len(value.encode("utf-8")) > 72:
-            raise ValueError("password must be at most 72 bytes long")
+        if len(value.encode("utf-8")) > BCRYPT_MAX_BYTES:
+            raise ValueError(f"password must be at most {BCRYPT_MAX_BYTES} bytes long")
         return value
 
 
 class UserLogin(BaseModel):
     username: str = Field(min_length=1, max_length=50)
-    # No NUL check on the password: a password with NUL can never match, so the
-    # service answers 401 instead of a validation error
+    # No byte-length or NUL check on the password: a password that can never match
+    # (NUL bytes, or longer than bcrypt's limit) gets 401 from the service layer
     password: str = Field(min_length=1, max_length=128)
 
     @field_validator("username", mode="before")

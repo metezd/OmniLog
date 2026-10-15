@@ -5,7 +5,7 @@ from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.core.security import DUMMY_HASH, hash_password, verify_password
+from app.core.security import BCRYPT_MAX_BYTES, DUMMY_HASH, hash_password, verify_password
 from app.models.entities import User
 from app.schemas.user import UserCreate
 
@@ -44,8 +44,9 @@ def register_user(db: Session, data: UserCreate) -> User:
 
 def authenticate_user(db: Session, username: str, password: str) -> Optional[User]:
     """Return the user when the credentials are correct, otherwise None."""
-    if "\x00" in password:
-        # bcrypt cannot process NUL bytes, and no registered password contains one
+    if "\x00" in password or len(password.encode("utf-8")) > BCRYPT_MAX_BYTES:
+        # bcrypt rejects NUL bytes and truncates longer input, so such a password is
+        # never sent to bcrypt. No registered password can match it, so the answer is 401.
         return None
 
     user = db.query(User).filter(User.username == username).first()

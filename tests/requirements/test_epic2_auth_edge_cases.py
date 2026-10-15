@@ -172,3 +172,35 @@ def test_us02_username_over_50_characters_after_normalization_rejected(client):
     response = client.post("/auth/register", json=creds)
 
     assert response.status_code == 422
+
+
+# ---------------------------------------------------------------- bcrypt truncation
+def test_us03_overlong_login_password_cannot_match_by_truncation(client):
+    """US-03: bcrypt ignores bytes after 72, so "a"*72 + "extra" must not log in as "a"*72."""
+    creds = dict(new_credentials(), password="a" * 72)
+    assert client.post("/auth/register", json=creds).status_code == 201
+
+    response = client.post(
+        "/auth/login",
+        json={"username": creds["username"], "password": "a" * 72 + "extra"},
+    )
+
+    assert response.status_code == 401
+    assert "access_token" not in response.json()
+
+
+def test_us03_exact_72_byte_password_still_logs_in(client):
+    """US-03: a password of exactly 72 bytes registers and logs in normally."""
+    creds = dict(new_credentials(), password="a" * 72)
+    assert client.post("/auth/register", json=creds).status_code == 201
+
+    response = client.post("/auth/login", json={"username": creds["username"], "password": creds["password"]})
+
+    assert response.status_code == 200
+
+
+def test_us03_overlong_password_for_unknown_user_returns_401(client):
+    """US-03: an overlong password for a missing user returns 401, not 500."""
+    response = client.post("/auth/login", json={"username": "no_such_user_xyz", "password": "b" * 100})
+
+    assert response.status_code == 401

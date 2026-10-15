@@ -113,7 +113,7 @@ Each step builds on the one before. A step is done when its tests pass.
 
 ## Project status
 
-The project is in the analysis phase. Requirements, tests and analysis documents are ready. Roadmap step 1 (infrastructure) is in place: Docker Compose services, settings, migrations and a PostgreSQL test database. Only the health endpoint is implemented. The requirement-level tests are written first, so most of them fail on purpose until the features are built.
+The project is in the analysis phase. Requirements, tests and analysis documents are ready. Roadmap step 1 (infrastructure) and step 2 (authentication) are in place: Docker Compose services, settings, migrations, a PostgreSQL test database, registration (`POST /auth/register`) and login with JWT (`POST /auth/login`). Library, lists, catalog and the other endpoints are not implemented yet. The requirement-level tests are written first, so most of them fail on purpose until the features are built.
 
 ## Getting started
 
@@ -141,7 +141,7 @@ uvicorn app.main:app --reload
 
 The API runs at `http://localhost:8000`. Interactive docs are at `http://localhost:8000/docs`.
 
-`DATABASE_URL` and `SECRET_KEY` are required, and the app stops with a clear error if either is missing. `DATABASE_URL` must point to PostgreSQL and `SECRET_KEY` must be at least 32 characters. The settings are read from `backend/.env` (see `backend/.env.example`).
+`DATABASE_URL` and `SECRET_KEY` are required, and the app stops with a clear error if either is missing. `DATABASE_URL` must point to PostgreSQL and `SECRET_KEY` must be at least 32 characters. `ACCESS_TOKEN_EXPIRE_MINUTES` is optional and defaults to 60. It sets how long a login token stays valid. The settings are read from `backend/.env` (see `backend/.env.example`).
 
 To create a new migration after changing a model:
 
