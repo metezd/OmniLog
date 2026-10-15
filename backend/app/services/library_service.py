@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.models.entities import MediaItem, User, UserLibrary
 from app.schemas.library import UserLibraryCreate, UserLibraryUpdate
+from app.services.diary_service import DiaryAction, record_event
 
 
 class MediaNotFoundError(Exception):
@@ -19,7 +20,7 @@ class LibraryConflictError(Exception):
 class LibraryEntryNotFoundError(Exception):
     """The entry does not exist or belongs to another user.
 
-    Both cases raise the same error so one user cannot discover another user's entries.
+    Both cases raise the same error, so one user cannot tell whether another user's entry exists.
     """
 
 
@@ -35,18 +36,28 @@ def add_entry(db: Session, user: User, data: UserLibraryCreate) -> UserLibrary:
     )
     db.add(entry)
     try:
-        db.commit()
+        db.flush()  # sends the INSERT now, so a duplicate is caught before the events are written
     except IntegrityError:
-        # The unique constraint (user, media item) caught a duplicate
         db.rollback()
-        raise LibraryConflictError("This title is already in your library")
+        raise LibraryConflictError("Media item already in library")
+
+    record_event(
+        db, user.id, DiaryAction.LIBRARY_ADDED, data.media_item_id,
+        f"Added with status {data.status.value}",
+    )
+    if data.rating is not None:
+        record_event(
+            db, user.id, DiaryAction.RATED, data.media_item_id,
+            f"Rated {data.rating:g}",
+        )
+
+    db.commit()
     db.refresh(entry)
     return entry
 
 
 def list_entries(db: Session, user: User) -> List[UserLibrary]:
-    # joinedload fetches the media details in the same query. Without it, building the
-    # response would run one extra query per entry (N+1).
+    # Load the media item in the same query. Without this, the response runs one query per entry.
     return (
         db.query(UserLibrary)
         .options(joinedload(UserLibrary.media_item))
@@ -65,9 +76,21 @@ def update_entry(db: Session, user: User, entry_id: int, data: UserLibraryUpdate
     if entry is None:
         raise LibraryEntryNotFoundError("Library entry not found")
 
-    # Only apply the fields the client actually sent
-    for field, value in data.model_dump(exclude_unset=True).items():
-        setattr(entry, field, value)
+    # Only fields the client sent are considered. Events are written only for real changes.
+    changes = data.model_dump(exclude_unset=True)
+
+    if "status" in changes and changes["status"] != entry.status:
+        entry.status = changes["status"]
+        record_event(
+            db, user.id, DiaryAction.STATUS_CHANGED, entry.media_item_id,
+            f"Status changed to {entry.status.value}",
+        )
+
+    if "rating" in changes and changes["rating"] != entry.rating:
+        entry.rating = changes["rating"]
+        text = "Rating removed" if entry.rating is None else f"Rated {entry.rating:g}"
+        record_event(db, user.id, DiaryAction.RATED, entry.media_item_id, text)
+
     db.commit()
     db.refresh(entry)
     return entry
