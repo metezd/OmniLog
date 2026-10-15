@@ -2,6 +2,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.auth import router as auth_router
+from app.core.errors import register_exception_handlers
+from app.api.library import router as library_router
+from app.api.media import router as media_router
 from app.core.config import CORS_ORIGINS
 
 app = FastAPI(
@@ -19,7 +22,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+register_exception_handlers(app)
+
 app.include_router(auth_router)
+app.include_router(media_router)
+app.include_router(library_router)
 
 
 @app.get("/")

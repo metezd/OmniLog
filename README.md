@@ -113,7 +113,7 @@ Each step builds on the one before. A step is done when its tests pass.
 
 ## Project status
 
-The project is in the analysis phase. Requirements, tests and analysis documents are ready. Roadmap step 1 (infrastructure) and step 2 (authentication) are in place: Docker Compose services, settings, migrations, a PostgreSQL test database, registration (`POST /auth/register`) and login with JWT (`POST /auth/login`). Library, lists, catalog and the other endpoints are not implemented yet. The requirement-level tests are written first, so most of them fail on purpose until the features are built.
+The project is in the analysis phase. Requirements, tests and analysis documents are ready. Roadmap steps 1 to 3 are in place: Docker Compose services, settings, migrations, a PostgreSQL test database, registration and login with JWT (`POST /auth/register`, `POST /auth/login`), catalog entries (`POST /media`) and the library (`GET /library`, `POST /library`, `PATCH /library/{id}`). Lists, diary, external catalog search, statistics and recommendations are not implemented yet. The requirement-level tests are written first, so most of them fail on purpose until the features are built.
 
 ## Getting started
 
