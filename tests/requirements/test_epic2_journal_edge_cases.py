@@ -3,7 +3,7 @@
 Covers the rules in docs/analysis/behavior/dfd-epic2-journal.md: unique list names, one title per
 list, ownership, and an append-only diary that records only real changes.
 """
-from helpers import add_to_library, new_credentials, register_and_login
+from helpers import HiddenPreCheck, add_to_library, new_credentials, register_and_login
 
 
 def _create_list(client, headers, name="My list"):
@@ -258,33 +258,6 @@ def test_diary_requires_authentication(client):
 # Two requests can both pass the "already exists?" check before either one writes.
 # The database unique constraint is then the last line of defence. These tests hide the
 # pre-check from the service, so the INSERT really hits the constraint, as in a race.
-class _HiddenPreCheck:
-    """Wraps a session so the n-th call to query(...).first() returns None."""
-
-    def __init__(self, session, hide_call: int):
-        self._session = session
-        self._hide_call = hide_call
-        self._calls = 0
-
-    def query(self, *args, **kwargs):
-        self._calls += 1
-        query = self._session.query(*args, **kwargs)
-        if self._calls != self._hide_call:
-            return query
-
-        class _NoMatch:
-            def filter(self, *a, **k):
-                return self
-
-            def first(self):
-                return None
-
-        return _NoMatch()
-
-    def __getattr__(self, name):
-        return getattr(self._session, name)
-
-
 def _db_user(db, client, headers, media_id):
     """Return the ORM user behind the given auth headers."""
     from app.models.entities import User
@@ -304,7 +277,7 @@ def test_duplicate_list_name_race_is_caught_by_the_constraint(client, auth_heade
     try:
         user = _db_user(db, client, auth_headers, media_item["id"])
         with pytest.raises(journal_service.DuplicateListNameError):
-            journal_service.create_list(_HiddenPreCheck(db, hide_call=1), user, "Race")
+            journal_service.create_list(HiddenPreCheck(db, hide_call=1), user, "Race")
     finally:
         db.close()
 
@@ -328,7 +301,7 @@ def test_duplicate_list_item_race_returns_existing_item(client, auth_headers, me
         user = _db_user(db, client, auth_headers, media_item["id"])
         # call 1 = load the list, call 2 = "is the title already in the list?" (hidden)
         item, created = journal_service.add_item(
-            _HiddenPreCheck(db, hide_call=2), user, lst["id"], media_item["id"]
+            HiddenPreCheck(db, hide_call=2), user, lst["id"], media_item["id"]
         )
     finally:
         db.close()
