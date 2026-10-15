@@ -3,10 +3,10 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.auth import router as auth_router
 from app.api.journal import router as journal_router
-from app.core.errors import register_exception_handlers
 from app.api.library import router as library_router
 from app.api.media import router as media_router
 from app.core.config import CORS_ORIGINS
+from app.core.errors import register_exception_handlers
 
 app = FastAPI(
     title="OmniLog API",
