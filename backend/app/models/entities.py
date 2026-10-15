@@ -23,7 +23,7 @@ class MediaType(str, enum.Enum):
 
 
 class WatchStatus(str, enum.Enum):
-    PLAN_TO_WATCH = "PLAN_TO_WATCH"  # Planing to watch/play
+    PLAN_TO_WATCH = "PLAN_TO_WATCH"  # Planning to watch/play
     IN_PROGRESS = "IN_PROGRESS"  # Currently playing/watching
     COMPLETED = "COMPLETED"  # Finished
     DROPPED = "DROPPED"  # Dropped / Didn't finish
@@ -44,6 +44,16 @@ class User(Base):
         "UserLibrary", back_populates="user", cascade="all, delete-orphan"
     )
 
+    # Relationship: Custom lists created by the user (US-06)
+    custom_lists = relationship(
+        "CustomList", back_populates="user", cascade="all, delete-orphan"
+    )
+
+    # Relationship: User's activity diary events (US-07)
+    diary_entries = relationship(
+        "DiaryEntry", back_populates="user", cascade="all, delete-orphan"
+    )
+
 
 # 2. MEDIA ITEM TABLE (Games and TV Series)
 class MediaItem(Base):
@@ -60,6 +70,9 @@ class MediaItem(Base):
 
     # Relationship: One media item can be in many users' libraries
     library_entries = relationship("UserLibrary", back_populates="media_item")
+
+    # Relationship: Referenced in custom list items
+    list_items = relationship("CustomListItem", back_populates="media_item")
 
 
 # 3. USER LIBRARY TABLE (Watchlist / Association Table)
@@ -86,9 +99,7 @@ class UserLibrary(Base):
     user = relationship("User", back_populates="library_entries")
     media_item = relationship("MediaItem", back_populates="library_entries")
 
-    # Constraints:
-    # 1. Prevent duplicate entries for the same user and media item
-    # 2. Restrict rating value between 1 and 10
+    # Constraints
     __table_args__ = (
         UniqueConstraint(
             "user_id", "media_item_id", name="uq_user_media_entry"
@@ -97,3 +108,63 @@ class UserLibrary(Base):
             "rating >= 1 AND rating <= 10", name="chk_rating_range"
         ),
     )
+
+
+# 4. CUSTOM LIST TABLE (US-06)
+class CustomList(Base):
+    __tablename__ = "custom_lists"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    name = Column(String(200), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    # Relationships
+    user = relationship("User", back_populates="custom_lists")
+    items = relationship(
+        "CustomListItem", back_populates="custom_list", cascade="all, delete-orphan"
+    )
+
+
+# 5. CUSTOM LIST ITEMS TABLE (US-06)
+class CustomListItem(Base):
+    __tablename__ = "custom_list_items"
+
+    id = Column(Integer, primary_key=True)
+    list_id = Column(
+        Integer, ForeignKey("custom_lists.id", ondelete="CASCADE"), nullable=False
+    )
+    media_item_id = Column(
+        Integer, ForeignKey("media_items.id", ondelete="CASCADE"), nullable=False
+    )
+    added_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    # Relationships
+    custom_list = relationship("CustomList", back_populates="items")
+    media_item = relationship("MediaItem", back_populates="list_items")
+
+    __table_args__ = (
+        UniqueConstraint("list_id", "media_item_id", name="uq_list_media_item"),
+    )
+
+
+# 6. ACTIVITY DIARY TABLE (US-07)
+class DiaryEntry(Base):
+    __tablename__ = "diary_entries"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    media_item_id = Column(
+        Integer, ForeignKey("media_items.id", ondelete="CASCADE"), nullable=False
+    )
+    action = Column(String(50), nullable=False)  # örn: "ADDED", "RATED", "STATUS_UPDATED"
+    details = Column(String(255), nullable=True)  # örn: "Rating: 9"
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    # Relationships
+    user = relationship("User", back_populates="diary_entries")
+    media_item = relationship("MediaItem")
