@@ -1,26 +1,86 @@
 @import "tailwindcss";
 
+@theme {
+  --color-horizon-abyss: #090c15;
+  --color-horizon-plum: #1e1622;
+  --color-horizon-cyan: #009bb9;
+  --color-horizon-amber: #e26d22;
+  --color-horizon-crimson: #e51d24;
+  --color-horizon-burgundy: #7a0c22;
+}
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --horizon-aura-opacity: 0.35;
+  --glass-blur: 20px;
+  --glass-bg-alpha: 0.05;
+  --glass-border-alpha: 0.16;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: #090c15;
+  color: #f8fafc;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Cinematic Horizon Ambient Glow */
+.horizon-flare {
+  background: linear-gradient(
+    90deg,
+    #7a0c22 0%,
+    #e51d24 22%,
+    #009bb9 52%,
+    #e26d22 78%,
+    #7a0c22 100%
+  );
+  filter: blur(85px);
+  opacity: var(--horizon-aura-opacity);
+  transition: opacity 0.4s ease, filter 0.4s ease;
+}
+
+/* Refraction Liquid Glass Surface */
+.liquid-glass {
+  background: rgba(255, 255, 255, var(--glass-bg-alpha));
+  backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, var(--glass-border-alpha));
+  box-shadow: 
+    0 10px 30px -10px rgba(0, 0, 0, 0.6),
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.2),
+    inset 0 -1px 1px 0 rgba(0, 0, 0, 0.4);
+}
+
+/* Interactive Glass Hover Glow */
+.liquid-glass-card {
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.liquid-glass-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(0, 155, 185, 0.4);
+  box-shadow: 
+    0 20px 40px -15px rgba(0, 0, 0, 0.8),
+    0 0 25px -5px rgba(0, 155, 185, 0.25),
+    inset 0 1px 2px 0 rgba(255, 255, 255, 0.35);
+}
+
+/* Horizon Progress Bar Gradient */
+.horizon-bar-fill {
+  background: linear-gradient(90deg, #009bb9 0%, #e26d22 100%);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #090c15;
+}
+::-webkit-scrollbar-thumb {
+  background: #1e1622;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #009bb9;
 }
