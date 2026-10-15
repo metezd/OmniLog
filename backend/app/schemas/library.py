@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.entities import WatchStatus
 from app.schemas.media import MediaItemResponse
@@ -15,9 +15,17 @@ class UserLibraryCreate(BaseModel):
 
 
 class UserLibraryUpdate(BaseModel):
-    """Partial Update: All areas are optional."""
+    """Partial update. Omitted fields are unchanged. An explicit null rating clears the rating."""
     status: Optional[WatchStatus] = None
     rating: Optional[float] = Field(default=None, ge=1, le=10)
+
+    @field_validator("status")
+    @classmethod
+    def status_cannot_be_null(cls, value):
+        # Only runs when "status" is sent explicitly, because the default is not validated
+        if value is None:
+            raise ValueError("status cannot be null")
+        return value
 
 
 class UserLibraryResponse(BaseModel):
