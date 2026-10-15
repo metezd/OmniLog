@@ -14,13 +14,13 @@ class UserLibraryCreate(BaseModel):
     """user_id is NOT Present here: it will be retrieved from the token(current_user) in future, not from the client."""
     media_item_id: int
     status: WatchStatus = WatchStatus.PLAN_TO_WATCH
-    rating: Optional[float] = _RATING
+    rating: Optional[int] = _RATING
 
 
 class UserLibraryUpdate(BaseModel):
     """Partial update. Omitted fields are unchanged. An explicit null rating clears the rating."""
     status: Optional[WatchStatus] = None
-    rating: Optional[float] = _RATING
+    rating: Optional[int] = _RATING
 
     @field_validator("status")
     @classmethod
@@ -38,6 +38,6 @@ class UserLibraryResponse(BaseModel):
     user_id: int
     media_item_id: int
     status: WatchStatus
-    rating: Optional[float] = None
+    rating: Optional[int] = None
     updated_at: Optional[datetime] = None
     media_item: MediaItemResponse
