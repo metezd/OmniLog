@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
+import { SearchProvider } from "@/context/SearchContext";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -29,26 +30,26 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen flex flex-col relative overflow-x-hidden`}
       >
-        {/* Horizon Ambient Light Glow */}
-        <div
-          aria-hidden="true"
-          className="pointer-events-none fixed -top-32 left-1/2 -translate-x-1/2 w-[1100px] h-[340px] bg-horizon-glow opacity-25 blur-[130px] rounded-full z-0"
-        />
+        <SearchProvider>
+          {/* Horizon Ambient Light Glow */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none fixed -top-32 left-1/2 -translate-x-1/2 w-[1100px] h-[340px] bg-horizon-glow opacity-25 blur-[130px] rounded-full z-0"
+          />
 
-        {/* Navigation */}
-        <header className="relative z-50">
-          <Navbar />
-        </header>
+          {/* Navigation */}
+          <header className="relative z-50">
+            <Navbar />
+          </header>
 
-        {/* Main Content */}
-        <main className="relative z-10 flex-1">
-          {children}
-        </main>
+          {/* Main Content */}
+          <main className="relative z-10 flex-1">{children}</main>
 
-        {/* Footer */}
-        <footer className="relative z-10">
-          <Footer />
-        </footer>
+          {/* Footer */}
+          <footer className="relative z-10">
+            <Footer />
+          </footer>
+        </SearchProvider>
       </body>
     </html>
   );

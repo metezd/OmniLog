@@ -2,172 +2,80 @@
 
 import React from "react";
 
-export interface LogoProps {
-  size?: number;
-  showText?: boolean;
-}
-
-export function LogoMark({ size = 52 }: { size?: number }) {
+export default function Logo() {
   return (
-    <svg
-      style={{ width: size, height: size }}
-      viewBox="0 0 128 128"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      className="shrink-0 scale-100 hover:scale-[1.05] transition-transform duration-300"
-    >
-      <defs>
-        {/* Glow / Refraction Shadow for Pixel Pumpkin */}
-        <filter id="cyberPumpkinGlow" x="-20%" y="-20%" width="140%" height="140%">
-          <feDropShadow
-            dx="0"
-            dy="3"
-            stdDeviation="4"
-            floodColor="#E51D24"
-            floodOpacity="0.85"
-          />
-          <feDropShadow
-            dx="0"
-            dy="0"
-            stdDeviation="8"
-            floodColor="#E26D22"
-            floodOpacity="0.5"
-          />
-        </filter>
+    <div className="flex items-center gap-3 group select-none">
+      {/* Obsidian-Purple Frame Container with Centered Pumpkin Glow */}
+      <div className="relative w-12 h-12 flex items-center justify-center bg-[#100518] rounded-xl border-2 border-purple-500/40 shadow-[0_0_20px_rgba(147,51,234,0.3)] transition-all duration-300 group-hover:border-purple-400 group-hover:shadow-[0_0_25px_rgba(168,85,247,0.5)] overflow-hidden">
+        
+        {/* Subtle Purple & Fire Sparkle Particles */}
+        <div className="absolute inset-0 opacity-50 pointer-events-none">
+          <span className="absolute w-1 h-1 bg-purple-400 rounded-full animate-ping top-1.5 left-2" />
+          <span className="absolute w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse bottom-1.5 right-2" />
+          <span className="absolute w-0.5 h-0.5 bg-fuchsia-300 rounded-full top-5 right-2 animate-pulse" />
+          <span className="absolute w-1 h-1 bg-orange-400 rounded-full bottom-3 left-2 animate-ping" />
+        </div>
 
-        {/* Dynamic Multi-layered Blaze/Alev Gradient */}
-        <linearGradient id="blazeGrad" x1="0%" y1="100%" x2="0%" y2="0%">
-          <stop offset="0%" stopColor="#7A0C22" />
-          <stop offset="30%" stopColor="#E51D24" />
-          <stop offset="70%" stopColor="#FB923C" />
-          <stop offset="100%" stopColor="#FFF066" />
-        </linearGradient>
+        {/* Pixel Art SVG: Centered Pumpkin with Purple Atmosphere */}
+        <svg
+          viewBox="0 0 24 24"
+          className="w-10 h-10 pixelated transform group-hover:scale-105 transition-transform duration-300"
+          style={{ imageRendering: "pixelated" }}
+        >
+          {/* Detailed Textured Stem */}
+          <path d="M11 1h2v3h-2z" fill="#3D4A1D" />
+          <path d="M12 1h1v1h-1z" fill="#606F30" />
+          <path d="M11 2h1v2h-1z" fill="#2E3715" />
+          <path d="M13 1h1v1h-1z" fill="#A855F7" className="animate-pulse" /> {/* Purple Sparkle on Stem */}
 
-        <style>
-          {`
-            @keyframes pixelFlicker {
-              0%, 100% { opacity: 0.8; filter: brightness(0.95) drop-shadow(0 0 1px #E51D24); }
-              50% { opacity: 1; filter: brightness(1.25) drop-shadow(0 0 3px #FFF066); }
-            }
-            .fire-core {
-              animation: pixelFlicker 0.4s infinite alternate ease-in-out;
-            }
-            .spark {
-              animation: pixelFlicker 0.8s infinite alternate ease-in-out;
-            }
-          `}
-        </style>
-      </defs>
+          {/* Floating Fire & Purple Particles */}
+          <path d="M4 4h1v1H4z" fill="#FF5F1F" className="animate-pulse" />
+          <path d="M19 4h1v1h-1z" fill="#C084FC" className="animate-pulse" />
+          <path d="M2 11h1v1H2z" fill="#A855F7" className="animate-pulse" />
+          <path d="M21 14h1v1h-1z" fill="#FF9E00" className="animate-pulse" />
 
-      <g filter="url(#cyberPumpkinGlow)">
-        {/* Step 1: Deep Background Shadow Mesh (To maintain pixel consistency) */}
-        <rect x="16" y="16" width="96" height="96" rx="4" fill="#0D0407" opacity="0.95" />
-
-        {/* Step 2: Stem / Witch Hat Accent on Top (Pixel Style) */}
-        {/* Stem Back - Witchy bend at the top */}
-        <path d="M 60 12 h 8 v 4 h -4 v 4 h -4 v -8 Z" fill="#7A0C22" />
-        <path d="M 52 20 h 24 v 4 h -24 Z" fill="#E51D24" />
-        <path d="M 56 16 h 12 v 4 h -12 Z" fill="#E51D24" />
-
-        {/* Step 3: Main Pumpkin Body Outer Border (Retro pixel layers) */}
-        {/* Dark crimson outer edge */}
-        <path
-          d="
-            M 48 20 h 32 v 4 h 8 v 4 h 8 v 4 h 4 v 8 h 4 v 12 h 4 v 24 h -4 v 16 h -4 v 8 h -8 v 4 h -8 v 4 h -24 v -4 h -12 v -4 h -8 v -8 h -4 v -16 h -4 v -24 h 4 v -12 h 4 v -8 h 8 v -4 h 8 v -4 Z
-          "
-          fill="#5c0615"
-        />
-        {/* Glowing bright crimson outline pixels */}
-        <path
-          d="
-            M 44 24 h 40 v 4 h 8 v 4 h 4 v 8 h 4 v 12 h 4 v 20 h -4 v 16 h -4 v 8 h -8 v 4 h -8 v 4 h -24 v -4 h -8 v -4 h -8 v -8 h -4 v -16 h -4 v -20 h 4 v -12 h 4 v -8 h 4 v -4 h 8 v -4 Z
-          "
-          fill="#E51D24"
-        />
-        {/* Hot Pink inner specular highlights (Double border look) */}
-        <path
-          d="
-            M 48 28 h 32 v 4 h 8 v 4 h 4 v 8 h 4 v 8 h 4 v 16 h -4 v 12 h -4 v 8 h -8 v 4 h -4 v 4 h -16 v -4 h -8 v -4 h -8 v -8 h -4 v -12 h -4 v -16 h 4 v -8 h 4 v -8 h 4 v -4 h 8 Z
-          "
-          fill="#FF3366"
-          opacity="0.85"
-        />
-
-        {/* Step 4: Highly visible pixelated "X" and "+" text patterns (Texture) */}
-        {/* We use pixel SVG text elements to explicitly create the requested retro patterns */}
-        <g fill="#FF2E5B" opacity="0.45" fontFamily="monospace" fontSize="8" fontWeight="900" letterSpacing="0">
-          <text x="36" y="36">× × × × × × ×</text>
-          <text x="32" y="44">× × × × × × × × ×</text>
-          <text x="24" y="52">× × × × + + × × × × ×</text>
-          <text x="20" y="60">+ + + × × × × × + + +</text>
-          <text x="24" y="68">× × × × + + × × × ×</text>
-          <text x="28" y="76">× × × × × × × ×</text>
-          <text x="36" y="84">× × × × × ×</text>
-          <text x="44" y="92">+ + + +</text>
-        </g>
-
-        {/* Plus / X Highlight accents scattered throughout the body (For pixel depth) */}
-        <g fill="#FFA3B1" opacity="0.7" fontFamily="monospace" fontSize="7" fontWeight="bold">
-          <text x="48" y="31">++ ++</text>
-          <text x="54" y="16" fill="#FFF">++</text>
-          <text x="44" y="48">×</text>
-          <text x="80" y="48">×</text>
-          <text x="48" y="72">+</text>
-          <text x="76" y="72">+</text>
-          <text x="36" y="64">+</text>
-          <text x="88" y="64">+</text>
-        </g>
-
-        {/* Step 5: High contrast digital faces with a natural pixel look & animation */}
-        <g className="fire-core">
-          {/* Evil Fire Eyes (Left & Right) */}
-          {/* Left Eye: Angry look */}
-          <path d="M 32 44 h 16 v 4 h -4 v 4 h -4 v 4 h -8 v -12 Z" fill="url(#blazeGrad)" />
-          {/* Right Eye: Angry look */}
-          <path d="M 80 44 h -16 v 4 h 4 v 4 h 4 v 4 h 8 v -12 Z" fill="url(#blazeGrad)" />
-
-          {/* Slashed Nose */}
-          <path d="M 60 56 h 8 v 4 h -8 Z M 64 60 h 4 v 4 h -4 Z" fill="url(#blazeGrad)" />
-
-          {/* Slashed Tooth & Smile (Carved jack-o'-lantern) */}
-          <path
-            d="
-              M 32 68 h 4 v 4 h 4 v 4 h 8 v -4 h 4 v -4 h 8 v 4 h 4 v 4 h 8 v -4 h 4 v -4 h 8 v 4 h 4 v 4 h -4 v 4 h -4 v 4 h -8 v -4 h -4 v -4 h -8 v 4 h -4 v 4 h -16 v -4 h -4 v -4 h -8 v -4 h -4 v -4 Z
-            "
-            fill="url(#blazeGrad)"
-          />
+          {/* Centered Layered Pumpkin Body (Deep Purple Outlines + Vibrant Orange Core) */}
+          {/* Obsidian-Purple Deep Shadow Outer Layer */}
+          <path d="M8 4h8v1h3v2h2v9h-1v2h-2v1H7v-1H5v-2H3v-2H2v-5h1V7h2V5h3V4z" fill="#20052B" />
           
-          {/* Innermost Core Glow Overlay for high intensity */}
-          <path d="M 36 48 h 4 v 4 h -4 Z M 88 48 h -4 v 4 h 4 Z" fill="#FFF066" />
-          <path d="M 44 76 h 8 v 4 h -8 Z M 76 76 h 8 v 4 h -8 Z" fill="#FFF066" opacity="0.9" />
-          <path d="M 56 68 h 16 v 4 h -16 Z" fill="#FFF066" />
-        </g>
+          {/* Mid-Tone Dark Burgundy-Red Depth Layer */}
+          <path d="M8 5h8v1h2v1h2v8h-1v2h-2v1H7v-1H5v-2H4v-1H3V8h1V7h2v1h1V6h1V5z" fill="#500010" />
+          <path d="M9 6h6v1h2v1h2v6h-1v2h-2v1H8v-1H6v-2H5V9h1V8h1V7h1V6z" fill="#8B0000" />
+          
+          {/* Core Orange-Red Pumpkin Face Layer */}
+          <path d="M9 7h6v1h2v5h-1v1H15v1H9v-1H7v-1H6V9h1V8h1V7z" fill="#E51D24" />
+          <path d="M10 8h4v4h-1v1h-2v-1H9V9h1V8z" fill="#FF5F1F" />
 
-        {/* Sparks and glitch embers around the pumpkin (Like digital pixel decay) */}
-        <g className="spark" fill="#E26D22">
-          <rect x="100" y="32" width="3" height="3" />
-          <rect x="24" y="24" width="2" height="2" fill="#E51D24" />
-          <rect x="12" y="56" width="3" height="3" />
-          <rect x="108" y="68" width="4" height="2" />
-          <rect x="44" y="96" width="3" height="3" fill="#FFF066" />
-          <rect x="80" y="96" width="3" height="2" fill="#FF3366" />
-          <rect x="92" y="84" width="2" height="2" />
-          <rect x="32" y="88" width="3" height="3" />
-        </g>
-      </g>
-    </svg>
-  );
-}
+          {/* Centered Slanted Glowing Lava Eyes */}
+          <path d="M6 9h3v1H6z" fill="#20052B" />
+          <path d="M15 9h3v1h-3z" fill="#20052B" />
+          <path d="M7 9h2v1H7z" fill="#FFC825" />
+          <path d="M8 9h1v1H8z" fill="#FFF" />
+          <path d="M15 9h2v1h-2z" fill="#FFC825" />
+          <path d="M15 9h1v1h-1z" fill="#FFF" />
 
-export default function Logo({ size = 52, showText = true }: LogoProps) {
-  return (
-    <div className="inline-flex items-center gap-3.5 select-none">
-      <LogoMark size={size} />
-      {showText && (
-        <span className="font-bold tracking-wider text-white font-sans text-sm sm:text-base leading-none uppercase">
-          Omni<span className="text-horizon-cyan font-light lowercase">Log</span>
+          {/* Glowing Nose */}
+          <path d="M11 10h2v1h-2z" fill="#20052B" />
+          <path d="M11 11h2v1h-2z" fill="#FFC825" />
+          <path d="M12 11h1v1h-1z" fill="#FFF" />
+
+          {/* Jagged Grin with Core Lava Glow */}
+          <path d="M5 12h1v1H5zm13 0h1v1h-1z" fill="#20052B" />
+          <path d="M6 13h12v2H6z" fill="#500010" />
+          <path d="M7 13h10v1H7z" fill="#FF5F1F" />
+          <path d="M8 13h1v1H8zm2 0h1v1h-1zm4 0h1v1h-1zm2 0h1v1h-1z" fill="#FFC825" />
+          <path d="M9 14h6v1H9z" fill="#FFF" />
+          <path d="M11 15h2v1h-2z" fill="#FFA500" />
+        </svg>
+      </div>
+
+      {/* Brand Text: OMNI (White) + log (Lava Orange Glow) */}
+      <span className="text-xl font-bold font-sans tracking-wide text-white uppercase flex items-center">
+        OMNI
+        <span className="text-[#FF5F1F] drop-shadow-[0_0_15px_rgba(255,95,31,0.85)] animate-pulse lowercase font-semibold ml-1">
+          log
         </span>
-      )}
+      </span>
     </div>
   );
 }
