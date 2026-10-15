@@ -34,3 +34,6 @@ CORS_ORIGINS = [
     ).split(",")
     if origin.strip()
 ]
+
+# How long a login token stays valid, in minutes
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
