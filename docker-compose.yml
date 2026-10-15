@@ -1,0 +1,38 @@
+# Local development services (PostgreSQL + Redis).
+# The backend itself runs on the host with `uvicorn --reload`.
+services:
+  db:
+    # pgvector image: regular PostgreSQL plus the vector extension (needed for Step 8)
+    image: pgvector/pgvector:pg16
+    container_name: omnilog-db
+    environment:
+      POSTGRES_USER: omnilog
+      POSTGRES_PASSWORD: omnilog
+      POSTGRES_DB: omnilog
+    ports:
+      # Bound to localhost only, so the database is not reachable from the network
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - omnilog-pgdata:/var/lib/postgresql/data
+      # Runs only on the first start: creates the separate test database
+      - ./docker/init-test-db.sql:/docker-entrypoint-initdb.d/init-test-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U omnilog -d omnilog"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: omnilog-redis
+    ports:
+      # Bound to localhost only, so Redis (no password in development) is not reachable from the network
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  omnilog-pgdata:

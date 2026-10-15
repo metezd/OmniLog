@@ -33,7 +33,7 @@ class WatchStatus(str, enum.Enum):
 class User(Base):
     __tablename__ = "users"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True)
     username = Column(String(50), unique=True, index=True, nullable=False)
     email = Column(String(100), unique=True, index=True, nullable=False)
     hashed_password = Column(String(255), nullable=False)
@@ -49,7 +49,7 @@ class User(Base):
 class MediaItem(Base):
     __tablename__ = "media_items"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True)
     title = Column(String(200), index=True, nullable=False)
     media_type = Column(Enum(MediaType), nullable=False)
     poster_url = Column(String(500), nullable=True)
@@ -66,7 +66,7 @@ class MediaItem(Base):
 class UserLibrary(Base):
     __tablename__ = "user_libraries"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True)
     user_id = Column(
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )

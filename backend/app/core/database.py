@@ -1,12 +1,11 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
-# SQLite is used locally for rapid development.
-# Only this URL will change when switching to PostgreSQL in production!
-SQLALCHEMY_DATABASE_URL = "sqlite:///./omnilog.db"
+from app.core.config import DATABASE_URL
 
 engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
+    DATABASE_URL,
+    pool_pre_ping=True,  # Discards stale connections before use
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
