@@ -3,6 +3,9 @@
 These cover behaviour the user stories imply but do not list one by one:
 ownership, partial updates, null handling and invalid ratings.
 """
+from sqlalchemy import event
+
+from app.core.database import engine
 from helpers import add_to_library, create_media, new_credentials, register_and_login
 
 
@@ -42,6 +45,51 @@ def test_library_lists_only_my_entries(client, auth_headers, media_item):
     my_entries = client.get("/library", headers=auth_headers).json()
 
     assert other_entry["id"] not in [entry["id"] for entry in my_entries]
+
+
+def test_update_other_users_entry_returns_404(client, auth_headers, library_entry):
+    """US-05: PATCH on another user's entry returns 404 and changes nothing."""
+    other_headers = register_and_login(client, new_credentials())
+
+    response = client.patch(
+        f"/library/{library_entry['id']}",
+        json={"rating": 1, "status": "DROPPED"},
+        headers=other_headers,
+    )
+
+    assert response.status_code == 404
+    my_entries = client.get("/library", headers=auth_headers).json()
+    mine = next(entry for entry in my_entries if entry["id"] == library_entry["id"])
+    assert mine["rating"] == library_entry["rating"]
+    assert mine["status"] == library_entry["status"]
+
+
+def test_listing_does_not_run_one_query_per_entry(client):
+    """NFR: GET /library loads the media details in one query (joinedload), not N+1."""
+    headers = register_and_login(client, new_credentials())
+
+    def count_queries() -> int:
+        statements = []
+
+        def record(conn, cursor, statement, parameters, context, executemany):
+            statements.append(statement)
+
+        event.listen(engine, "before_cursor_execute", record)
+        try:
+            response = client.get("/library", headers=headers)
+        finally:
+            event.remove(engine, "before_cursor_execute", record)
+        assert response.status_code == 200
+        return len(statements)
+
+    add_to_library(client, headers, create_media(client, headers)["id"])
+    queries_with_one_entry = count_queries()
+
+    for _ in range(4):
+        add_to_library(client, headers, create_media(client, headers)["id"])
+    queries_with_five_entries = count_queries()
+
+    assert queries_with_five_entries == queries_with_one_entry
 
 
 def test_library_entry_contains_the_media_details(client, auth_headers, library_entry, media_item):

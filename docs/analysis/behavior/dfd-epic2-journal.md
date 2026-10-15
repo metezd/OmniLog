@@ -118,9 +118,9 @@ flowchart TB
 - After every change, delete the cached statistics of the user (`omni:stats:{user_id}`).
 
 ### 2.4 Manage Custom Lists (US-06)
-1. `POST /lists`: if the name is empty, answer 422. Otherwise create the list and answer 201.
-2. `POST /lists/{id}/items`: check that the list belongs to the user and that the title exists. Add the item. A title that is already in the list is not added a second time.
-3. `GET /lists/{id}`: return the list with its items.
+1. `POST /lists`: if the name is empty, answer 422. If the user already has a list with this name, answer 409. Otherwise create the list and answer 201.
+2. `POST /lists/{id}/items`: check that the list belongs to the user and that the title exists. Add the item. A title that is already in the list is not added a second time: answer 201 when it is added, 200 when it was already there.
+3. `GET /lists`: return all lists of the user. `GET /lists/{id}`: return the list with its items.
 4. Send `LIST_CREATED` and `LIST_ITEM_ADDED` events to 2.5.
 
 ### 2.5 Record Activity (US-07)
