@@ -3,6 +3,7 @@
 These cover behaviour the user stories imply but do not list one by one:
 ownership, partial updates, null handling and invalid ratings.
 """
+
 from sqlalchemy import event
 
 from app.core.database import engine
@@ -19,7 +20,11 @@ def test_media_creation_requires_authentication(client):
 
 def test_media_creation_rejects_empty_title(client, auth_headers):
     """Catalog: a title cannot be empty, so the request returns 422."""
-    response = client.post("/media", json={"title": "", "media_type": "GAME"}, headers=auth_headers)
+    response = client.post(
+        "/media",
+        json={"title": "", "media_type": "GAME"},
+        headers=auth_headers,
+    )
 
     assert response.status_code == 422
 
@@ -58,8 +63,10 @@ def test_update_other_users_entry_returns_404(client, auth_headers, library_entr
     )
 
     assert response.status_code == 404
+
     my_entries = client.get("/library", headers=auth_headers).json()
     mine = next(entry for entry in my_entries if entry["id"] == library_entry["id"])
+
     assert mine["rating"] == library_entry["rating"]
     assert mine["status"] == library_entry["status"]
 
@@ -79,6 +86,7 @@ def test_listing_does_not_run_one_query_per_entry(client):
             response = client.get("/library", headers=headers)
         finally:
             event.remove(engine, "before_cursor_execute", record)
+
         assert response.status_code == 200
         return len(statements)
 
@@ -87,12 +95,18 @@ def test_listing_does_not_run_one_query_per_entry(client):
 
     for _ in range(4):
         add_to_library(client, headers, create_media(client, headers)["id"])
+
     queries_with_five_entries = count_queries()
 
     assert queries_with_five_entries == queries_with_one_entry
 
 
-def test_library_entry_contains_the_media_details(client, auth_headers, library_entry, media_item):
+def test_library_entry_contains_the_media_details(
+    client,
+    auth_headers,
+    library_entry,
+    media_item,
+):
     """US-04: each entry includes the title it refers to, so the library can show it."""
     entries = client.get("/library", headers=auth_headers).json()
     entry = next(e for e in entries if e["id"] == library_entry["id"])
@@ -109,14 +123,21 @@ def test_library_requires_authentication(client):
 
 def test_update_requires_authentication(client, library_entry):
     """US-05: PATCH without a token returns 401."""
-    response = client.patch(f"/library/{library_entry['id']}", json={"rating": 5})
+    response = client.patch(
+        f"/library/{library_entry['id']}",
+        json={"rating": 5},
+    )
 
     assert response.status_code == 401
 
 
 def test_update_unknown_entry_returns_404(client, auth_headers):
     """US-05: an entry id that does not exist returns 404."""
-    response = client.patch("/library/99999999", json={"rating": 5}, headers=auth_headers)
+    response = client.patch(
+        "/library/99999999",
+        json={"rating": 5},
+        headers=auth_headers,
+    )
 
     assert response.status_code == 404
 
@@ -124,7 +145,11 @@ def test_update_unknown_entry_returns_404(client, auth_headers):
 # ---------------------------------------------------------------- partial updates and nulls
 def test_empty_update_changes_nothing(client, auth_headers, library_entry):
     """US-05: a PATCH with an empty body returns the entry unchanged."""
-    response = client.patch(f"/library/{library_entry['id']}", json={}, headers=auth_headers)
+    response = client.patch(
+        f"/library/{library_entry['id']}",
+        json={},
+        headers=auth_headers,
+    )
 
     assert response.status_code == 200
     assert response.json()["status"] == library_entry["status"]
@@ -144,7 +169,11 @@ def test_null_status_is_rejected(client, auth_headers, library_entry):
 
 def test_null_rating_clears_the_rating(client, auth_headers, library_entry):
     """US-05: an explicit null rating removes the rating."""
-    client.patch(f"/library/{library_entry['id']}", json={"rating": 7}, headers=auth_headers)
+    client.patch(
+        f"/library/{library_entry['id']}",
+        json={"rating": 7},
+        headers=auth_headers,
+    )
 
     response = client.patch(
         f"/library/{library_entry['id']}",
@@ -156,7 +185,11 @@ def test_null_rating_clears_the_rating(client, auth_headers, library_entry):
     assert response.json()["rating"] is None
 
 
-def test_rating_boundaries_1_and_10_are_accepted(client, auth_headers, library_entry):
+def test_rating_boundaries_1_and_10_are_accepted(
+    client,
+    auth_headers,
+    library_entry,
+):
     """US-05: 1 and 10 are the lowest and highest valid ratings."""
     for rating in (1, 10):
         response = client.patch(
@@ -164,8 +197,42 @@ def test_rating_boundaries_1_and_10_are_accepted(client, auth_headers, library_e
             json={"rating": rating},
             headers=auth_headers,
         )
+
         assert response.status_code == 200
         assert response.json()["rating"] == rating
+
+
+def test_fractional_rating_is_rejected_on_update(
+    client,
+    auth_headers,
+    library_entry,
+):
+    """US-05 / BR-04: fractional ratings are not accepted when updating."""
+    response = client.patch(
+        f"/library/{library_entry['id']}",
+        json={"rating": 7.5},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 422
+
+
+def test_fractional_rating_is_rejected_on_add(
+    client,
+    auth_headers,
+    media_item,
+):
+    """US-04 / BR-04: fractional ratings are not accepted when adding."""
+    response = client.post(
+        "/library",
+        json={
+            "media_item_id": media_item["id"],
+            "rating": 7.5,
+        },
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 422
 
 
 def test_nan_rating_is_rejected(client, auth_headers, library_entry):
@@ -174,7 +241,10 @@ def test_nan_rating_is_rejected(client, auth_headers, library_entry):
     response = client.patch(
         f"/library/{library_entry['id']}",
         content=b'{"rating": NaN}',
-        headers={**auth_headers, "Content-Type": "application/json"},
+        headers={
+            **auth_headers,
+            "Content-Type": "application/json",
+        },
     )
 
     assert response.status_code == 422
@@ -194,29 +264,75 @@ def test_get_unknown_media_returns_404(client):
     assert client.get("/media/99999999").status_code == 404
 
 
-def test_us05_rejected_rating_leaves_the_entry_unchanged(client, auth_headers, library_entry):
-    """US-05: "a rating of 0 or 11 returns 422 and the entry is unchanged", also when status is sent too."""
+def test_us05_rejected_rating_leaves_the_entry_unchanged(
+    client,
+    auth_headers,
+    library_entry,
+):
+    """US-05: invalid ratings return 422 and the entry remains unchanged."""
     url = f"/library/{library_entry['id']}"
-    assert client.patch(url, json={"rating": 8}, headers=auth_headers).status_code == 200
 
-    for body in ({"rating": 0}, {"rating": 11}, {"rating": 11, "status": "DROPPED"}):
-        assert client.patch(url, json=body, headers=auth_headers).status_code == 422
+    assert client.patch(
+        url,
+        json={"rating": 8},
+        headers=auth_headers,
+    ).status_code == 200
 
-    entry = next(e for e in client.get("/library", headers=auth_headers).json() if e["id"] == library_entry["id"])
+    for body in (
+        {"rating": 0},
+        {"rating": 11},
+        {"rating": 11, "status": "DROPPED"},
+    ):
+        assert client.patch(
+            url,
+            json=body,
+            headers=auth_headers,
+        ).status_code == 422
+
+    entry = next(
+        entry
+        for entry in client.get(
+            "/library",
+            headers=auth_headers,
+        ).json()
+        if entry["id"] == library_entry["id"]
+    )
+
     assert entry["rating"] == 8
     assert entry["status"] == library_entry["status"]
 
 
-def test_us05_rating_must_be_a_json_number(client, auth_headers, library_entry):
-    """US-05 / BR-04: true and "9" are not ratings. Without strict parsing true was stored as 1."""
+def test_us05_rating_must_be_a_json_number(
+    client,
+    auth_headers,
+    library_entry,
+):
+    """US-05 / BR-04: booleans and numeric strings are not ratings."""
     url = f"/library/{library_entry['id']}"
+
     for bad in (True, False, "9"):
-        assert client.patch(url, json={"rating": bad}, headers=auth_headers).status_code == 422
+        response = client.patch(
+            url,
+            json={"rating": bad},
+            headers=auth_headers,
+        )
+
+        assert response.status_code == 422
 
 
-def test_us04_rating_on_add_must_be_a_json_number(client, auth_headers, media_item):
-    """US-04 / BR-04: the same rule applies when the title is added with a rating."""
+def test_us04_rating_on_add_must_be_a_json_number(
+    client,
+    auth_headers,
+    media_item,
+):
+    """US-04 / BR-04: booleans are not ratings when adding a title."""
     response = client.post(
-        "/library", json={"media_item_id": media_item["id"], "rating": True}, headers=auth_headers
+        "/library",
+        json={
+            "media_item_id": media_item["id"],
+            "rating": True,
+        },
+        headers=auth_headers,
     )
+
     assert response.status_code == 422
