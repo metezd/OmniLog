@@ -2,7 +2,7 @@
 from typing import List
 
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.models.entities import MediaItem, User, UserLibrary
 from app.schemas.library import UserLibraryCreate, UserLibraryUpdate
@@ -45,8 +45,11 @@ def add_entry(db: Session, user: User, data: UserLibraryCreate) -> UserLibrary:
 
 
 def list_entries(db: Session, user: User) -> List[UserLibrary]:
+    # joinedload fetches the media details in the same query. Without it, building the
+    # response would run one extra query per entry (N+1).
     return (
         db.query(UserLibrary)
+        .options(joinedload(UserLibrary.media_item))
         .filter(UserLibrary.user_id == user.id)
         .order_by(UserLibrary.id)
         .all()
