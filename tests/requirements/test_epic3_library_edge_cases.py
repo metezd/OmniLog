@@ -192,3 +192,31 @@ def test_get_media_returns_the_item(client, auth_headers, media_item):
 def test_get_unknown_media_returns_404(client):
     """US-09 groundwork: an unknown media id returns 404."""
     assert client.get("/media/99999999").status_code == 404
+
+
+def test_us05_rejected_rating_leaves_the_entry_unchanged(client, auth_headers, library_entry):
+    """US-05: "a rating of 0 or 11 returns 422 and the entry is unchanged", also when status is sent too."""
+    url = f"/library/{library_entry['id']}"
+    assert client.patch(url, json={"rating": 8}, headers=auth_headers).status_code == 200
+
+    for body in ({"rating": 0}, {"rating": 11}, {"rating": 11, "status": "DROPPED"}):
+        assert client.patch(url, json=body, headers=auth_headers).status_code == 422
+
+    entry = next(e for e in client.get("/library", headers=auth_headers).json() if e["id"] == library_entry["id"])
+    assert entry["rating"] == 8
+    assert entry["status"] == library_entry["status"]
+
+
+def test_us05_rating_must_be_a_json_number(client, auth_headers, library_entry):
+    """US-05 / BR-04: true and "9" are not ratings. Without strict parsing true was stored as 1."""
+    url = f"/library/{library_entry['id']}"
+    for bad in (True, False, "9"):
+        assert client.patch(url, json={"rating": bad}, headers=auth_headers).status_code == 422
+
+
+def test_us04_rating_on_add_must_be_a_json_number(client, auth_headers, media_item):
+    """US-04 / BR-04: the same rule applies when the title is added with a rating."""
+    response = client.post(
+        "/library", json={"media_item_id": media_item["id"], "rating": True}, headers=auth_headers
+    )
+    assert response.status_code == 422
