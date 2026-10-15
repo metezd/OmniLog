@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState } from "react";
-import { useSearch } from "@/context/SearchContext";
 
 interface MediaItem {
   id: string;
@@ -84,17 +83,20 @@ const INITIAL_MEDIA: MediaItem[] = [
 ];
 
 interface MediaStreamProps {
-  onToast?: (msg: string) => void;
+  onToast: (msg: string) => void;
+  searchQuery?: string;
 }
 
-export default function MediaStream({ onToast }: MediaStreamProps) {
-  const { searchQuery } = useSearch();
+export default function MediaStream({
+  onToast,
+  searchQuery = "",
+}: MediaStreamProps) {
   const [filter, setFilter] = useState<"all" | "game" | "tv">("all");
   const [mediaList, setMediaList] = useState<MediaItem[]>(INITIAL_MEDIA);
 
   const handleAction = (item: MediaItem) => {
     if (item.isCompleted) return;
-    onToast?.(`Logged activity for ${item.title}`);
+    onToast(`Logged activity for ${item.title}`);
     setMediaList((prev) =>
       prev.map((m) =>
         m.id === item.id
@@ -166,97 +168,86 @@ export default function MediaStream({ onToast }: MediaStreamProps) {
         </div>
       </div>
 
-      {/* Grid or Empty State */}
-      {filteredMedia.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {filteredMedia.map((item) => (
-            <div
-              key={item.id}
-              className="liquid-glass liquid-glass-card rounded-2xl overflow-hidden flex flex-col group"
-            >
-              {/* Image Banner */}
-              <div className="relative h-44 w-full overflow-hidden">
-                <img
-                  src={item.imageUrl}
-                  alt={item.title}
-                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#090C15] via-[#090C15]/40 to-transparent" />
-                <span
-                  className={`absolute top-3 left-3 px-2 py-0.5 rounded-full text-[10px] font-semibold backdrop-blur-md ${
-                    item.type === "game"
-                      ? "bg-horizon-cyan/20 border border-horizon-cyan/40 text-cyan-300"
-                      : "bg-horizon-amber/20 border border-horizon-amber/40 text-amber-300"
-                  }`}
-                >
-                  {item.type === "game" ? "Game" : "TV Series"}
-                </span>
-                <span
-                  className={`absolute top-3 right-3 px-2 py-0.5 rounded-full text-[10px] font-semibold border backdrop-blur-md ${item.badgeColor}`}
-                >
-                  {item.badge}
-                </span>
-              </div>
-
-              {/* Body */}
-              <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
-                <div>
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-bold text-white tracking-tight">
-                      {item.title}
-                    </h3>
-                    <span className="text-xs font-semibold text-amber-400">
-                      {item.rating}
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-400 mt-1">{item.subtitle}</p>
-                </div>
-
-                {/* Progress Bar */}
-                <div className="space-y-1.5">
-                  <div className="flex justify-between text-[11px] text-slate-400">
-                    <span>{item.statusText}</span>
-                    <span className="text-slate-300 font-mono">
-                      {item.statusValue}
-                    </span>
-                  </div>
-                  <div className="w-full bg-white/10 h-1.5 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all duration-300 ${
-                        item.isCompleted ? "bg-emerald-400" : "horizon-bar-fill"
-                      }`}
-                      style={{ width: `${item.progressPercent}%` }}
-                    />
-                  </div>
-                </div>
-
-                {/* Action Button */}
-                <button
-                  type="button"
-                  onClick={() => handleAction(item)}
-                  disabled={item.isCompleted}
-                  className={`w-full py-1.5 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5 active:scale-95 ${
-                    item.isCompleted
-                      ? "bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 cursor-default"
-                      : "bg-white/5 hover:bg-cyan-500/20 text-slate-200 hover:text-cyan-200 border border-white/10 hover:border-cyan-400/40"
-                  }`}
-                >
-                  <span>{item.actionText}</span>
-                </button>
-              </div>
+      {/* Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {filteredMedia.map((item) => (
+          <div
+            key={item.id}
+            className="liquid-glass liquid-glass-card rounded-2xl overflow-hidden flex flex-col group"
+          >
+            {/* Image Banner */}
+            <div className="relative h-44 w-full overflow-hidden">
+              <img
+                src={item.imageUrl}
+                alt={item.title}
+                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#090C15] via-[#090C15]/40 to-transparent" />
+              <span
+                className={`absolute top-3 left-3 px-2 py-0.5 rounded-full text-[10px] font-semibold backdrop-blur-md ${
+                  item.type === "game"
+                    ? "bg-horizon-cyan/20 border border-horizon-cyan/40 text-cyan-300"
+                    : "bg-horizon-amber/20 border border-horizon-amber/40 text-amber-300"
+                }`}
+              >
+                {item.type === "game" ? "Game" : "TV Series"}
+              </span>
+              <span
+                className={`absolute top-3 right-3 px-2 py-0.5 rounded-full text-[10px] font-semibold border backdrop-blur-md ${item.badgeColor}`}
+              >
+                {item.badge}
+              </span>
             </div>
-          ))}
-        </div>
-      ) : (
-        <div className="liquid-glass rounded-2xl p-12 text-center border border-white/10 space-y-2">
-          <p className="text-sm font-semibold text-slate-300">
-            No media found matching &quot;{searchQuery}&quot;
-          </p>
-          <p className="text-xs text-slate-500">
-            Try searching with a different keyword or reset the category filter.
-          </p>
-        </div>
-      )}
+
+            {/* Body */}
+            <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
+              <div>
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-white tracking-tight">
+                    {item.title}
+                  </h3>
+                  <span className="text-xs font-semibold text-amber-400">
+                    {item.rating}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 mt-1">{item.subtitle}</p>
+              </div>
+
+              {/* Progress Bar */}
+              <div className="space-y-1.5">
+                <div className="flex justify-between text-[11px] text-slate-400">
+                  <span>{item.statusText}</span>
+                  <span className="text-slate-300 font-mono">
+                    {item.statusValue}
+                  </span>
+                </div>
+                <div className="w-full bg-white/10 h-1.5 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-300 ${
+                      item.isCompleted ? "bg-emerald-400" : "horizon-bar-fill"
+                    }`}
+                    style={{ width: `${item.progressPercent}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Action Button */}
+              <button
+                type="button"
+                onClick={() => handleAction(item)}
+                disabled={item.isCompleted}
+                className={`w-full py-1.5 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5 active:scale-95 ${
+                  item.isCompleted
+                    ? "bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 cursor-default"
+                    : "bg-white/5 hover:bg-cyan-500/20 text-slate-200 hover:text-cyan-200 border border-white/10 hover:border-cyan-400/40"
+                }`}
+              >
+                <span>{item.actionText}</span>
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
     </section>
   );
 }
