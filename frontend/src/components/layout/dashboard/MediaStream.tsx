@@ -7,7 +7,7 @@ interface MediaItem {
   type: "game" | "tv";
   title: string;
   subtitle: string;
-  rating: string;
+  rating: number; // Stored as 0.5 multiple numbers
   badge: string;
   badgeColor: string;
   statusText: string;
@@ -24,9 +24,9 @@ const INITIAL_MEDIA: MediaItem[] = [
     type: "game",
     title: "Cyberpunk 2077",
     subtitle: "Phantom Liberty DLC • Act II",
-    rating: "★ 9.4",
+    rating: 9.4,
     badge: "Playing",
-    badgeColor: "bg-emerald-500/20 border-emerald-400/40 text-emerald-300",
+    badgeColor: "bg-blue-500/20 border-blue-400/40 text-blue-300",
     statusText: "Progress: 72%",
     statusValue: "68h logged",
     progressPercent: 72,
@@ -39,9 +39,9 @@ const INITIAL_MEDIA: MediaItem[] = [
     type: "tv",
     title: "Arcane: Season 2",
     subtitle: "Act III: The Reckoning",
-    rating: "★ 9.8",
+    rating: 9.8,
     badge: "Watching",
-    badgeColor: "bg-purple-500/20 border-purple-400/40 text-purple-300",
+    badgeColor: "bg-sky-500/20 border-sky-400/40 text-sky-300",
     statusText: "Episodes: 6 / 9",
     statusValue: "66%",
     progressPercent: 66,
@@ -52,25 +52,23 @@ const INITIAL_MEDIA: MediaItem[] = [
   {
     id: "3",
     type: "game",
-    title: "Elden Ring DLC",
-    subtitle: "Realm of Shadow • 100%",
-    rating: "★ 9.7",
-    badge: "Completed",
-    badgeColor: "bg-rose-500/20 border-rose-400/40 text-rose-300",
-    statusText: "Status: Finished",
-    statusValue: "112h",
-    progressPercent: 100,
-    imageUrl:
-      "https://images.unsplash.com/photo-1511512578047-dfb367046420?auto=format&fit=crop&w=700&q=80",
-    actionText: "✓ All Bosses Defeated",
-    isCompleted: true,
+    title: "Kağan Konuk",
+    subtitle: "Lecture Hall Session • Focus Node",
+    rating: 9.5,
+    badge: "In-Progress",
+    badgeColor: "bg-blue-500/20 border-blue-400/40 text-blue-300",
+    statusText: "Focus Time:",
+    statusValue: "4h logged",
+    progressPercent: 85,
+    imageUrl: "/kagan.jpg",
+    actionText: "✓ Session Logged",
   },
   {
     id: "4",
     type: "tv",
     title: "Severance",
     subtitle: "Season 1 Finale Rewatch",
-    rating: "★ 9.5",
+    rating: 9.5,
     badge: "In Queue",
     badgeColor: "bg-sky-500/20 border-sky-400/40 text-sky-300",
     statusText: "Episodes: 8 / 9",
@@ -94,6 +92,7 @@ export default function MediaStream({
   const [filter, setFilter] = useState<"all" | "game" | "tv">("all");
   const [mediaList, setMediaList] = useState<MediaItem[]>(INITIAL_MEDIA);
 
+  // Handle progression action updates
   const handleAction = (item: MediaItem) => {
     if (item.isCompleted) return;
     onToast(`Logged activity for ${item.title}`);
@@ -109,6 +108,7 @@ export default function MediaStream({
     );
   };
 
+  // Filter media items based on type and search query
   const filteredMedia = mediaList.filter((item) => {
     const matchesFilter = filter === "all" || item.type === filter;
     const matchesSearch =
@@ -168,7 +168,7 @@ export default function MediaStream({
         </div>
       </div>
 
-      {/* Grid */}
+      {/* Media Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {filteredMedia.map((item) => (
           <div
@@ -182,12 +182,12 @@ export default function MediaStream({
                 alt={item.title}
                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#090C15] via-[#090C15]/40 to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#07090e] via-[#07090e]/40 to-transparent" />
               <span
                 className={`absolute top-3 left-3 px-2 py-0.5 rounded-full text-[10px] font-semibold backdrop-blur-md ${
                   item.type === "game"
-                    ? "bg-horizon-cyan/20 border border-horizon-cyan/40 text-cyan-300"
-                    : "bg-horizon-amber/20 border border-horizon-amber/40 text-amber-300"
+                    ? "bg-blue-500/20 border border-blue-400/40 text-blue-300"
+                    : "bg-sky-500/20 border border-sky-400/40 text-sky-300"
                 }`}
               >
                 {item.type === "game" ? "Game" : "TV Series"}
@@ -199,21 +199,23 @@ export default function MediaStream({
               </span>
             </div>
 
-            {/* Body */}
+            {/* Card Body */}
             <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
               <div>
                 <div className="flex items-center justify-between">
                   <h3 className="font-bold text-white tracking-tight">
                     {item.title}
                   </h3>
-                  <span className="text-xs font-semibold text-amber-400">
-                    {item.rating}
+                  
+                  {/* Clean Letterboxd-style Rating Display (0.5 Step Value) */}
+                  <span className="text-xs font-semibold text-amber-400 flex items-center gap-1">
+                    ★ {item.rating.toFixed(1)}
                   </span>
                 </div>
                 <p className="text-xs text-slate-400 mt-1">{item.subtitle}</p>
               </div>
 
-              {/* Progress Bar */}
+              {/* Progress Bar Section */}
               <div className="space-y-1.5">
                 <div className="flex justify-between text-[11px] text-slate-400">
                   <span>{item.statusText}</span>
@@ -239,7 +241,7 @@ export default function MediaStream({
                 className={`w-full py-1.5 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5 active:scale-95 ${
                   item.isCompleted
                     ? "bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 cursor-default"
-                    : "bg-white/5 hover:bg-cyan-500/20 text-slate-200 hover:text-cyan-200 border border-white/10 hover:border-cyan-400/40"
+                    : "bg-white/5 hover:bg-blue-500/20 text-slate-200 hover:text-blue-200 border border-white/10 hover:border-blue-400/40"
                 }`}
               >
                 <span>{item.actionText}</span>
