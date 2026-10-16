@@ -1,72 +1,73 @@
 @import "tailwindcss";
 
 @theme {
-  --color-horizon-abyss: #090c15;
-  --color-horizon-plum: #1e1622;
-  --color-horizon-cyan: #009bb9;
-  --color-horizon-amber: #e26d22;
-  --color-horizon-crimson: #e51d24;
-  --color-horizon-burgundy: #7a0c22;
+  --color-horizon-abyss: #07090e;
+  --color-horizon-plum: #0f141d;
+  --color-horizon-cyan: #2563eb;       /* Doğal ve profesyonel bir royal mavi */
+  --color-horizon-amber: #38bdf8;      /* Açık buz mavisi vurgu */
+  --color-horizon-crimson: #1d4ed8;    /* Derin koyu mavi tonu */
+  --color-horizon-burgundy: #0f172a;   /* Slate lacivert */
 }
 
 :root {
-  --horizon-aura-opacity: 0.35;
+  --horizon-aura-opacity: 0.25;
   --glass-blur: 20px;
-  --glass-bg-alpha: 0.05;
-  --glass-border-alpha: 0.16;
+  --glass-bg-alpha: 0.04;
+  --glass-border-alpha: 0.12;
 }
 
 body {
-  background-color: #090c15;
-  color: #f8fafc;
+  background-color: #07090e; /* Çok koyu füme/siyah zemin */
+  color: #f1f5f9;
   min-height: 100vh;
   overflow-x: hidden;
+  font-family: system-ui, -apple-system, sans-serif;
 }
 
-/* Cinematic Horizon Ambient Glow */
+/* Doğal Mavi-Gri Arka Plan Parıltısı (Horizon Flare) */
 .horizon-flare {
   background: linear-gradient(
     90deg,
-    #7a0c22 0%,
-    #e51d24 22%,
-    #009bb9 52%,
-    #e26d22 78%,
-    #7a0c22 100%
+    #0f172a 0%,
+    #1e40af 25%,
+    #0284c7 55%,
+    #38bdf8 80%,
+    #0f172a 100%
   );
-  filter: blur(85px);
+  filter: blur(100px);
   opacity: var(--horizon-aura-opacity);
   transition: opacity 0.4s ease, filter 0.4s ease;
 }
 
 /* Refraction Liquid Glass Surface */
 .liquid-glass {
-  background: rgba(255, 255, 255, var(--glass-bg-alpha));
+  background: rgba(15, 20, 29, var(--glass-bg-alpha));
   backdrop-filter: blur(var(--glass-blur)) saturate(180%);
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
   border: 1px solid rgba(255, 255, 255, var(--glass-border-alpha));
   box-shadow: 
-    0 10px 30px -10px rgba(0, 0, 0, 0.6),
-    inset 0 1px 1px 0 rgba(255, 255, 255, 0.2),
+    0 10px 30px -10px rgba(0, 0, 0, 0.7),
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.15),
     inset 0 -1px 1px 0 rgba(0, 0, 0, 0.4);
 }
 
-/* Interactive Glass Hover Glow */
+/* Kart Üzerine Gelince Şık Mavi-Gri Işıma */
 .liquid-glass-card {
   transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .liquid-glass-card:hover {
-  transform: translateY(-4px);
-  border-color: rgba(0, 155, 185, 0.4);
+  transform: translateY(-3px);
+  border-color: rgba(56, 189, 248, 0.3);
   box-shadow: 
-    0 20px 40px -15px rgba(0, 0, 0, 0.8),
-    0 0 25px -5px rgba(0, 155, 185, 0.25),
-    inset 0 1px 2px 0 rgba(255, 255, 255, 0.35);
+    0 20px 40px -15px rgba(0, 0, 0, 0.9),
+    0 0 25px -5px rgba(37, 99, 235, 0.15),
+    inset 0 1px 2px 0 rgba(255, 255, 255, 0.25);
 }
 
-/* Horizon Progress Bar Gradient */
+/* İlerleme Çubuğu - Mavi Tonları */
 .horizon-bar-fill {
-  background: linear-gradient(90deg, #009bb9 0%, #e26d22 100%);
+  background: linear-gradient(90deg, #2563eb 0%, #38bdf8 100%);
 }
 
 /* Custom Scrollbar */
@@ -75,12 +76,12 @@ body {
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #090c15;
+  background: #07090e;
 }
 ::-webkit-scrollbar-thumb {
-  background: #1e1622;
+  background: #1e293b;
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #009bb9;
+  background: #2563eb;
 }
