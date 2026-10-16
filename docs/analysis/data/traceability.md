@@ -12,9 +12,9 @@ Analysis status values: draft, reviewed, accepted. Implementation status values:
 | US-02 | 2 | Must | UC-EP2-01 | 2.1 | `users` | `POST /auth/register` | `test_epic2_users.py` | behavior/dfd-epic2-journal.md | draft | Not implemented |
 | US-03 | 2 | Must | UC-EP2-02 | 2.2 | `users` | `POST /auth/login` | `test_epic2_users.py` | behavior/dfd-epic2-journal.md | draft | Not implemented |
 | US-04 | 2 | Must | UC-EP2-03 | 2.3, 2.5 | `user_libraries`, `media_items`, `activity_events` | `POST /library`, `GET /library` | `test_epic2_users.py` | behavior/dfd-epic2-journal.md | draft | Not implemented |
-| US-05 | 2 | Must | UC-EP2-04 | 2.3, 2.5 | `user_libraries`, `activity_events` | `PATCH /library/{id}` | `test_epic2_users.py` | behavior/dfd-epic2-journal.md | draft | Not implemented |
-| US-06 | 2 | Should | UC-EP2-05 | 2.4, 2.5 | `custom_lists`, `custom_list_items`, `activity_events` | `POST /lists`, `POST /lists/{id}/items`, `GET /lists/{id}` | `test_epic2_users.py` | behavior/dfd-epic2-journal.md | draft | Not implemented |
-| US-07 | 2 | Should | UC-EP2-06 | 2.5, 2.6 | `activity_events` | `GET /diary` | `test_epic2_users.py` | behavior/dfd-epic2-journal.md | draft | Not implemented |
+| US-05 | 2 | Must | UC-EP2-04 | 2.3, 2.5 | `user_libraries`, `activity_events` | `PATCH /library/{id}` | `test_epic2_users.py` | behavior/dfd-epic2-journal.md | draft | Implemented |
+| US-06 | 2 | Should | UC-EP2-05 | 2.4, 2.5 | `custom_lists`, `custom_list_items`, `activity_events` | `POST /lists`, `GET /lists`, `POST /lists/{id}/items`, `GET /lists/{id}` | `test_epic2_users.py` | behavior/dfd-epic2-journal.md | draft | Implemented |
+| US-07 | 2 | Should | UC-EP2-06 | 2.5, 2.6 | `activity_events` | `GET /diary` | `test_epic2_users.py` | behavior/dfd-epic2-journal.md | draft | Implemented |
 | US-08 | 3 | Must | UC-EP3-05 | 3.2, 3.3, 3.4, 3.5 | `media_items`, `genres` | `GET /catalog/search` | `test_epic3_catalog.py` | behavior/dfd-epic3-catalog.md | draft | Not implemented |
 | US-09 | 3 | Must | UC-EP3-06 | 3.1, 3.3, 3.4, 3.5 | `media_items`, `seasons`, `chapters` | `GET /catalog/{id}` | `test_epic3_catalog.py` | behavior/dfd-epic3-catalog.md | draft | Not implemented |
 | US-10 | 4 | Must | UC-EP4-01 | 4.1, 4.2 | `chapter_progress`, `chapters` | `PUT /library/{id}/chapters/{chapter_id}/rating` | `test_epic4_episodic.py` | behavior/dfd-epic4-episodic.md | draft | Not implemented |

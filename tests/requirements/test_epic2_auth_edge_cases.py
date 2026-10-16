@@ -4,7 +4,7 @@ These guard against inputs the user stories do not list explicitly but that
 used to cause server errors (500): NUL bytes, the bcrypt 72-byte limit, and
 the Turkish case rules for usernames.
 """
-from helpers import new_credentials
+from helpers import HiddenPreCheck, new_credentials
 
 
 def _suffix() -> str:
@@ -204,3 +204,61 @@ def test_us03_overlong_password_for_unknown_user_returns_401(client):
     response = client.post("/auth/login", json={"username": "no_such_user_xyz", "password": "b" * 100})
 
     assert response.status_code == 401
+
+
+# ---------------------------------------------------------------- tokens: invalid or orphaned
+def test_invalid_token_returns_401(client):
+    """NFR-02: a token that is not a valid JWT returns 401, not 500."""
+    response = client.get("/library", headers={"Authorization": "Bearer not-a-real-token"})
+
+    assert response.status_code == 401
+
+
+def test_token_signed_with_other_key_returns_401(client):
+    """NFR-02: a token signed with a different key is rejected."""
+    from jose import jwt
+
+    forged = jwt.encode({"sub": "1"}, "x" * 32 + "-attacker-key", algorithm="HS256")
+    response = client.get("/library", headers={"Authorization": f"Bearer {forged}"})
+
+    assert response.status_code == 401
+
+
+def test_token_with_non_numeric_subject_returns_401(client):
+    """NFR-02: a correctly signed token whose subject is not a user id returns 401."""
+    from jose import jwt
+    from app.core.config import SECRET_KEY
+
+    token = jwt.encode({"sub": "admin"}, SECRET_KEY, algorithm="HS256")
+    response = client.get("/library", headers={"Authorization": f"Bearer {token}"})
+
+    assert response.status_code == 401
+
+
+def test_token_for_unknown_user_returns_401(client):
+    """NFR-02: a valid token for a user that no longer exists returns 401."""
+    from app.core.security import create_access_token
+
+    token = create_access_token(99999999)
+    response = client.get("/library", headers={"Authorization": f"Bearer {token}"})
+
+    assert response.status_code == 401
+
+
+# ---------------------------------------------------------------- US-02: registration race
+def test_us02_duplicate_registration_race_is_caught_by_the_constraint(client):
+    """US-02: when two registrations pass the duplicate check together, the second gets 409."""
+    import pytest
+    from app.core.database import SessionLocal
+    from app.schemas.user import UserCreate
+    from app.services import auth_service
+
+    credentials = new_credentials()
+    assert client.post("/auth/register", json=credentials).status_code == 201
+
+    db = SessionLocal()
+    try:
+        with pytest.raises(auth_service.AccountConflictError):
+            auth_service.register_user(HiddenPreCheck(db, hide_call=1), UserCreate(**credentials))
+    finally:
+        db.close()

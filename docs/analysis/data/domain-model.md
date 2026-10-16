@@ -155,7 +155,7 @@ Cached responses with a time to live. It is not a table in the relational databa
 | BR-03 | A user has at most one library entry for a title. | US-04 |
 | BR-04 | The library rating is from 1 to 10. | US-05 |
 | BR-05 | A user can only read and change their own data. | US-05, NFR-02 |
-| BR-06 | A list name is not empty. A title appears once in a list. | US-06 |
+| BR-06 | A list name is not empty and is unique per user. A title appears once in a list. | US-06 |
 | BR-07 | Every library change, rating and status change creates a diary event. | US-07 |
 | BR-08 | The pair (source, external id) identifies one catalog record. | US-08, US-09 |
 | BR-09 | A record is stale when `now - last_synced` is longer than the TTL. | US-08, US-09 |
