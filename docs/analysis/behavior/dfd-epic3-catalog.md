@@ -104,6 +104,8 @@ flowchart TB
 6. A query with no match returns an empty list with status 200.
 7. Each result has the title, the poster URL and the release date.
 
+**Implementation note (US-08).** The code asks the outside API right after a cache miss. It does not read D5 first, because saved titles can be incomplete and a search should show the newest outside results. D5 is read when the outside API fails: saved titles that match are returned, and when there are none the answer is 503. Each result is saved in D5 (one row for each media type and outside id) and has the internal `id`, so it can be added to the library. The cache holds outside data only, not row ids.
+
 ### 4.3 Manual or scheduled sync (UC-EP3-03)
 
 1. The Operator starts a manual sync, or the scheduler starts a job.

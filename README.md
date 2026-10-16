@@ -72,17 +72,6 @@ flowchart LR
 
 The backend is a single FastAPI application. It is split into modules that match the six epics. The detailed data flow diagrams are in [`docs/analysis/behavior`](docs/analysis/behavior/dfd-level0-1.md).
 
-## Tech stack
-
-| Area | Technologies |
-|---|---|
-| Backend | Python, FastAPI, SQLAlchemy, Pydantic, Alembic, python-jose, Redis, Docker |
-| Database | PostgreSQL (SQLite for quick local development), pgvector |
-| Frontend | Next.js, React, TypeScript, Tailwind CSS, Recharts, Lucide React, Axios, React Hook Form |
-| AI | LangChain, OpenAI API, Hugging Face models, transformer pipelines |
-| External data | IGDB (games), TMDB (movies and series) |
-| Testing and CI | pytest, pytest-cov, GitHub Actions |
-
 ## Roadmap
 
 Each step builds on the one before. A step is done when its tests pass.
@@ -113,7 +102,7 @@ Each step builds on the one before. A step is done when its tests pass.
 
 ## Project status
 
-The project is in the analysis phase. Requirements, tests and analysis documents are ready. Roadmap steps 1 to 3 are in place: Docker Compose services, settings, migrations, a PostgreSQL test database, registration and login with JWT (`POST /auth/register`, `POST /auth/login`), catalog entries (`POST /media`) and the library (`GET /library`, `POST /library`, `PATCH /library/{id}`). Lists, diary, external catalog search, statistics and recommendations are not implemented yet. The requirement-level tests are written first, so most of them fail on purpose until the features are built.
+The project is in the analysis phase. Requirements, tests and analysis documents are ready. Roadmap steps 1 to 4 and catalog search are in place: Docker Compose services, settings, migrations, a PostgreSQL test database, registration and login with JWT (`POST /auth/register`, `POST /auth/login`), catalog entries (`POST /media`), the library (`GET /library`, `POST /library`, `PATCH /library/{id}`), custom lists and the activity diary (`/lists`, `/diary`) and catalog search in IGDB and TMDB (`GET /catalog/search`). Title details (US-09), episodic logging, statistics and recommendations are not implemented yet. The requirement-level tests are written first, so most of them fail on purpose until the features are built.
 
 ## Getting started
 
@@ -142,6 +131,14 @@ uvicorn app.main:app --reload
 The API runs at `http://localhost:8000`. Interactive docs are at `http://localhost:8000/docs`.
 
 `DATABASE_URL` and `SECRET_KEY` are required, and the app stops with a clear error if either is missing. `DATABASE_URL` must point to PostgreSQL and `SECRET_KEY` must be at least 32 characters. `ACCESS_TOKEN_EXPIRE_MINUTES` is optional and defaults to 60. It sets how long a login token stays valid. The settings are read from `backend/.env` (see `backend/.env.example`).
+
+**Catalog search keys.** `GET /catalog/search` needs keys for the outside services: `IGDB_CLIENT_ID` and `IGDB_CLIENT_SECRET` for games (a Twitch application, see the comments in `.env.example`) and `TMDB_API_KEY` for series and movies. A source without keys is turned off and its searches return 503. Search results are cached in Redis (`REDIS_URL`, `CACHE_TTL_SECONDS`). If Redis is down, an in-process cache is used. Never commit real keys.
+
+The tests do not call IGDB or TMDB. They use a fake at the HTTP level (`tests/requirements/fake_external_apis.py`), so no keys are needed. To check the real services once, put real keys in `backend/.env` and run:
+
+```bash
+RUN_LIVE_API_TESTS=1 python -m pytest tests/requirements/test_epic3_catalog_live.py -v
+```
 
 To create a new migration after changing a model:
 
