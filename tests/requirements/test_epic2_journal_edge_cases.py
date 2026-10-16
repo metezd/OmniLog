@@ -3,7 +3,7 @@
 Covers the rules in docs/analysis/behavior/dfd-epic2-journal.md: unique list names, one title per
 list, ownership, and an append-only diary that records only real changes.
 """
-from helpers import add_to_library, new_credentials, register_and_login
+from helpers import HiddenPreCheck, add_to_library, new_credentials, register_and_login
 
 
 def _create_list(client, headers, name="My list"):
@@ -252,3 +252,60 @@ def test_diary_shows_only_my_events(client, auth_headers, media_item):
 def test_diary_requires_authentication(client):
     """NFR-02: GET /diary without a token returns 401."""
     assert client.get("/diary").status_code == 401
+
+
+# ---------------------------------------------------------------- concurrency: unique constraints
+# Two requests can both pass the "already exists?" check before either one writes.
+# The database unique constraint is then the last line of defence. These tests hide the
+# pre-check from the service, so the INSERT really hits the constraint, as in a race.
+def _db_user(db, client, headers, media_id):
+    """Return the ORM user behind the given auth headers."""
+    from app.models.entities import User
+
+    user_id = add_to_library(client, headers, media_id)["user_id"]
+    return db.get(User, user_id)
+
+
+def test_duplicate_list_name_race_is_caught_by_the_constraint(client, auth_headers, media_item):
+    """US-06 / BR-06: when the pre-check misses a duplicate, the unique constraint still returns 409."""
+    import pytest
+    from app.core.database import SessionLocal
+    from app.services import journal_service
+
+    _create_list(client, auth_headers, "Race")
+    db = SessionLocal()
+    try:
+        user = _db_user(db, client, auth_headers, media_item["id"])
+        with pytest.raises(journal_service.DuplicateListNameError):
+            journal_service.create_list(HiddenPreCheck(db, hide_call=1), user, "Race")
+    finally:
+        db.close()
+
+    names = [lst["name"] for lst in client.get("/lists", headers=auth_headers).json()]
+    assert names.count("Race") == 1
+
+
+def test_duplicate_list_item_race_returns_existing_item(client, auth_headers, media_item):
+    """US-06 / BR-06: when the pre-check misses a duplicate item, the existing item is returned."""
+    from app.core.database import SessionLocal
+    from app.services import journal_service
+
+    lst = _create_list(client, auth_headers, "Race items")
+    first = client.post(
+        f"/lists/{lst['id']}/items", json={"media_item_id": media_item["id"]}, headers=auth_headers
+    ).json()
+    events_before = _diary_actions(client, auth_headers).count("LIST_ITEM_ADDED")
+
+    db = SessionLocal()
+    try:
+        user = _db_user(db, client, auth_headers, media_item["id"])
+        # call 1 = load the list, call 2 = "is the title already in the list?" (hidden)
+        item, created = journal_service.add_item(
+            HiddenPreCheck(db, hide_call=2), user, lst["id"], media_item["id"]
+        )
+    finally:
+        db.close()
+
+    assert created is False
+    assert item.id == first["id"]
+    assert _diary_actions(client, auth_headers).count("LIST_ITEM_ADDED") == events_before
