@@ -65,8 +65,14 @@ class MediaItem(Base):
     poster_url = Column(String(500), nullable=True)
     release_date = Column(String(50), nullable=True)
 
-    # External IDs from RAWG or TMDB APIs
+    # External IDs from IGDB (games) or TMDB (series and movies). Ids of IGDB and TMDB are
+    # different number spaces, so the media type is part of the key. Several titles without an
+    # outside id are allowed (NULL values are not equal in a unique constraint).
     external_api_id = Column(Integer, index=True, nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("media_type", "external_api_id", name="uq_media_type_external_id"),
+    )
 
     # Relationship: One media item can be in many users' libraries
     library_entries = relationship("UserLibrary", back_populates="media_item")

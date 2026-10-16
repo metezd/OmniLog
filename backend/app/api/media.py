@@ -7,6 +7,7 @@ from app.core.database import get_db
 from app.models.entities import MediaItem, User
 from app.schemas.media import MediaItemCreate, MediaItemResponse
 from app.services import media_service
+from app.services.media_service import DuplicateMediaError
 
 router = APIRouter(prefix="/media", tags=["Media"])
 
@@ -19,7 +20,10 @@ def create_media(
 ):
     """Create a new media item in the catalog."""
     # Any logged in user can add a title for now. Restricting this is an open decision.
-    return media_service.create_media_item(db, payload)
+    try:
+        return media_service.create_media_item(db, payload)
+    except DuplicateMediaError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
 
 
 @router.get("/{media_id}", response_model=MediaItemResponse)
