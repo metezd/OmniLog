@@ -8,8 +8,11 @@ from sqlalchemy import (
     ForeignKey,
     Enum,
     Float,
+    Index,
+    SmallInteger,
     UniqueConstraint,
     CheckConstraint,
+    text,
 )
 from sqlalchemy.orm import relationship
 from app.core.database import Base
@@ -27,6 +30,11 @@ class WatchStatus(str, enum.Enum):
     IN_PROGRESS = "IN_PROGRESS"  # Currently playing/watching
     COMPLETED = "COMPLETED"  # Finished
     DROPPED = "DROPPED"  # Dropped / Didn't finish
+
+
+class ChapterKind(str, enum.Enum):
+    EPISODE = "EPISODE"  # An episode of a season of a series
+    CHAPTER = "CHAPTER"  # A chapter of an episodic game
 
 
 # 1. USER TABLE
@@ -70,6 +78,10 @@ class MediaItem(Base):
     # outside id are allowed (NULL values are not equal in a unique constraint).
     external_api_id = Column(Integer, index=True, nullable=True)
 
+    # When the seasons and episodes were last loaded from the outside service (US-09). Empty
+    # until then. A search result alone does not set it, because a search does not give seasons.
+    last_synced = Column(DateTime, nullable=True)
+
     __table_args__ = (
         UniqueConstraint("media_type", "external_api_id", name="uq_media_type_external_id"),
     )
@@ -79,6 +91,25 @@ class MediaItem(Base):
 
     # Relationship: Referenced in custom list items
     list_items = relationship("CustomListItem", back_populates="media_item")
+
+    # Relationship: The seasons of a series, in season order (US-09). The rows are removed by the
+    # database (ON DELETE CASCADE), so the ORM does not load them just to delete them.
+    seasons = relationship(
+        "Season",
+        back_populates="media_item",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="Season.season_number",
+    )
+
+    # Relationship: The chapters of an episodic game, in chapter order (US-09). Episodes are not
+    # included: they belong to a season. Read only, because chapters are written on their own.
+    chapters = relationship(
+        "Chapter",
+        primaryjoin="and_(MediaItem.id == Chapter.media_item_id, Chapter.season_id.is_(None))",
+        order_by="Chapter.number",
+        viewonly=True,
+    )
 
 
 # 3. USER LIBRARY TABLE (Watchlist / Association Table)
@@ -180,3 +211,113 @@ class DiaryEntry(Base):
     # Relationships
     user = relationship("User", back_populates="diary_entries")
     media_item = relationship("MediaItem")
+
+
+# 7. SEASON TABLE (US-09)
+class Season(Base):
+    __tablename__ = "seasons"
+
+    id = Column(Integer, primary_key=True)
+    media_item_id = Column(
+        Integer, ForeignKey("media_items.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # Season 0 is used by TMDB for specials
+    season_number = Column(Integer, nullable=False)
+    title = Column(String(200), nullable=True)
+    air_date = Column(String(50), nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("media_item_id", "season_number", name="uq_season_media_number"),
+    )
+
+    # Relationships
+    media_item = relationship("MediaItem", back_populates="seasons")
+    episodes = relationship(
+        "Chapter",
+        back_populates="season",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="Chapter.number",
+    )
+
+
+# 8. CHAPTER TABLE: episodes of a series and chapters of a game (US-09)
+class Chapter(Base):
+    __tablename__ = "chapters"
+
+    id = Column(Integer, primary_key=True)
+    # The series or the game. Episodes keep it too, so a chapter always points to its title.
+    media_item_id = Column(
+        Integer, ForeignKey("media_items.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # Empty for the chapters of a game
+    season_id = Column(
+        Integer, ForeignKey("seasons.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    number = Column(Integer, nullable=False)
+    kind = Column(Enum(ChapterKind), nullable=False)
+    title = Column(String(200), nullable=True)
+    release_date = Column(String(50), nullable=True)
+    runtime_minutes = Column(Integer, nullable=True)
+    # Id of the episode at TMDB. Games have no outside source for chapters.
+    external_id = Column(Integer, nullable=True)
+
+    __table_args__ = (
+        # The number is unique inside a season. A season id that is NULL is never equal to
+        # another NULL, so game chapters need the partial index below.
+        UniqueConstraint("season_id", "number", name="uq_chapter_season_number"),
+        Index(
+            "uq_chapter_game_number",
+            "media_item_id",
+            "number",
+            unique=True,
+            postgresql_where=text("season_id IS NULL"),
+            sqlite_where=text("season_id IS NULL"),
+        ),
+        # An episode belongs to a season, a game chapter does not
+        CheckConstraint(
+            "(kind = 'EPISODE' AND season_id IS NOT NULL)"
+            " OR (kind = 'CHAPTER' AND season_id IS NULL)",
+            name="chk_chapter_kind_season",
+        ),
+        CheckConstraint("number >= 0", name="chk_chapter_number"),
+        CheckConstraint(
+            "runtime_minutes IS NULL OR runtime_minutes >= 0", name="chk_chapter_runtime"
+        ),
+    )
+
+    # Relationships
+    media_item = relationship("MediaItem")
+    season = relationship("Season", back_populates="episodes")
+
+
+# 9. CHAPTER PROGRESS TABLE: the personal record of one user for one chapter (US-10)
+class ChapterProgress(Base):
+    __tablename__ = "chapter_progress"
+
+    id = Column(Integer, primary_key=True)
+    # The library entry of the user. It also tells which title the user tracks (BR-11).
+    library_entry_id = Column(
+        Integer, ForeignKey("user_libraries.id", ondelete="CASCADE"), nullable=False
+    )
+    chapter_id = Column(
+        Integer, ForeignKey("chapters.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    rating = Column(SmallInteger, nullable=True)  # Whole number between 1 and 5 (BR-10)
+    # Total of all playtime entries. US-11 fills it, so it stays 0 until then.
+    playtime_minutes = Column(Integer, nullable=False, default=0, server_default=text("0"))
+    updated_at = Column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+    __table_args__ = (
+        # One progress row per library entry and chapter. The row is created by the first
+        # rating (or playtime entry) and updated after that.
+        UniqueConstraint(
+            "library_entry_id", "chapter_id", name="uq_progress_entry_chapter"
+        ),
+        CheckConstraint(
+            "rating IS NULL OR (rating >= 1 AND rating <= 5)", name="chk_progress_rating"
+        ),
+        CheckConstraint("playtime_minutes >= 0", name="chk_progress_playtime"),
+    )
