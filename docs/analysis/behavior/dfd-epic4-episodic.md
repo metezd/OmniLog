@@ -90,7 +90,8 @@ This check runs before every chapter operation. It protects the data of other us
 1. Request: `PUT /library/{id}/chapters/{chapter_id}/rating` with a number.
 2. The rating must be a whole number from 1 to 5. A value of 0 or 6 gives 422.
 3. Save the rating in `chapter_progress`. The row is created when it does not exist.
-4. Send a `CHAPTER_RATED` event to 2.5.
+4. Send a `CHAPTER_RATED` event to 2.5. The event is written only when the rating changes, so the same rating sent again adds nothing to the activity log.
+5. A new rating replaces the old one. The call can be repeated with the same result.
 
 ### 4.3 Log Playtime (US-11)
 1. Request: `POST /library/{id}/chapters/{chapter_id}/playtime` with `minutes`.
@@ -130,6 +131,7 @@ This check runs before every chapter operation. It protects the data of other us
 
 ## 7. Notes
 
-- The test fixture reads chapters from `GET /catalog/{id}`. Epic 4 tests cannot pass until Epic 3 returns chapters.
+- The test fixture saves one game chapter in the database and reads it from `GET /catalog/{id}`. No endpoint creates the chapters of a game yet (open point 3 in the domain model).
+- An id that cannot exist (zero, negative or larger than 32 bits) gives 404 in process 4.1, so the database is never asked.
 - A chapter can have more than one decision point in the model. The API in the tests has one `choice` for each chapter. The proposal is an optional `decision_point_id` in the request when a chapter has more than one.
 - Comparing a decision with other players (the goal of US-12) is a read over `user_decisions`. It is not in the acceptance criteria, so it is not a process here.

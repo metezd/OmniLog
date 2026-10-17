@@ -237,6 +237,7 @@ Notation: PK is primary key, FK is foreign key, UK is unique, NN is not null. A 
 | `rate_limit_meta` | JSON | NULL | Known rate limit information |
 
 ### media_items (Implemented, columns proposed)
+Of the new columns, only `last_synced` is implemented so far (US-09).
 | Column | Type | Constraints | Description |
 |---|---|---|---|
 | `id` | INTEGER | PK | Identifier |
@@ -262,7 +263,7 @@ Unique index on (`source_id`, `external_id`). Index on `last_synced`.
 | `media_item_genres.media_item_id` | INTEGER | PK, FK, cascade | Title |
 | `media_item_genres.genre_id` | INTEGER | PK, FK, cascade | Genre |
 
-### seasons (Proposed)
+### seasons (Implemented, US-09)
 | Column | Type | Constraints | Description |
 |---|---|---|---|
 | `id` | INTEGER | PK | Identifier |
@@ -273,7 +274,7 @@ Unique index on (`source_id`, `external_id`). Index on `last_synced`.
 
 Unique on (`media_item_id`, `season_number`).
 
-### chapters (Proposed)
+### chapters (Implemented, US-09)
 | Column | Type | Constraints | Description |
 |---|---|---|---|
 | `id` | INTEGER | PK | Identifier |
@@ -284,7 +285,9 @@ Unique on (`media_item_id`, `season_number`).
 | `title` | VARCHAR(200) | NULL | Title |
 | `release_date` | VARCHAR(50) | NULL | Release or air date |
 | `runtime_minutes` | INTEGER | NULL | Length of an episode |
-| `external_id` | VARCHAR(50) | NULL | Id at the provider |
+| `external_id` | INTEGER | NULL | Id at the provider. An integer, like `media_items.external_api_id` |
+
+Unique on (`season_id`, `number`) for episodes, and a partial unique index on (`media_item_id`, `number`) where `season_id` is empty for game chapters. Check constraints: an `EPISODE` has a season and a `CHAPTER` has none, and `number` and `runtime_minutes` are not negative. Rows are never deleted by a refresh, because the ratings of users (Epic 4) will point to them.
 
 ### user_libraries (Implemented)
 | Column | Type | Constraints | Description |
@@ -325,7 +328,7 @@ Unique on (`list_id`, `media_item_id`).
 
 Index on (`user_id`, `created_at` descending).
 
-### chapter_progress (Proposed)
+### chapter_progress (Implemented, US-10)
 | Column | Type | Constraints | Description |
 |---|---|---|---|
 | `id` | INTEGER | PK | Identifier |
@@ -335,7 +338,7 @@ Index on (`user_id`, `created_at` descending).
 | `playtime_minutes` | INTEGER | NN, default 0, check 0 or more | Total of all playtime entries |
 | `updated_at` | DATETIME | default now, on update | Last change |
 
-Unique on (`library_entry_id`, `chapter_id`).
+Unique on (`library_entry_id`, `chapter_id`). Check constraints: `rating` is empty or from 1 to 5, and `playtime_minutes` is not negative. The row is created by the first rating. The column `playtime_minutes` stays 0 until US-11 fills it.
 
 ### playtime_logs (Proposed)
 | Column | Type | Constraints | Description |
@@ -424,7 +427,7 @@ Unique on (`decision_options.decision_point_id`, `decision_options.label`). Uniq
 
 | Key pattern | Content | TTL | Written by |
 |---|---|---|---|
-| `omni:catalog:{source}:{external_id}` | Normalized catalog record | 1 hour to 24 hours. Default 1 hour in tests | Process 3.5 |
+| `omni:catalog:{source}:{external_id}` | Normalized catalog record. For US-09 the source is `tmdb_tv` (the ids of TMDB series and movies are different number spaces) and the record is the seasons and episodes of the series, or `{"found": false}` when TMDB does not know the id | 1 hour to 24 hours. US-09 uses `DETAILS_CACHE_TTL_SECONDS`, default 24 hours | Process 3.5 |
 | `omni:search:{type}:{query_hash}` | List of search results | 1 hour | Process 3.2 |
 | `omni:reco:{user_id}:{target}` | List of recommended media ids | 10 minutes | Process 5.3 |
 | `omni:stats:{user_id}` | Statistics response | 5 minutes. Deleted when the library or progress changes | Process 6.5 |
