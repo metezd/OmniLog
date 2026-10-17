@@ -105,7 +105,7 @@ def _normalize(item: Any, title_field: str, date_field: str) -> Optional[Externa
     )
 
 
-# - seasons of a series (US-09)
+# ---------------------------------------------------------------- seasons of a series (US-09)
 def fetch_series_seasons(external_id: int) -> Optional[list[ExternalSeason]]:
     """Return the seasons of a series with their episodes, in season order.
 
