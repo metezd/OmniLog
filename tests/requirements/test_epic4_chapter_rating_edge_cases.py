@@ -13,7 +13,6 @@ from pydantic import ValidationError
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
-from app.core.database import SessionLocal
 from app.models.entities import (
     Chapter,
     ChapterKind,
@@ -32,15 +31,6 @@ from helpers import (
     new_credentials,
     register_and_login,
 )
-
-
-@pytest.fixture
-def db():
-    session = SessionLocal()
-    try:
-        yield session
-    finally:
-        session.close()
 
 
 # ---------------------------------------------------------------- helpers
@@ -665,3 +655,34 @@ def test_the_original_error_is_raised_if_the_row_of_the_race_cannot_be_found(
         chapter_service.rate_chapter(db, user, game["entry_id"], game["chapter_id"], 4)
 
     assert diary_actions(client, auth_headers).count("CHAPTER_RATED") == before
+
+
+# ---------------------------------------------------------------- ORM relationships
+def test_the_orm_relationships_connect_progress_entry_and_chapter(client, auth_headers, game, db):
+    rate(client, auth_headers, game["entry_id"], game["chapter_id"], {"rating": 3})
+    db.expire_all()
+
+    progress = progress_rows(db, game["entry_id"], game["chapter_id"])[0]
+
+    assert progress.library_entry.id == game["entry_id"]
+    assert progress.chapter.id == game["chapter_id"]
+    assert [row.rating for row in db.get(UserLibrary, game["entry_id"]).chapter_progress] == [3]
+    assert [row.rating for row in db.get(Chapter, game["chapter_id"]).progress_entries] == [3]
+
+
+def test_deleting_a_library_entry_through_the_orm_deletes_its_progress(client, auth_headers, game, db):
+    rate(client, auth_headers, game["entry_id"], game["chapter_id"], {"rating": 3})
+
+    db.delete(db.get(UserLibrary, game["entry_id"]))
+    db.commit()
+
+    assert progress_rows(db, game["entry_id"], game["chapter_id"]) == []
+
+
+def test_deleting_a_chapter_through_the_orm_deletes_its_progress(client, auth_headers, game, db):
+    rate(client, auth_headers, game["entry_id"], game["chapter_id"], {"rating": 3})
+
+    db.delete(db.get(Chapter, game["chapter_id"]))
+    db.commit()
+
+    assert progress_rows(db, game["entry_id"], game["chapter_id"]) == []

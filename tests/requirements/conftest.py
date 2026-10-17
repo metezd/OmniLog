@@ -100,6 +100,22 @@ def database_schema():
     yield
 
 
+@pytest.fixture
+def db():
+    """A database session for a test that needs to read or prepare rows directly.
+
+    Use this fixture instead of opening SessionLocal() in a test or in another fixture. The
+    session is closed after the test, so an open transaction never leaks into the next test.
+    """
+    from app.core.database import SessionLocal
+
+    session = SessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()
+
+
 @pytest.fixture(scope="session")
 def client():
     from fastapi.testclient import TestClient

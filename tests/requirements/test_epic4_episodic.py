@@ -1,13 +1,12 @@
 """Epic 4 - Granular Episodic and Decision Logging (US-10 to US-12)."""
 import pytest
 
-from app.core.database import SessionLocal
 from app.models.entities import Chapter, ChapterKind
 from helpers import add_to_library, create_media
 
 
 @pytest.fixture
-def chapter_context(client, auth_headers):
+def chapter_context(client, auth_headers, db):
     """A library entry for an episodic game plus the id of its first chapter.
 
     No endpoint creates the chapters of a game yet (open point 3 in
@@ -18,12 +17,8 @@ def chapter_context(client, auth_headers):
     media = create_media(client, auth_headers, media_type="GAME")
     entry = add_to_library(client, auth_headers, media["id"], status="IN_PROGRESS")
 
-    db = SessionLocal()
-    try:
-        db.add(Chapter(media_item_id=media["id"], number=1, kind=ChapterKind.CHAPTER, title="Chapter 1"))
-        db.commit()
-    finally:
-        db.close()
+    db.add(Chapter(media_item_id=media["id"], number=1, kind=ChapterKind.CHAPTER, title="Chapter 1"))
+    db.commit()
 
     detail = client.get(f"/catalog/{media['id']}", headers=auth_headers)
     assert detail.status_code == 200, f"catalog detail failed: {detail.status_code}"

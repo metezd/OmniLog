@@ -136,6 +136,15 @@ class UserLibrary(Base):
     # Relationships
     user = relationship("User", back_populates="library_entries")
     media_item = relationship("MediaItem", back_populates="library_entries")
+    # Progress of the chapters of this title (US-10). The database cascades the delete.
+    chapter_progress = relationship(
+        "ChapterProgress",
+        back_populates="library_entry",
+        primaryjoin="UserLibrary.id == ChapterProgress.library_entry_id",
+        foreign_keys="ChapterProgress.library_entry_id",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
     # Constraints
     __table_args__ = (
@@ -296,6 +305,15 @@ class Chapter(Base):
     # Relationships
     media_item = relationship("MediaItem")
     season = relationship("Season", back_populates="episodes")
+    # The progress rows of all users for this chapter (US-10). The database cascades the delete.
+    progress_entries = relationship(
+        "ChapterProgress",
+        back_populates="chapter",
+        primaryjoin="Chapter.id == ChapterProgress.chapter_id",
+        foreign_keys="ChapterProgress.chapter_id",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
 
 # 9. CHAPTER PROGRESS TABLE: the personal record of one user for one chapter (US-10)
@@ -319,6 +337,22 @@ class ChapterProgress(Base):
         default=datetime.utcnow,
         server_default=text("timezone('utc', now())"),
         onupdate=datetime.utcnow,
+    )
+
+    # The joins use the single id columns. media_item_id is not copied by these relationships,
+    # because it belongs to both composite foreign keys. The service sets it from the entry, and
+    # the database checks that the entry and the chapter have the same title (BR-11).
+    library_entry = relationship(
+        "UserLibrary",
+        back_populates="chapter_progress",
+        primaryjoin="UserLibrary.id == ChapterProgress.library_entry_id",
+        foreign_keys=[library_entry_id],
+    )
+    chapter = relationship(
+        "Chapter",
+        back_populates="progress_entries",
+        primaryjoin="Chapter.id == ChapterProgress.chapter_id",
+        foreign_keys=[chapter_id],
     )
 
     __table_args__ = (
