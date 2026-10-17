@@ -57,3 +57,34 @@ def add_to_library(client, headers: dict, media_item_id: int,
     resp = client.post("/library", json=payload, headers=headers)
     assert resp.status_code == 201, f"add to library failed: {resp.status_code} {resp.text}"
     return resp.json()
+
+
+class HiddenPreCheck:
+    """Wraps a session so the n-th call to query(...).first() returns None.
+
+    Two requests can both pass an "already exists?" check before either one writes.
+    Hiding that check lets a test reach the unique-constraint fallback, as in a real race.
+    """
+
+    def __init__(self, session, hide_call: int):
+        self._session = session
+        self._hide_call = hide_call
+        self._calls = 0
+
+    def query(self, *args, **kwargs):
+        self._calls += 1
+        query = self._session.query(*args, **kwargs)
+        if self._calls != self._hide_call:
+            return query
+
+        class _NoMatch:
+            def filter(self, *a, **k):
+                return self
+
+            def first(self):
+                return None
+
+        return _NoMatch()
+
+    def __getattr__(self, name):
+        return getattr(self._session, name)
