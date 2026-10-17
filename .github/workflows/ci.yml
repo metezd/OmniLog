@@ -86,6 +86,18 @@ jobs:
             --cov-report=xml \
             --cov-fail-under=70
 
+      # Real IGDB and TMDB calls. Only on a manual run, so normal runs never use the keys.
+      # The secrets are named differently from the settings the code reads, so they are mapped here.
+      # TMDB_API holds the long "API Read Access Token" (it starts with eyJ).
+      - name: Live API tests (manual run only)
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          RUN_LIVE_API_TESTS: "1"
+          IGDB_CLIENT_ID: ${{ secrets.IGBD_ID }}
+          IGDB_CLIENT_SECRET: ${{ secrets.IGBD_KEY }}
+          TMDB_API_KEY: ${{ secrets.TMDB_API }}
+        run: python -m pytest tests/requirements/test_epic3_catalog_live.py -v
+
       - name: Upload backend coverage
         if: always()
         uses: actions/upload-artifact@v4
