@@ -134,7 +134,7 @@ def pytest_collection_modifyitems(config, items):
 
 @pytest.fixture(autouse=True)
 def fake_external_apis(request, monkeypatch):
-    """Put a fake under the IGDB and TMDB calls, and start every test with an empty search cache.
+    """Put a fake under the IGDB and TMDB calls, and start every test with empty catalog caches.
 
     The real client code still runs. Tests marked `live` skip the fake and use the real services.
     """
@@ -142,7 +142,9 @@ def fake_external_apis(request, monkeypatch):
     from app.integrations import igdb
 
     cache.reset_connection()
+    # Redis keeps its data between test runs, but the database is created again for each run
     cache.clear_prefix("omni:search:")
+    cache.clear_prefix("omni:catalog:")
     igdb.reset_access_token()
 
     if request.node.get_closest_marker("live"):

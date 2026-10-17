@@ -37,3 +37,19 @@ def test_live_tmdb_finds_a_series_and_a_movie(client, auth_headers):
     assert series.status_code == movie.status_code == 200
     assert any(item["title"] == "Breaking Bad" for item in series.json())
     assert any(item["title"] == "Blade Runner" for item in movie.json())
+
+
+def test_live_tmdb_series_details_have_seasons_and_episodes(client, auth_headers):
+    """US-09: the real TMDB answers the season calls (including append_to_response) as expected."""
+    if config.TMDB_API_KEY.startswith("test-"):
+        pytest.skip("a real TMDB key is not set")
+    found = _search(client, auth_headers, "Breaking Bad", "SERIES")
+    series = next(item for item in found.json() if item["title"] == "Breaking Bad")
+
+    response = client.get(f"/catalog/{series['id']}", headers=auth_headers)
+
+    assert response.status_code == 200, response.text
+    seasons = {s["season_number"]: s for s in response.json()["seasons"]}
+    assert {1, 2, 3, 4, 5} <= set(seasons)
+    assert len(seasons[1]["episodes"]) == 7
+    assert seasons[1]["episodes"][0]["title"]
