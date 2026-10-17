@@ -1,8 +1,6 @@
 """Edge cases for rating a chapter or episode (US-10, BR-10, BR-11, US-07, NFR-02).
 
-The chapters of a game have no outside source and no endpoint creates them yet (open point 3 in
-docs/analysis/data/domain-model.md). The tests put chapters in the database directly, as the
-Epic 3 edge case tests do.
+The chapters are saved in the database directly (see epic4_helpers.py).
 """
 import threading
 from datetime import datetime
@@ -18,12 +16,12 @@ from app.models.entities import (
     ChapterKind,
     ChapterProgress,
     MediaItem,
-    Season,
     User,
     UserLibrary,
 )
 from app.schemas.chapter import ChapterRatingResponse
 from app.services import chapter_service
+from epic4_helpers import add_chapter, add_episode, diary_actions
 from helpers import (
     HiddenPreCheck,
     add_to_library,
@@ -34,25 +32,6 @@ from helpers import (
 
 
 # ---------------------------------------------------------------- helpers
-def add_chapter(db, media_id, number=1):
-    chapter = Chapter(media_item_id=media_id, number=number, kind=ChapterKind.CHAPTER, title=f"Chapter {number}")
-    db.add(chapter)
-    db.commit()
-    return chapter.id
-
-
-def add_episode(db, media_id, number=1):
-    season = Season(media_item_id=media_id, season_number=1, title="Season 1")
-    db.add(season)
-    db.flush()
-    episode = Chapter(
-        media_item_id=media_id, season_id=season.id, number=number, kind=ChapterKind.EPISODE, title=f"Episode {number}"
-    )
-    db.add(episode)
-    db.commit()
-    return episode.id
-
-
 def _progress(game, rating, **overrides):
     """A ChapterProgress for the fixture game. Overrides replace single columns."""
     values = {
@@ -80,10 +59,6 @@ def progress_rows(db, entry_id, chapter_id):
         .filter(ChapterProgress.library_entry_id == entry_id, ChapterProgress.chapter_id == chapter_id)
         .all()
     )
-
-
-def diary_actions(client, headers):
-    return [event["action"] for event in client.get("/diary", headers=headers).json()]
 
 
 @pytest.fixture
