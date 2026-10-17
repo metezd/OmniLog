@@ -1,0 +1,435 @@
+"""Edge cases for rating a chapter or episode (US-10, BR-10, BR-11, US-07, NFR-02).
+
+The chapters of a game have no outside source and no endpoint creates them yet (open point 3 in
+docs/analysis/data/domain-model.md). The tests put chapters in the database directly, as the
+Epic 3 edge case tests do.
+"""
+import pytest
+from sqlalchemy.exc import IntegrityError
+
+from app.core.database import SessionLocal
+from app.models.entities import (
+    Chapter,
+    ChapterKind,
+    ChapterProgress,
+    MediaItem,
+    Season,
+    User,
+)
+from app.services import chapter_service
+from helpers import (
+    HiddenPreCheck,
+    add_to_library,
+    create_media,
+    new_credentials,
+    register_and_login,
+)
+
+
+@pytest.fixture
+def db():
+    session = SessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()
+
+
+# ---------------------------------------------------------------- helpers
+def add_chapter(db, media_id, number=1):
+    chapter = Chapter(media_item_id=media_id, number=number, kind=ChapterKind.CHAPTER, title=f"Chapter {number}")
+    db.add(chapter)
+    db.commit()
+    return chapter.id
+
+
+def add_episode(db, media_id, number=1):
+    season = Season(media_item_id=media_id, season_number=1, title="Season 1")
+    db.add(season)
+    db.flush()
+    episode = Chapter(
+        media_item_id=media_id, season_id=season.id, number=number, kind=ChapterKind.EPISODE, title=f"Episode {number}"
+    )
+    db.add(episode)
+    db.commit()
+    return episode.id
+
+
+def rating_url(entry_id, chapter_id):
+    return f"/library/{entry_id}/chapters/{chapter_id}/rating"
+
+
+def rate(client, headers, entry_id, chapter_id, body):
+    return client.put(rating_url(entry_id, chapter_id), json=body, headers=headers)
+
+
+def progress_rows(db, entry_id, chapter_id):
+    db.expire_all()
+    return (
+        db.query(ChapterProgress)
+        .filter(ChapterProgress.library_entry_id == entry_id, ChapterProgress.chapter_id == chapter_id)
+        .all()
+    )
+
+
+def diary_actions(client, headers):
+    return [event["action"] for event in client.get("/diary", headers=headers).json()]
+
+
+@pytest.fixture
+def game(client, auth_headers, db):
+    """A game in the library of the logged-in user, with two chapters."""
+    media = create_media(client, auth_headers, media_type="GAME")
+    entry = add_to_library(client, auth_headers, media["id"], status="IN_PROGRESS")
+    return {
+        "media_id": media["id"],
+        "entry_id": entry["id"],
+        "chapter_id": add_chapter(db, media["id"], 1),
+        "second_chapter_id": add_chapter(db, media["id"], 2),
+    }
+
+
+# ---------------------------------------------------------------- happy path
+@pytest.mark.parametrize("value", [1, 2, 3, 4, 5])
+def test_every_rating_from_1_to_5_is_accepted(client, auth_headers, game, value):
+    """US-10 and BR-10: the whole range is valid, including both ends."""
+    response = rate(client, auth_headers, game["entry_id"], game["chapter_id"], {"rating": value})
+
+    assert response.status_code == 200
+    assert response.json()["rating"] == value
+
+
+def test_the_answer_has_the_documented_fields_only(client, auth_headers, game):
+    """US-10: the answer shows the rating and where it belongs, and no internal columns."""
+    body = rate(client, auth_headers, game["entry_id"], game["chapter_id"], {"rating": 4}).json()
+
+    assert set(body) == {"library_entry_id", "chapter_id", "rating", "updated_at"}
+    assert body["library_entry_id"] == game["entry_id"]
+    assert body["chapter_id"] == game["chapter_id"]
+
+
+def test_the_rating_is_saved_in_the_database(client, auth_headers, game, db):
+    """US-10: the rating is stored once, in one progress row."""
+    rate(client, auth_headers, game["entry_id"], game["chapter_id"], {"rating": 4})
+
+    rows = progress_rows(db, game["entry_id"], game["chapter_id"])
+    assert [(row.rating, row.playtime_minutes) for row in rows] == [(4, 0)]
+
+
+def test_a_new_rating_replaces_the_old_one(client, auth_headers, game, db):
+    """US-10: rating again changes the rating. It never adds a second row."""
+    rate(client, auth_headers, game["entry_id"], game["chapter_id"], {"rating": 2})
+    response = rate(client, auth_headers, game["entry_id"], game["chapter_id"], {"rating": 5})
+
+    assert response.json()["rating"] == 5
+    rows = progress_rows(db, game["entry_id"], game["chapter_id"])
+    assert [row.rating for row in rows] == [5]
+
+
+def test_the_same_rating_can_be_sent_again(client, auth_headers, game):
+    """US-10: PUT can be repeated with the same body and gives the same answer."""
+    first = rate(client, auth_headers, game["entry_id"], game["chapter_id"], {"rating": 3})
+    second = rate(client, auth_headers, game["entry_id"], game["chapter_id"], {"rating": 3})
+
+    assert (first.status_code, second.status_code) == (200, 200)
+    assert second.json()["rating"] == 3
+
+
+def test_chapters_of_one_title_are_rated_separately(client, auth_headers, game):
+    """US-10: each chapter keeps its own rating, which is the point of comparing the parts."""
+    rate(client, auth_headers, game["entry_id"], game["chapter_id"], {"rating": 5})
+    rate(client, auth_headers, game["entry_id"], game["second_chapter_id"], {"rating": 2})
+
+    first = rate(client, auth_headers, game["entry_id"], game["chapter_id"], {"rating": 5})
+    second = rate(client, auth_headers, game["entry_id"], game["second_chapter_id"], {"rating": 2})
+    assert (first.json()["rating"], second.json()["rating"]) == (5, 2)
+
+
+def test_an_episode_of_a_series_can_be_rated(client, auth_headers, db):
+    """US-10: the story speaks of a chapter or an episode, so an episode works too."""
+    series = create_media(client, auth_headers, media_type="SERIES")
+    entry = add_to_library(client, auth_headers, series["id"], status="IN_PROGRESS")
+    episode_id = add_episode(db, series["id"])
+
+    response = rate(client, auth_headers, entry["id"], episode_id, {"rating": 3})
+
+    assert response.status_code == 200
+    assert response.json()["rating"] == 3
+
+
+def test_the_library_rating_of_the_title_is_not_touched(client, auth_headers, db):
+    """US-10: the chapter rating (1 to 5) and the title rating (1 to 10) are separate."""
+    media = create_media(client, auth_headers, media_type="GAME")
+    entry = add_to_library(client, auth_headers, media["id"], rating=9)
+    chapter_id = add_chapter(db, media["id"])
+
+    rate(client, auth_headers, entry["id"], chapter_id, {"rating": 2})
+
+    library = client.get("/library", headers=auth_headers).json()
+    assert [item["rating"] for item in library if item["id"] == entry["id"]] == [9]
+
+
+# ---------------------------------------------------------------- invalid ratings (BR-10)
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"rating": 0},
+        {"rating": 6},
+        {"rating": -1},
+        {"rating": 10},
+        {"rating": 4.5},
+        {"rating": 4.0},
+        {"rating": "4"},
+        {"rating": True},
+        {"rating": None},
+        {"rating": [4]},
+        {},
+    ],
+)
+def test_invalid_ratings_return_422(client, auth_headers, game, db, body):
+    """US-10 and BR-10: only a whole JSON number from 1 to 5 is a rating."""
+    response = rate(client, auth_headers, game["entry_id"], game["chapter_id"], body)
+
+    assert response.status_code == 422
+    assert progress_rows(db, game["entry_id"], game["chapter_id"]) == []
+
+
+def test_an_invalid_rating_keeps_the_old_one(client, auth_headers, game, db):
+    """US-10: a rejected request changes nothing."""
+    rate(client, auth_headers, game["entry_id"], game["chapter_id"], {"rating": 4})
+    rate(client, auth_headers, game["entry_id"], game["chapter_id"], {"rating": 6})
+
+    assert [row.rating for row in progress_rows(db, game["entry_id"], game["chapter_id"])] == [4]
+
+
+def test_a_nan_rating_returns_422_not_500(client, auth_headers, game):
+    """US-10: NaN is not valid JSON. It must be a validation error, never a server error."""
+    response = client.put(
+        rating_url(game["entry_id"], game["chapter_id"]),
+        content='{"rating": NaN}',
+        headers={**auth_headers, "Content-Type": "application/json"},
+    )
+
+    assert response.status_code == 422
+
+
+def test_a_body_that_is_not_json_returns_422(client, auth_headers, game):
+    response = client.put(
+        rating_url(game["entry_id"], game["chapter_id"]),
+        content="not json",
+        headers={**auth_headers, "Content-Type": "application/json"},
+    )
+
+    assert response.status_code == 422
+
+
+# ---------------------------------------------------------------- access (BR-11, NFR-02)
+def test_rating_needs_a_token(client, game):
+    """NFR-02: a request without a token returns 401."""
+    response = client.put(rating_url(game["entry_id"], game["chapter_id"]), json={"rating": 4})
+
+    assert response.status_code == 401
+
+
+def test_a_bad_token_returns_401(client, game):
+    response = client.put(
+        rating_url(game["entry_id"], game["chapter_id"]),
+        json={"rating": 4},
+        headers={"Authorization": "Bearer not-a-token"},
+    )
+
+    assert response.status_code == 401
+
+
+def test_the_library_entry_of_another_user_returns_404(client, game, db):
+    """BR-11: a user cannot rate chapters through the entry of someone else."""
+    other = register_and_login(client, new_credentials())
+
+    response = rate(client, other, game["entry_id"], game["chapter_id"], {"rating": 4})
+
+    assert response.status_code == 404
+    assert progress_rows(db, game["entry_id"], game["chapter_id"]) == []
+
+
+def test_the_answer_is_the_same_for_an_entry_that_does_not_exist(client, auth_headers, game):
+    """BR-11: the 404 of another user's entry and of a missing entry look the same."""
+    other = register_and_login(client, new_credentials())
+
+    theirs = rate(client, other, game["entry_id"], game["chapter_id"], {"rating": 4})
+    missing = rate(client, other, 99999999, game["chapter_id"], {"rating": 4})
+
+    assert (theirs.status_code, theirs.json()) == (missing.status_code, missing.json())
+
+
+def test_a_chapter_that_does_not_exist_returns_404(client, auth_headers, game):
+    response = rate(client, auth_headers, game["entry_id"], 99999999, {"rating": 4})
+
+    assert response.status_code == 404
+
+
+def test_a_chapter_of_another_title_returns_404(client, auth_headers, game, db):
+    """BR-11: the chapter must belong to the title of the library entry."""
+    other_media = create_media(client, auth_headers, media_type="GAME")
+    foreign_chapter = add_chapter(db, other_media["id"])
+
+    response = rate(client, auth_headers, game["entry_id"], foreign_chapter, {"rating": 4})
+
+    assert response.status_code == 404
+    assert progress_rows(db, game["entry_id"], foreign_chapter) == []
+
+
+def test_a_title_that_is_not_in_the_library_cannot_be_rated(client, auth_headers, db):
+    """US-10: the story says a chapter in a title of my library."""
+    media = create_media(client, auth_headers, media_type="GAME")
+    chapter_id = add_chapter(db, media["id"])
+    other = register_and_login(client, new_credentials())
+    other_entry = add_to_library(client, other, create_media(client, other)["id"])
+
+    response = rate(client, other, other_entry["id"], chapter_id, {"rating": 4})
+
+    assert response.status_code == 404
+
+
+@pytest.mark.parametrize("bad_id", ["0", "-5", str(2**31), "99999999999999999999"])
+def test_ids_that_cannot_exist_return_404(client, auth_headers, game, bad_id):
+    """US-10: an id that cannot exist (zero, negative, too large) is unknown, never a 500."""
+    for url in (
+        f"/library/{bad_id}/chapters/{game['chapter_id']}/rating",
+        f"/library/{game['entry_id']}/chapters/{bad_id}/rating",
+    ):
+        assert client.put(url, json={"rating": 4}, headers=auth_headers).status_code == 404
+
+
+def test_a_text_id_returns_422(client, auth_headers, game):
+    response = client.put(f"/library/abc/chapters/{game['chapter_id']}/rating", json={"rating": 4}, headers=auth_headers)
+
+    assert response.status_code == 422
+
+
+def test_two_users_rate_the_same_chapter_independently(client, auth_headers, game, db):
+    """US-10: the progress belongs to the library entry, so users do not overwrite each other."""
+    other = register_and_login(client, new_credentials())
+    other_entry = add_to_library(client, other, game["media_id"])
+
+    rate(client, auth_headers, game["entry_id"], game["chapter_id"], {"rating": 5})
+    rate(client, other, other_entry["id"], game["chapter_id"], {"rating": 1})
+
+    mine = [r.rating for r in progress_rows(db, game["entry_id"], game["chapter_id"])]
+    theirs = [r.rating for r in progress_rows(db, other_entry["id"], game["chapter_id"])]
+    assert (mine, theirs) == ([5], [1])
+
+
+# ---------------------------------------------------------------- diary (US-07)
+def test_rating_a_chapter_is_recorded_in_the_diary(client, auth_headers, game):
+    """US-07: a chapter rating is a CHAPTER_RATED event for the title."""
+    rate(client, auth_headers, game["entry_id"], game["chapter_id"], {"rating": 4})
+
+    events = [e for e in client.get("/diary", headers=auth_headers).json() if e["action"] == "CHAPTER_RATED"]
+    assert len(events) == 1
+    assert events[0]["media_item_id"] == game["media_id"]
+    assert events[0]["details"] == "Rated chapter 1 as 4"
+
+
+def test_an_episode_rating_says_episode_in_the_diary(client, auth_headers, db):
+    series = create_media(client, auth_headers, media_type="SERIES")
+    entry = add_to_library(client, auth_headers, series["id"])
+    episode_id = add_episode(db, series["id"], number=7)
+
+    rate(client, auth_headers, entry["id"], episode_id, {"rating": 2})
+
+    events = [e for e in client.get("/diary", headers=auth_headers).json() if e["action"] == "CHAPTER_RATED"]
+    assert [e["details"] for e in events] == ["Rated episode 7 as 2"]
+
+
+def test_a_chapter_rating_is_not_a_title_rating_event(client, auth_headers, game):
+    """US-07: RATED stays for the rating of the title, so the two kinds can be told apart."""
+    before = diary_actions(client, auth_headers).count("RATED")
+
+    rate(client, auth_headers, game["entry_id"], game["chapter_id"], {"rating": 4})
+
+    assert diary_actions(client, auth_headers).count("RATED") == before
+
+
+def test_the_same_rating_again_adds_no_event(client, auth_headers, game):
+    """US-07: events are written for real changes only."""
+    rate(client, auth_headers, game["entry_id"], game["chapter_id"], {"rating": 4})
+    before = diary_actions(client, auth_headers).count("CHAPTER_RATED")
+
+    rate(client, auth_headers, game["entry_id"], game["chapter_id"], {"rating": 4})
+
+    assert diary_actions(client, auth_headers).count("CHAPTER_RATED") == before
+
+
+def test_a_changed_rating_adds_an_event(client, auth_headers, game):
+    rate(client, auth_headers, game["entry_id"], game["chapter_id"], {"rating": 4})
+    before = diary_actions(client, auth_headers).count("CHAPTER_RATED")
+
+    rate(client, auth_headers, game["entry_id"], game["chapter_id"], {"rating": 2})
+
+    assert diary_actions(client, auth_headers).count("CHAPTER_RATED") == before + 1
+
+
+def test_a_rejected_rating_adds_no_event(client, auth_headers, game):
+    before = diary_actions(client, auth_headers).count("CHAPTER_RATED")
+
+    rate(client, auth_headers, game["entry_id"], game["chapter_id"], {"rating": 6})
+    rate(client, auth_headers, 99999999, game["chapter_id"], {"rating": 4})
+
+    assert diary_actions(client, auth_headers).count("CHAPTER_RATED") == before
+
+
+# ---------------------------------------------------------------- concurrency and database rules
+def test_a_race_on_the_first_rating_is_caught_by_the_constraint(client, auth_headers, game, db):
+    """US-10: two first ratings can pass the pre-check together. The unique constraint then
+    stops the second INSERT, and the service updates the row that exists."""
+    first = rate(client, auth_headers, game["entry_id"], game["chapter_id"], {"rating": 2})
+    user = db.get(User, client.get("/library", headers=auth_headers).json()[0]["user_id"])
+    before = diary_actions(client, auth_headers).count("CHAPTER_RATED")
+
+    # call 1 = library entry, call 2 = chapter, call 3 = "is there a progress row?" (hidden)
+    progress = chapter_service.rate_chapter(
+        HiddenPreCheck(db, hide_call=3), user, game["entry_id"], game["chapter_id"], 5
+    )
+
+    assert first.status_code == 200
+    assert progress.rating == 5
+    assert [row.rating for row in progress_rows(db, game["entry_id"], game["chapter_id"])] == [5]
+    assert diary_actions(client, auth_headers).count("CHAPTER_RATED") == before + 1
+
+
+def test_the_database_rejects_a_rating_out_of_range(client, auth_headers, game, db):
+    """BR-10: the check constraint is the last line of defence behind the API."""
+    db.add(ChapterProgress(library_entry_id=game["entry_id"], chapter_id=game["chapter_id"], rating=6))
+
+    with pytest.raises(IntegrityError):
+        db.commit()
+    db.rollback()
+
+
+def test_the_database_allows_one_progress_row_per_entry_and_chapter(client, auth_headers, game, db):
+    rate(client, auth_headers, game["entry_id"], game["chapter_id"], {"rating": 3})
+    db.add(ChapterProgress(library_entry_id=game["entry_id"], chapter_id=game["chapter_id"], rating=4))
+
+    with pytest.raises(IntegrityError):
+        db.commit()
+    db.rollback()
+
+
+def test_deleting_a_chapter_deletes_its_progress(client, auth_headers, game, db):
+    """The ratings of users never point to a chapter that is gone."""
+    rate(client, auth_headers, game["entry_id"], game["chapter_id"], {"rating": 3})
+
+    db.query(Chapter).filter(Chapter.id == game["chapter_id"]).delete()
+    db.commit()
+
+    assert progress_rows(db, game["entry_id"], game["chapter_id"]) == []
+
+
+def test_deleting_a_title_deletes_the_progress_of_its_chapters(client, auth_headers, game, db):
+    """Title, then library entry and chapters, then progress: the cascade reaches all of it."""
+    rate(client, auth_headers, game["entry_id"], game["chapter_id"], {"rating": 3})
+
+    db.query(MediaItem).filter(MediaItem.id == game["media_id"]).delete(synchronize_session=False)
+    db.commit()
+
+    assert progress_rows(db, game["entry_id"], game["chapter_id"]) == []
