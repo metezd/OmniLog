@@ -66,6 +66,7 @@ Acceptance criteria:
 - Given I am logged in, when I `POST /lists` with a name, then the list is created (status 201).
 - Given an existing list and a title, when I `POST /lists/{id}/items` with `media_item_id`, then the title appears in the list.
 - Given an empty list name, when I create a list, then I receive status 422.
+- Given I already have a list with the same name, when I create a list, then I receive status 409.
 
 ### US-07 View my activity diary
 **As a** user, **I want** to see a chronological diary of my recent actions (added, rated, completed), **so that** I can look back at my media history.
@@ -96,6 +97,8 @@ Acceptance criteria:
 - Given a series with seasons, when I `GET /catalog/{id}`, then the response includes its seasons and episodes.
 - Given an episodic game, when I `GET /catalog/{id}`, then the response includes its chapters.
 - Given an unknown id, when I request it, then I receive status 404.
+- Given a series whose seasons are already loaded, when I open it again, then the answer comes without a new call to TMDB.
+- Given TMDB is not available and the series was never loaded, when I open it, then I receive status 503.
 
 ---
 

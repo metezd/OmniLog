@@ -34,8 +34,8 @@ Statistics (Epic 6) need no tables of their own. They are computed from the othe
 | 6 | ActivityEvent | `activity_events` | 2 | Proposed |
 | 7 | ExternalSource | `external_sources` | 3 | Proposed |
 | 8 | Genre | `genres`, `media_item_genres` | 3 | Proposed |
-| 9 | Season | `seasons` | 3 | Proposed |
-| 10 | Chapter | `chapters` | 3 and 4 | Proposed |
+| 9 | Season | `seasons` | 3 | Implemented (US-09) |
+| 10 | Chapter | `chapters` | 3 and 4 | Implemented (US-09) |
 | 11 | SyncJobLog | `sync_job_logs` | 3 | Proposed |
 | 12 | ChapterProgress | `chapter_progress` | 4 | Proposed |
 | 13 | PlaytimeLog | `playtime_logs` | 4 | Proposed |
@@ -57,7 +57,7 @@ A person with an account. The user owns a library, lists, an activity diary, pro
 ### 3.2 MediaItem
 One title in the shared catalog. It can be a game, a series or a movie.
 - Key fields: `id`, `title`, `media_type`, `poster_url`, `release_date`.
-- Proposed new fields: `description`, `source_id`, `external_id`, `normalized_payload`, `last_synced`, `created_at`, `updated_at`.
+- Proposed new fields: `description`, `source_id`, `external_id`, `normalized_payload`, `last_synced`, `created_at`, `updated_at`. `last_synced` is implemented (US-09). It is empty until the seasons of a series are loaded, so a search result alone does not set it.
 - `description` is needed because the embedding text is built from it.
 - `source_id` and `external_id` replace the implemented column `external_api_id`.
 - Rules: `title` and `media_type` are required. The pair (`source_id`, `external_id`) is unique when both are present.
@@ -155,7 +155,7 @@ Cached responses with a time to live. It is not a table in the relational databa
 | BR-03 | A user has at most one library entry for a title. | US-04 |
 | BR-04 | The library rating is from 1 to 10. | US-05 |
 | BR-05 | A user can only read and change their own data. | US-05, NFR-02 |
-| BR-06 | A list name is not empty. A title appears once in a list. | US-06 |
+| BR-06 | A list name is not empty and is unique per user. A title appears once in a list. | US-06 |
 | BR-07 | Every library change, rating and status change creates a diary event. | US-07 |
 | BR-08 | The pair (source, external id) identifies one catalog record. | US-08, US-09 |
 | BR-09 | A record is stale when `now - last_synced` is longer than the TTL. | US-08, US-09 |

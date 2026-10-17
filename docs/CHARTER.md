@@ -50,6 +50,7 @@ Redis caching layer, Docker containerization, environment configuration.
 * Redis
 * Docker
 * python-jose
+* passlib with bcrypt (bcrypt pinned below 5.0, because passlib 1.7.4 does not work with bcrypt 5)
 * requests
 * python-dotenv
 
