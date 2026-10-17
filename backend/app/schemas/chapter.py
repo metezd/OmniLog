@@ -1,6 +1,5 @@
 """Schemas for the personal record of a chapter or episode (US-10)."""
 from datetime import datetime
-from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -15,9 +14,11 @@ class ChapterRatingUpdate(BaseModel):
 
 
 class ChapterRatingResponse(BaseModel):
+    """A saved chapter rating. Every field is always present after a successful PUT."""
+
     model_config = ConfigDict(from_attributes=True)
 
     library_entry_id: int
     chapter_id: int
-    rating: Optional[int] = None
-    updated_at: Optional[datetime] = None
+    rating: int = Field(ge=1, le=5)
+    updated_at: datetime

@@ -4,7 +4,13 @@ The chapters of a game have no outside source and no endpoint creates them yet (
 docs/analysis/data/domain-model.md). The tests put chapters in the database directly, as the
 Epic 3 edge case tests do.
 """
+import threading
+from datetime import datetime
+from types import SimpleNamespace
+
 import pytest
+from pydantic import ValidationError
+from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
 from app.core.database import SessionLocal
@@ -15,7 +21,9 @@ from app.models.entities import (
     MediaItem,
     Season,
     User,
+    UserLibrary,
 )
+from app.schemas.chapter import ChapterRatingResponse
 from app.services import chapter_service
 from helpers import (
     HiddenPreCheck,
@@ -53,6 +61,18 @@ def add_episode(db, media_id, number=1):
     db.add(episode)
     db.commit()
     return episode.id
+
+
+def _progress(game, rating, **overrides):
+    """A ChapterProgress for the fixture game. Overrides replace single columns."""
+    values = {
+        "library_entry_id": game["entry_id"],
+        "chapter_id": game["chapter_id"],
+        "media_item_id": game["media_id"],
+        "rating": rating,
+    }
+    values.update(overrides)
+    return ChapterProgress(**values)
 
 
 def rating_url(entry_id, chapter_id):
@@ -106,6 +126,8 @@ def test_the_answer_has_the_documented_fields_only(client, auth_headers, game):
     assert set(body) == {"library_entry_id", "chapter_id", "rating", "updated_at"}
     assert body["library_entry_id"] == game["entry_id"]
     assert body["chapter_id"] == game["chapter_id"]
+    assert body["rating"] == 4
+    assert body["updated_at"] is not None
 
 
 def test_the_rating_is_saved_in_the_database(client, auth_headers, game, db):
@@ -276,6 +298,7 @@ def test_a_chapter_of_another_title_returns_404(client, auth_headers, game, db):
 
     assert response.status_code == 404
     assert progress_rows(db, game["entry_id"], foreign_chapter) == []
+    assert "CHAPTER_RATED" not in diary_actions(client, auth_headers)
 
 
 def test_a_title_that_is_not_in_the_library_cannot_be_rated(client, auth_headers, db):
@@ -381,7 +404,8 @@ def test_a_rejected_rating_adds_no_event(client, auth_headers, game):
 # ---------------------------------------------------------------- concurrency and database rules
 def test_a_race_on_the_first_rating_is_caught_by_the_constraint(client, auth_headers, game, db):
     """US-10: two first ratings can pass the pre-check together. The unique constraint then
-    stops the second INSERT, and the service updates the row that exists."""
+    stops the second INSERT. The service recognises that constraint, reads the row that exists
+    and updates it."""
     first = rate(client, auth_headers, game["entry_id"], game["chapter_id"], {"rating": 2})
     user = db.get(User, client.get("/library", headers=auth_headers).json()[0]["user_id"])
     before = diary_actions(client, auth_headers).count("CHAPTER_RATED")
@@ -399,7 +423,7 @@ def test_a_race_on_the_first_rating_is_caught_by_the_constraint(client, auth_hea
 
 def test_the_database_rejects_a_rating_out_of_range(client, auth_headers, game, db):
     """BR-10: the check constraint is the last line of defence behind the API."""
-    db.add(ChapterProgress(library_entry_id=game["entry_id"], chapter_id=game["chapter_id"], rating=6))
+    db.add(_progress(game, rating=6))
 
     with pytest.raises(IntegrityError):
         db.commit()
@@ -408,7 +432,7 @@ def test_the_database_rejects_a_rating_out_of_range(client, auth_headers, game, 
 
 def test_the_database_allows_one_progress_row_per_entry_and_chapter(client, auth_headers, game, db):
     rate(client, auth_headers, game["entry_id"], game["chapter_id"], {"rating": 3})
-    db.add(ChapterProgress(library_entry_id=game["entry_id"], chapter_id=game["chapter_id"], rating=4))
+    db.add(_progress(game, rating=4))
 
     with pytest.raises(IntegrityError):
         db.commit()
@@ -433,3 +457,211 @@ def test_deleting_a_title_deletes_the_progress_of_its_chapters(client, auth_head
     db.commit()
 
     assert progress_rows(db, game["entry_id"], game["chapter_id"]) == []
+
+
+# ---------------------------------------------------------------- response model
+def test_the_response_model_needs_a_rating_from_1_to_5():
+    """A saved rating is always there, so the response model has no empty rating."""
+    ok = {"library_entry_id": 1, "chapter_id": 2, "rating": 3, "updated_at": datetime(2026, 1, 1)}
+
+    assert ChapterRatingResponse(**ok).rating == 3
+    for bad in (None, 0, 6):
+        with pytest.raises(ValidationError):
+            ChapterRatingResponse(**{**ok, "rating": bad})
+    with pytest.raises(ValidationError):
+        ChapterRatingResponse(**{**ok, "updated_at": None})
+
+
+# ---------------------------------------------------------------- updated_at
+def _parse(value):
+    return datetime.fromisoformat(value)
+
+
+def test_updated_at_is_filled_after_the_first_rating(client, auth_headers, game, db):
+    body = rate(client, auth_headers, game["entry_id"], game["chapter_id"], {"rating": 3}).json()
+
+    assert body["updated_at"] is not None
+    assert progress_rows(db, game["entry_id"], game["chapter_id"])[0].updated_at is not None
+
+
+def test_updated_at_changes_when_the_rating_changes(client, auth_headers, game):
+    first = rate(client, auth_headers, game["entry_id"], game["chapter_id"], {"rating": 3}).json()
+    second = rate(client, auth_headers, game["entry_id"], game["chapter_id"], {"rating": 5}).json()
+
+    assert _parse(second["updated_at"]) > _parse(first["updated_at"])
+
+
+def test_updated_at_stays_when_the_same_rating_is_sent_again(client, auth_headers, game):
+    first = rate(client, auth_headers, game["entry_id"], game["chapter_id"], {"rating": 3}).json()
+    second = rate(client, auth_headers, game["entry_id"], game["chapter_id"], {"rating": 3}).json()
+
+    assert second["updated_at"] == first["updated_at"]
+
+
+def test_the_database_fills_updated_at_for_an_insert_outside_the_orm(client, auth_headers, game, db):
+    """The server default covers raw SQL. The column is NOT NULL as well."""
+    db.execute(
+        text(
+            "INSERT INTO chapter_progress (library_entry_id, chapter_id, media_item_id, rating) "
+            "VALUES (:entry, :chapter, :media, 4)"
+        ),
+        {"entry": game["entry_id"], "chapter": game["chapter_id"], "media": game["media_id"]},
+    )
+    db.commit()
+
+    assert progress_rows(db, game["entry_id"], game["chapter_id"])[0].updated_at is not None
+    with pytest.raises(IntegrityError):
+        db.execute(
+            text(
+                "INSERT INTO chapter_progress (library_entry_id, chapter_id, media_item_id, updated_at) "
+                "VALUES (:entry, :chapter, :media, NULL)"
+            ),
+            {"entry": game["entry_id"], "chapter": game["second_chapter_id"], "media": game["media_id"]},
+        )
+    db.rollback()
+
+
+# ---------------------------------------------------------------- same title in the database (BR-11)
+def test_the_database_rejects_a_chapter_of_another_title(client, auth_headers, game, db):
+    """The foreign keys check the title. A service bug cannot save a chapter of another title."""
+    other = create_media(client, auth_headers, media_type="GAME")
+    foreign_chapter = add_chapter(db, other["id"])
+
+    # The title of the entry is given, but the chapter belongs to another title
+    db.add(_progress(game, rating=3, chapter_id=foreign_chapter))
+    with pytest.raises(IntegrityError) as chapter_error:
+        db.commit()
+    db.rollback()
+    assert "fk_progress_chapter_title" in str(chapter_error.value)
+
+    # The title of the chapter is given, but the library entry belongs to another title
+    db.add(_progress(game, rating=3, chapter_id=foreign_chapter, media_item_id=other["id"]))
+    with pytest.raises(IntegrityError) as entry_error:
+        db.commit()
+    db.rollback()
+    assert "fk_progress_entry_title" in str(entry_error.value)
+
+    assert progress_rows(db, game["entry_id"], foreign_chapter) == []
+
+
+def test_a_chapter_of_the_same_title_is_accepted_by_the_database(client, auth_headers, game, db):
+    db.add(_progress(game, rating=3))
+    db.commit()
+
+    assert [row.rating for row in progress_rows(db, game["entry_id"], game["chapter_id"])] == [3]
+
+
+# ---------------------------------------------------------------- only the expected race is caught
+def _service_user(db, game):
+    return db.get(User, db.get(UserLibrary, game["entry_id"]).user_id)
+
+
+def test_a_foreign_key_error_is_raised_again_and_adds_no_event(
+    client, auth_headers, game, db, monkeypatch
+):
+    """Only the race on the unique constraint is handled. Any other IntegrityError is raised."""
+    user = _service_user(db, game)
+    entry = db.get(UserLibrary, game["entry_id"])
+    vanished = SimpleNamespace(id=99999999, number=1, kind=ChapterKind.CHAPTER)
+    # The chapter is gone between the access check and the INSERT
+    monkeypatch.setattr(chapter_service, "get_chapter_context", lambda *args: (entry, vanished))
+
+    with pytest.raises(IntegrityError) as error:
+        chapter_service.rate_chapter(db, user, game["entry_id"], vanished.id, 4)
+
+    assert "fk_progress_chapter_title" in str(error.value)
+    assert "CHAPTER_RATED" not in diary_actions(client, auth_headers)
+    assert db.query(User).count() > 0  # the session still works after the rollback
+
+
+def test_a_check_constraint_error_is_raised_again_and_adds_no_event(client, auth_headers, game, db):
+    """The API never sends 6, but the service must not hide the database error if it does."""
+    user = _service_user(db, game)
+
+    with pytest.raises(IntegrityError) as error:
+        chapter_service.rate_chapter(db, user, game["entry_id"], game["chapter_id"], 6)
+
+    assert "chk_progress_rating" in str(error.value)
+    assert progress_rows(db, game["entry_id"], game["chapter_id"]) == []
+    assert "CHAPTER_RATED" not in diary_actions(client, auth_headers)
+
+
+@pytest.mark.parametrize(
+    ("pgcode", "constraint", "expected"),
+    [
+        ("23505", "uq_progress_entry_chapter", True),  # the expected race
+        ("23505", "uq_user_media_entry", False),  # another unique constraint
+        ("23503", "fk_progress_chapter_title", False),  # a foreign key
+        ("23514", "chk_progress_rating", False),  # a check constraint
+        (None, None, False),  # a driver error without details
+    ],
+)
+def test_only_the_progress_unique_violation_counts_as_the_race(pgcode, constraint, expected):
+    original = SimpleNamespace(pgcode=pgcode, diag=SimpleNamespace(constraint_name=constraint))
+
+    assert chapter_service._is_duplicate_progress(IntegrityError("INSERT", {}, original)) is expected
+
+
+def test_a_real_unique_violation_has_the_details_the_service_reads(client, auth_headers, game, db):
+    """The check works only if the driver really reports the code and the constraint name."""
+    db.add(_progress(game, rating=3))
+    db.commit()
+    db.add(_progress(game, rating=4))
+
+    with pytest.raises(IntegrityError) as error:
+        db.commit()
+    db.rollback()
+
+    assert chapter_service._is_duplicate_progress(error.value) is True
+
+
+def test_the_race_adds_exactly_one_event_for_a_new_rating(client, auth_headers, game, db):
+    """After the race the service finds the row. The same rating adds no event, a new one adds one."""
+    rate(client, auth_headers, game["entry_id"], game["chapter_id"], {"rating": 2})
+    user = _service_user(db, game)
+    before = diary_actions(client, auth_headers).count("CHAPTER_RATED")
+
+    chapter_service.rate_chapter(HiddenPreCheck(db, hide_call=3), user, game["entry_id"], game["chapter_id"], 2)
+    assert diary_actions(client, auth_headers).count("CHAPTER_RATED") == before
+
+    chapter_service.rate_chapter(HiddenPreCheck(db, hide_call=3), user, game["entry_id"], game["chapter_id"], 4)
+    assert diary_actions(client, auth_headers).count("CHAPTER_RATED") == before + 1
+
+
+def test_many_first_ratings_at_the_same_time_leave_one_row(client, auth_headers, game, db):
+    """Real concurrency: every request succeeds and there is one progress row at the end."""
+    workers = 6
+    barrier = threading.Barrier(workers)
+    codes = []
+
+    def worker(value):
+        barrier.wait()
+        response = rate(client, auth_headers, game["entry_id"], game["chapter_id"], {"rating": value})
+        codes.append(response.status_code)
+
+    threads = [threading.Thread(target=worker, args=(1 + index % 5,)) for index in range(workers)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    rows = progress_rows(db, game["entry_id"], game["chapter_id"])
+    assert codes == [200] * workers
+    assert len(rows) == 1
+    assert rows[0].rating in range(1, 6)
+    assert diary_actions(client, auth_headers).count("CHAPTER_RATED") >= 1
+
+
+def test_the_original_error_is_raised_if_the_row_of_the_race_cannot_be_found(
+    client, auth_headers, game, db, monkeypatch
+):
+    """After a duplicate the service reads the row. If it is not there, the error is not hidden."""
+    rate(client, auth_headers, game["entry_id"], game["chapter_id"], {"rating": 2})
+    user = _service_user(db, game)
+    before = diary_actions(client, auth_headers).count("CHAPTER_RATED")
+    monkeypatch.setattr(chapter_service, "_find_progress", lambda *args: None)
+
+    with pytest.raises(IntegrityError):
+        chapter_service.rate_chapter(db, user, game["entry_id"], game["chapter_id"], 4)
+
+    assert diary_actions(client, auth_headers).count("CHAPTER_RATED") == before

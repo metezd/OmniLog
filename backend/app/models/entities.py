@@ -6,6 +6,7 @@ from sqlalchemy import (
     String,
     DateTime,
     ForeignKey,
+    ForeignKeyConstraint,
     Enum,
     Float,
     Index,
@@ -141,6 +142,10 @@ class UserLibrary(Base):
         UniqueConstraint(
             "user_id", "media_item_id", name="uq_user_media_entry"
         ),
+        # Lets chapter_progress point to the entry and its title together (US-10, BR-11)
+        UniqueConstraint(
+            "id", "media_item_id", name="uq_user_library_id_media_item"
+        ),
         CheckConstraint(
             "rating >= 1 AND rating <= 10", name="chk_rating_range"
         ),
@@ -266,6 +271,8 @@ class Chapter(Base):
         # The number is unique inside a season. A season id that is NULL is never equal to
         # another NULL, so game chapters need the partial index below.
         UniqueConstraint("season_id", "number", name="uq_chapter_season_number"),
+        # Lets chapter_progress point to the chapter and its title together (US-10, BR-11)
+        UniqueConstraint("id", "media_item_id", name="uq_chapter_id_media_item"),
         Index(
             "uq_chapter_game_number",
             "media_item_id",
@@ -296,21 +303,39 @@ class ChapterProgress(Base):
     __tablename__ = "chapter_progress"
 
     id = Column(Integer, primary_key=True)
-    # The library entry of the user. It also tells which title the user tracks (BR-11).
-    library_entry_id = Column(
-        Integer, ForeignKey("user_libraries.id", ondelete="CASCADE"), nullable=False
-    )
-    chapter_id = Column(
-        Integer, ForeignKey("chapters.id", ondelete="CASCADE"), nullable=False, index=True
-    )
+    # The library entry of the user and the chapter. Both foreign keys are declared below
+    # together with media_item_id, so the database checks that they belong to the same title.
+    library_entry_id = Column(Integer, nullable=False)
+    chapter_id = Column(Integer, nullable=False, index=True)
+    # The title of the library entry and of the chapter (BR-11)
+    media_item_id = Column(Integer, nullable=False)
     rating = Column(SmallInteger, nullable=True)  # Whole number between 1 and 5 (BR-10)
     # Total of all playtime entries. US-11 fills it, so it stays 0 until then.
     playtime_minutes = Column(Integer, nullable=False, default=0, server_default=text("0"))
+    # UTC, like the other timestamps. The server default also covers inserts outside the ORM.
     updated_at = Column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+        DateTime,
+        nullable=False,
+        default=datetime.utcnow,
+        server_default=text("timezone('utc', now())"),
+        onupdate=datetime.utcnow,
     )
 
     __table_args__ = (
+        # A progress row can only join a library entry and a chapter of the same title (BR-11).
+        # Deleting the entry or the chapter deletes the progress, as before.
+        ForeignKeyConstraint(
+            ["library_entry_id", "media_item_id"],
+            ["user_libraries.id", "user_libraries.media_item_id"],
+            name="fk_progress_entry_title",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["chapter_id", "media_item_id"],
+            ["chapters.id", "chapters.media_item_id"],
+            name="fk_progress_chapter_title",
+            ondelete="CASCADE",
+        ),
         # One progress row per library entry and chapter. The row is created by the first
         # rating (or playtime entry) and updated after that.
         UniqueConstraint(
