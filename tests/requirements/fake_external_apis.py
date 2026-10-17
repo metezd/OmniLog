@@ -8,6 +8,7 @@ IGDB query). A bug in the client therefore fails a test. A call to any other hos
 
 All titles and ids below are made-up test data.
 """
+import copy
 import json
 import re
 from dataclasses import dataclass
@@ -38,6 +39,47 @@ SERIES = [
 MOVIES = [
     {"id": 80001, "title": "Blade Runner", "poster_path": "/br.jpg", "release_date": "1982-06-25"},
 ]
+
+
+
+def _episode(number: int, name: str, air_date, runtime, episode_id: int) -> dict:
+    return {"id": episode_id, "episode_number": number, "name": name,
+            "air_date": air_date, "runtime": runtime}
+
+
+def _season(number: int, name: str, air_date, episodes: list) -> dict:
+    return {"season_number": number, "name": name, "air_date": air_date, "episodes": episodes}
+
+
+# Seasons of the series above, by TMDB id. Series 70003 has many seasons, to test that they are
+# asked for in groups. A series that is not in this table is unknown to TMDB (404).
+SERIES_DETAILS = {
+    70001: {"name": "Breaking Bad", "seasons": [
+        _season(0, "Specials", None, [
+            _episode(1, "Making of the pilot", None, None, 5001),
+        ]),
+        _season(1, "Season 1", "2008-01-20", [
+            _episode(1, "Pilot", "2008-01-20", 58, 5101),
+            _episode(2, "Cat's in the Bag...", "2008-01-27", 48, 5102),
+            _episode(3, "...And the Bag's in the River", "2008-02-10", None, 5103),
+        ]),
+        _season(2, "Season 2", "2009-03-08", [
+            _episode(1, "Seven Thirty-Seven", "2009-03-08", 47, 5201),
+            _episode(2, "Grilled", "2009-03-15", 47, 5202),
+        ]),
+    ]},
+    70002: {"name": "Breaking Point", "seasons": []},
+    70003: {"name": "Endless Show", "seasons": [
+        _season(n, f"Season {n}", f"{1980 + n}-01-01", [
+            _episode(1, f"S{n} first", f"{1980 + n}-01-01", 30, 6000 + n * 10 + 1),
+            _episode(2, f"S{n} second", f"{1980 + n}-01-08", 30, 6000 + n * 10 + 2),
+        ])
+        for n in range(1, 46)
+    ]},
+}
+
+# TMDB answers at most 20 appended sub-requests in one call
+_TMDB_MAX_APPENDED = 20
 
 _IGDB_QUERY = re.compile(r'search "([^"]*)"; fields ([a-z_.,]+); limit (\d+);')
 
@@ -72,6 +114,8 @@ class FakeExternalApis:
         self._scripted: dict[str, list[list]] = {}  # service -> [[factory, times left or None]]
         self._issued_tokens = 0
         self._valid_tokens: set[str] = set()
+        # TMDB series by id. Every test gets its own copy, so it can change what TMDB "knows".
+        self.series: dict[int, dict] = copy.deepcopy(SERIES_DETAILS)
 
     # ------------------------------------------------------------ what tests can ask
     def calls_to(self, service: str) -> list[Call]:
@@ -180,6 +224,9 @@ class FakeExternalApis:
             return make_response(401, {"status_code": 7, "status_message": "Invalid API key"})
 
         path = urlparse(url).path
+        series_path = re.fullmatch(r"/3/tv/(\d+)", path)
+        if series_path:
+            return self._tmdb_series(int(series_path.group(1)), params)
         if path == "/3/search/tv":
             pool, field = SERIES, "name"
         elif path == "/3/search/movie":
@@ -188,3 +235,31 @@ class FakeExternalApis:
             raise AssertionError(f"Unexpected TMDB path: {path}")
         matches = [item for item in pool if params["query"].lower() in item[field].lower()]
         return make_response(200, {"page": 1, "results": matches, "total_results": len(matches)})
+
+    def _tmdb_series(self, series_id: int, params: dict) -> requests.Response:
+        """GET /tv/{id}: the series with its season list, plus the seasons asked for."""
+        show = self.series.get(series_id)
+        if show is None:
+            return make_response(404, {"success": False, "status_code": 34,
+                                       "status_message": "The resource you requested could not be found."})
+
+        body = {
+            "id": series_id,
+            "name": show["name"],
+            "seasons": [
+                {"season_number": season["season_number"], "name": season["name"],
+                 "air_date": season["air_date"], "episode_count": len(season["episodes"])}
+                for season in show["seasons"]
+            ],
+        }
+
+        appended = [part for part in params.get("append_to_response", "").split(",") if part]
+        assert len(appended) <= _TMDB_MAX_APPENDED, f"TMDB allows {_TMDB_MAX_APPENDED} appended requests"
+        for part in appended:
+            asked = re.fullmatch(r"season/(\d+)", part)
+            assert asked, f"Unexpected append_to_response value: {part!r}"
+            number = int(asked.group(1))
+            season = next((s for s in show["seasons"] if s["season_number"] == number), None)
+            if season is not None:  # TMDB leaves out a season it does not have
+                body[part] = season
+        return make_response(200, body)

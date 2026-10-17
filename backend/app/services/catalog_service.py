@@ -1,31 +1,41 @@
-"""Catalog search (US-08), process 3.2 in docs/analysis/behavior/dfd-epic3-catalog.md.
+"""Catalog search (US-08) and title details (US-09), processes 3.1 and 3.2 in
+docs/analysis/behavior/dfd-epic3-catalog.md.
 
-Order: cache, then the outside API (IGDB for games, TMDB for series and movies). Results are
+Search order: cache, then the outside API (IGDB for games, TMDB for series and movies). Results are
 saved in media_items, so the user can add a result to the library with its id. When the outside
 API fails, saved titles that match are returned. When there are none, the caller gets a clear
 "unavailable" error (NFR-04).
+
+Title details: a series gets its seasons and episodes from TMDB (cache first), and they are saved
+in `seasons` and `chapters`. The chapters of a game have no outside source, so they are only read
+from the database. When TMDB fails, the saved copy is returned, or the "unavailable" error when
+the series was never loaded.
 """
 import hashlib
 import logging
 import unicodedata
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.core import cache, config
 from app.integrations import igdb, tmdb
 from app.integrations.common import (
+    ExternalEpisode,
+    ExternalSeason,
     ExternalServiceError,
     ExternalTitle,
     clean_date,
     clean_external_id,
+    clean_number,
     clean_title,
     clean_url,
     dedupe,
 )
-from app.models.entities import MediaItem, MediaType
+from app.models.entities import Chapter, ChapterKind, MediaItem, MediaType, Season
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +47,11 @@ class InvalidQueryError(Exception):
 
 
 class CatalogUnavailableError(Exception):
-    """The outside catalog failed and nothing saved matches."""
+    """The outside catalog failed and nothing saved can be used instead."""
+
+
+class TitleNotFoundError(Exception):
+    """No title has this id."""
 
 
 def normalize_query(text: str) -> str:
@@ -196,3 +210,217 @@ def _search_saved(db: Session, media_type: MediaType, query: str) -> list[MediaI
         .limit(SEARCH_RESULT_LIMIT)
         .all()
     )
+
+
+# ---------------------------------------------------------------- title details (US-09)
+def get_title_details(db: Session, media_id: int) -> MediaItem:
+    """Return a title with its seasons and episodes (series) or its chapters (games).
+
+    A movie has neither, so both lists are empty. Raises TitleNotFoundError for an unknown id.
+    """
+    item = db.get(MediaItem, media_id)
+    if item is None:
+        raise TitleNotFoundError("Title not found")
+
+    # Only a series with an outside id has seasons to load. A series that was added by hand has
+    # no outside id, and the chapters of a game have no outside source at all.
+    if item.media_type == MediaType.SERIES and item.external_api_id is not None:
+        _refresh_series(db, item)
+
+    return _load_details(db, media_id)
+
+
+def _load_details(db: Session, media_id: int) -> MediaItem:
+    """Load the title with its seasons, episodes and chapters in three queries."""
+    return (
+        db.query(MediaItem)
+        .options(
+            selectinload(MediaItem.seasons).selectinload(Season.episodes),
+            selectinload(MediaItem.chapters),
+        )
+        .filter(MediaItem.id == media_id)
+        .populate_existing()
+        .one()
+    )
+
+
+@dataclass(frozen=True)
+class _OutsideSeasons:
+    """What the outside service knows about the seasons of a series."""
+
+    found: bool  # False when TMDB does not know the series
+    seasons: list[ExternalSeason]
+
+
+def _details_cache_key(external_id: int) -> str:
+    # Key pattern from the Redis key dictionary: omni:catalog:{source}:{external_id}. TMDB ids of
+    # series and movies are different number spaces, so the source says "tmdb_tv".
+    return f"omni:catalog:tmdb_tv:{external_id}"
+
+
+def _refresh_series(db: Session, item: MediaItem) -> None:
+    """Make sure the seasons of the series are saved. Order: cache, then TMDB.
+
+    The cache holds outside data only, not row ids (the same rule as for search). A cache hit
+    means the data is fresh, so TMDB is not called. The saved copy is only written on a hit when
+    the series was never saved. When TMDB fails, the saved copy is used, even if it is old.
+    """
+    key = _details_cache_key(item.external_api_id)
+    outside = _outside_from_cache(cache.get_json(key))
+    from_cache = outside is not None
+
+    if outside is None:
+        try:
+            outside = _fetch_series_seasons(item.external_api_id)
+        except ExternalServiceError as exc:
+            logger.warning("Details of series %s failed: %s", item.id, exc)
+            if item.last_synced is not None:
+                return  # an older saved copy is better than an error
+            raise CatalogUnavailableError(
+                "The catalog service is not available right now. Please try again later."
+            ) from exc
+        cache.set_json(key, _outside_to_cache(outside), config.DETAILS_CACHE_TTL_SECONDS)
+
+    if not outside.found:
+        return  # TMDB does not know this id. There is nothing to save.
+    if from_cache and item.last_synced is not None:
+        return  # the saved copy is already there
+    _save_seasons(db, item.id, outside.seasons)
+
+
+def _fetch_series_seasons(external_id: int) -> _OutsideSeasons:
+    if not tmdb.is_configured():
+        raise ExternalServiceError("TMDB is not set up")
+    seasons = tmdb.fetch_series_seasons(external_id)
+    return _OutsideSeasons(found=seasons is not None, seasons=seasons or [])
+
+
+def _outside_to_cache(outside: _OutsideSeasons) -> dict:
+    if not outside.found:
+        return {"found": False}
+    return {"found": True, "seasons": [asdict(season) for season in outside.seasons]}
+
+
+def _outside_from_cache(cached: object) -> Optional[_OutsideSeasons]:
+    """Rebuild the seasons from the cache. An entry that does not look right counts as a miss."""
+    if not isinstance(cached, dict):
+        return None
+    if cached.get("found") is False:
+        return _OutsideSeasons(found=False, seasons=[])
+
+    raw_seasons = cached.get("seasons")
+    if cached.get("found") is not True or not isinstance(raw_seasons, list):
+        return None
+
+    seasons = []
+    for raw in raw_seasons:
+        season = _season_from_cache(raw)
+        if season is None:
+            return None
+        seasons.append(season)
+    if len({season.season_number for season in seasons}) != len(seasons):
+        return None  # a season twice would break the unique key when it is saved
+    return _OutsideSeasons(found=True, seasons=seasons)
+
+
+def _season_from_cache(raw: object) -> Optional[ExternalSeason]:
+    if not isinstance(raw, dict):
+        return None
+    number = clean_number(raw.get("season_number"))
+    raw_episodes = raw.get("episodes")
+    if number is None or not isinstance(raw_episodes, list):
+        return None
+
+    episodes = []
+    for entry in raw_episodes:
+        if not isinstance(entry, dict):
+            return None
+        episode_number = clean_number(entry.get("number"))
+        if episode_number is None:
+            return None
+        episodes.append(
+            ExternalEpisode(
+                number=episode_number,
+                title=clean_title(entry.get("title")),
+                release_date=clean_date(entry.get("release_date")),
+                runtime_minutes=clean_number(entry.get("runtime_minutes")),
+                external_id=clean_external_id(entry.get("external_id")),
+            )
+        )
+    if len({episode.number for episode in episodes}) != len(episodes):
+        return None
+
+    return ExternalSeason(
+        season_number=number,
+        title=clean_title(raw.get("title")),
+        air_date=clean_date(raw.get("air_date")),
+        episodes=episodes,
+    )
+
+
+def _save_seasons(db: Session, media_id: int, seasons: list[ExternalSeason]) -> None:
+    for attempt in range(2):
+        try:
+            _save_seasons_once(db, media_id, seasons)
+            return
+        except IntegrityError:
+            # Another request saved the same seasons at the same moment. Run again: the rows
+            # exist now, so this time they are found and updated.
+            db.rollback()
+            if attempt == 1:
+                raise
+
+
+def _save_seasons_once(db: Session, media_id: int, seasons: list[ExternalSeason]) -> None:
+    """Add the new seasons and episodes and update the ones that exist.
+
+    Nothing is ever deleted here. The ratings and playtime of a user (Epic 4) will point to these
+    rows, and an episode that TMDB no longer lists must not take that data with it.
+    """
+    existing = {
+        season.season_number: season
+        for season in db.query(Season)
+        .options(selectinload(Season.episodes))
+        .filter(Season.media_item_id == media_id)
+    }
+
+    for outside in seasons:
+        season = existing.get(outside.season_number)
+        if season is None:
+            season = Season(
+                media_item_id=media_id,
+                season_number=outside.season_number,
+                title=outside.title,
+                air_date=outside.air_date,
+            )
+            db.add(season)
+        else:
+            season.title = outside.title
+            season.air_date = outside.air_date
+
+        episodes = {episode.number: episode for episode in season.episodes}
+        for outside_episode in outside.episodes:
+            episode = episodes.get(outside_episode.number)
+            if episode is None:
+                # Adding it to the season sets season_id, also for a season that is new
+                season.episodes.append(
+                    Chapter(
+                        media_item_id=media_id,
+                        number=outside_episode.number,
+                        kind=ChapterKind.EPISODE,
+                        title=outside_episode.title,
+                        release_date=outside_episode.release_date,
+                        runtime_minutes=outside_episode.runtime_minutes,
+                        external_id=outside_episode.external_id,
+                    )
+                )
+            else:
+                episode.title = outside_episode.title
+                episode.release_date = outside_episode.release_date
+                episode.runtime_minutes = outside_episode.runtime_minutes
+                episode.external_id = outside_episode.external_id
+
+    item = db.get(MediaItem, media_id)
+    # The columns hold UTC time without a time zone, like the other timestamp columns
+    item.last_synced = datetime.now(timezone.utc).replace(tzinfo=None)
+    db.commit()
