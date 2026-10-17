@@ -4,6 +4,9 @@ from app.schemas.media import (
     MediaItemCreate,
     MediaItemUpdate,
     MediaItemResponse,
+    ChapterResponse,
+    SeasonResponse,
+    MediaDetailResponse,
 )
 from app.schemas.library import (
     UserLibraryCreate,
@@ -25,6 +28,9 @@ __all__ = [
     "MediaItemCreate",
     "MediaItemUpdate",
     "MediaItemResponse",
+    "ChapterResponse",
+    "SeasonResponse",
+    "MediaDetailResponse",
     "UserLibraryCreate",
     "UserLibraryUpdate",
     "UserLibraryResponse",

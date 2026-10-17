@@ -23,6 +23,12 @@ _MAX_EXTERNAL_ID = 2**31 - 1
 MAX_TITLE_LENGTH = 200
 MAX_URL_LENGTH = 500
 
+# Limits for the seasons and episodes of one series (US-09). Season and episode numbers and the
+# length of an episode are small whole numbers. A larger value is wrong data, so it is dropped.
+MAX_NUMBER = 100_000
+MAX_SEASONS = 200
+MAX_EPISODES_PER_SEASON = 1000
+
 # Replaced in tests, so retries do not really wait
 sleep = time.sleep
 
@@ -39,6 +45,27 @@ class ExternalTitle:
     title: str
     poster_url: Optional[str]
     release_date: Optional[str]
+
+
+@dataclass(frozen=True)
+class ExternalEpisode:
+    """One episode of a season, in the OmniLog format."""
+
+    number: int
+    title: Optional[str]
+    release_date: Optional[str]
+    runtime_minutes: Optional[int]
+    external_id: Optional[int]
+
+
+@dataclass(frozen=True)
+class ExternalSeason:
+    """One season with its episodes, in the OmniLog format (US-09). Season 0 holds specials."""
+
+    season_number: int
+    title: Optional[str]
+    air_date: Optional[str]
+    episodes: list[ExternalEpisode]
 
 
 def request_with_retry(
@@ -107,6 +134,13 @@ def clean_external_id(value: Any) -> Optional[int]:
     if isinstance(value, bool) or not isinstance(value, int):
         return None
     return value if 0 < value <= _MAX_EXTERNAL_ID else None
+
+
+def clean_number(value: Any) -> Optional[int]:
+    """A season number, an episode number or a length in minutes. Whole numbers from 0 up."""
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None
+    return value if 0 <= value <= MAX_NUMBER else None
 
 
 def clean_title(value: Any) -> Optional[str]:

@@ -97,6 +97,8 @@ Acceptance criteria:
 - Given a series with seasons, when I `GET /catalog/{id}`, then the response includes its seasons and episodes.
 - Given an episodic game, when I `GET /catalog/{id}`, then the response includes its chapters.
 - Given an unknown id, when I request it, then I receive status 404.
+- Given a series whose seasons are already loaded, when I open it again, then the answer comes without a new call to TMDB.
+- Given TMDB is not available and the series was never loaded, when I open it, then I receive status 503.
 
 ---
 
