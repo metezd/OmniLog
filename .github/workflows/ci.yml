@@ -86,6 +86,38 @@ jobs:
             --cov-report=xml \
             --cov-fail-under=70
 
+      # Real IGDB and TMDB calls. Only on a manual run, so normal runs never use the keys.
+      # The `secrets` context cannot be used in an `if`, so a first step looks at the secrets and
+      # writes a yes or no. It prints the names of missing secrets, never their values.
+      # TMDB_API holds the long "API Read Access Token" (it starts with eyJ).
+      - name: Check live API secrets (manual run only)
+        id: live_keys
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          IGDB_ID: ${{ secrets.IGDB_ID }}
+          IGDB_API_KEY: ${{ secrets.IGDB_API_KEY }}
+          TMDB_API: ${{ secrets.TMDB_API }}
+        run: |
+          missing=""
+          [ -n "$IGDB_ID" ] || missing="$missing IGDB_ID"
+          [ -n "$IGDB_API_KEY" ] || missing="$missing IGDB_API_KEY"
+          [ -n "$TMDB_API" ] || missing="$missing TMDB_API"
+          if [ -n "$missing" ]; then
+            echo "::notice title=Live API tests skipped::Missing repository secrets:$missing"
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Live API tests (manual run only)
+        if: github.event_name == 'workflow_dispatch' && steps.live_keys.outputs.available == 'true'
+        env:
+          RUN_LIVE_API_TESTS: "1"
+          IGDB_CLIENT_ID: ${{ secrets.IGDB_ID }}
+          IGDB_CLIENT_SECRET: ${{ secrets.IGDB_API_KEY }}
+          TMDB_API_KEY: ${{ secrets.TMDB_API }}
+        run: python -m pytest tests/requirements/test_epic3_catalog_live.py -v
+
       - name: Upload backend coverage
         if: always()
         uses: actions/upload-artifact@v4
