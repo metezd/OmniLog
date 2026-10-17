@@ -339,15 +339,17 @@ Index on (`user_id`, `created_at` descending).
 | `playtime_minutes` | INTEGER | NN, default 0, check 0 or more | Total of all playtime entries |
 | `updated_at` | DATETIME | NN, default now (UTC), on update | Last change |
 
-Unique on (`library_entry_id`, `chapter_id`). The foreign keys are composite: (`library_entry_id`, `media_item_id`) points to `user_libraries` and (`chapter_id`, `media_item_id`) points to `chapters`, both with cascade. So the database itself refuses a progress row whose chapter belongs to another title than the library entry (BR-11). This needs a unique constraint on (`id`, `media_item_id`) in `user_libraries` and in `chapters`. Check constraints: `rating` is empty or from 1 to 5, and `playtime_minutes` is not negative. The row is created by the first rating. The column `playtime_minutes` stays 0 until US-11 fills it.
+Unique on (`library_entry_id`, `chapter_id`). The foreign keys are composite: (`library_entry_id`, `media_item_id`) points to `user_libraries` and (`chapter_id`, `media_item_id`) points to `chapters`, both with cascade. So the database itself refuses a progress row whose chapter belongs to another title than the library entry (BR-11). This needs a unique constraint on (`id`, `media_item_id`) in `user_libraries` and in `chapters`. Check constraints: `rating` is empty or from 1 to 5, and `playtime_minutes` is not negative. The row is created by the first rating. The column `playtime_minutes` stays 0 until the first playtime entry (US-11).
 
-### playtime_logs (Proposed)
+### playtime_logs (Implemented, US-11)
 | Column | Type | Constraints | Description |
 |---|---|---|---|
 | `id` | INTEGER | PK | Identifier |
 | `chapter_progress_id` | INTEGER | FK, NN, cascade | The progress row |
 | `minutes` | INTEGER | NN, check 1 or more | Minutes of this entry |
-| `logged_at` | DATETIME | NN, default now | When it was logged |
+| `logged_at` | DATETIME | NN, default now (UTC) | When it was logged |
+
+Index on `chapter_progress_id`. The check constraint `chk_playtime_minutes` keeps every entry at 1 minute or more (BR-12). `chapter_progress.playtime_minutes` is the sum of the entries and is raised by the database in the same transaction as the new entry.
 
 ### decision_points, decision_options and user_decisions (Proposed)
 | Column | Type | Constraints | Description |

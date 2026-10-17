@@ -38,7 +38,7 @@ Statistics (Epic 6) need no tables of their own. They are computed from the othe
 | 10 | Chapter | `chapters` | 3 and 4 | Implemented (US-09) |
 | 11 | SyncJobLog | `sync_job_logs` | 3 | Proposed |
 | 12 | ChapterProgress | `chapter_progress` | 4 | Implemented (US-10) |
-| 13 | PlaytimeLog | `playtime_logs` | 4 | Proposed |
+| 13 | PlaytimeLog | `playtime_logs` | 4 | Implemented (US-11) |
 | 14 | DecisionPoint and DecisionOption | `decision_points`, `decision_options` | 4 | Proposed |
 | 15 | UserDecision | `user_decisions` | 4 | Proposed |
 | 16 | Review | `reviews` | 5 | Proposed |
