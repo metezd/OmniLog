@@ -212,7 +212,7 @@ def _search_saved(db: Session, media_type: MediaType, query: str) -> list[MediaI
     )
 
 
-# ---------------------------------------------------------------- title details (US-09)
+# - title details (US-09)
 def get_title_details(db: Session, media_id: int) -> MediaItem:
     """Return a title with its seasons and episodes (series) or its chapters (games).
 

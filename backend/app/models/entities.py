@@ -6,9 +6,11 @@ from sqlalchemy import (
     String,
     DateTime,
     ForeignKey,
+    ForeignKeyConstraint,
     Enum,
     Float,
     Index,
+    SmallInteger,
     UniqueConstraint,
     CheckConstraint,
     text,
@@ -134,11 +136,24 @@ class UserLibrary(Base):
     # Relationships
     user = relationship("User", back_populates="library_entries")
     media_item = relationship("MediaItem", back_populates="library_entries")
+    # Progress of the chapters of this title (US-10). The database cascades the delete.
+    chapter_progress = relationship(
+        "ChapterProgress",
+        back_populates="library_entry",
+        primaryjoin="UserLibrary.id == ChapterProgress.library_entry_id",
+        foreign_keys="ChapterProgress.library_entry_id",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
     # Constraints
     __table_args__ = (
         UniqueConstraint(
             "user_id", "media_item_id", name="uq_user_media_entry"
+        ),
+        # Lets chapter_progress point to the entry and its title together (US-10, BR-11)
+        UniqueConstraint(
+            "id", "media_item_id", name="uq_user_library_id_media_item"
         ),
         CheckConstraint(
             "rating >= 1 AND rating <= 10", name="chk_rating_range"
@@ -265,6 +280,8 @@ class Chapter(Base):
         # The number is unique inside a season. A season id that is NULL is never equal to
         # another NULL, so game chapters need the partial index below.
         UniqueConstraint("season_id", "number", name="uq_chapter_season_number"),
+        # Lets chapter_progress point to the chapter and its title together (US-10, BR-11)
+        UniqueConstraint("id", "media_item_id", name="uq_chapter_id_media_item"),
         Index(
             "uq_chapter_game_number",
             "media_item_id",
@@ -288,3 +305,78 @@ class Chapter(Base):
     # Relationships
     media_item = relationship("MediaItem")
     season = relationship("Season", back_populates="episodes")
+    # The progress rows of all users for this chapter (US-10). The database cascades the delete.
+    progress_entries = relationship(
+        "ChapterProgress",
+        back_populates="chapter",
+        primaryjoin="Chapter.id == ChapterProgress.chapter_id",
+        foreign_keys="ChapterProgress.chapter_id",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+
+# 9. CHAPTER PROGRESS TABLE: the personal record of one user for one chapter (US-10)
+class ChapterProgress(Base):
+    __tablename__ = "chapter_progress"
+
+    id = Column(Integer, primary_key=True)
+    # The library entry of the user and the chapter. Both foreign keys are declared below
+    # together with media_item_id, so the database checks that they belong to the same title.
+    library_entry_id = Column(Integer, nullable=False)
+    chapter_id = Column(Integer, nullable=False, index=True)
+    # The title of the library entry and of the chapter (BR-11)
+    media_item_id = Column(Integer, nullable=False)
+    rating = Column(SmallInteger, nullable=True)  # Whole number between 1 and 5 (BR-10)
+    # Total of all playtime entries. US-11 fills it, so it stays 0 until then.
+    playtime_minutes = Column(Integer, nullable=False, default=0, server_default=text("0"))
+    # UTC, like the other timestamps. The server default also covers inserts outside the ORM.
+    updated_at = Column(
+        DateTime,
+        nullable=False,
+        default=datetime.utcnow,
+        server_default=text("timezone('utc', now())"),
+        onupdate=datetime.utcnow,
+    )
+
+    # The joins use the single id columns. media_item_id is not copied by these relationships,
+    # because it belongs to both composite foreign keys. The service sets it from the entry, and
+    # the database checks that the entry and the chapter have the same title (BR-11).
+    library_entry = relationship(
+        "UserLibrary",
+        back_populates="chapter_progress",
+        primaryjoin="UserLibrary.id == ChapterProgress.library_entry_id",
+        foreign_keys=[library_entry_id],
+    )
+    chapter = relationship(
+        "Chapter",
+        back_populates="progress_entries",
+        primaryjoin="Chapter.id == ChapterProgress.chapter_id",
+        foreign_keys=[chapter_id],
+    )
+
+    __table_args__ = (
+        # A progress row can only join a library entry and a chapter of the same title (BR-11).
+        # Deleting the entry or the chapter deletes the progress, as before.
+        ForeignKeyConstraint(
+            ["library_entry_id", "media_item_id"],
+            ["user_libraries.id", "user_libraries.media_item_id"],
+            name="fk_progress_entry_title",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["chapter_id", "media_item_id"],
+            ["chapters.id", "chapters.media_item_id"],
+            name="fk_progress_chapter_title",
+            ondelete="CASCADE",
+        ),
+        # One progress row per library entry and chapter. The row is created by the first
+        # rating (or playtime entry) and updated after that.
+        UniqueConstraint(
+            "library_entry_id", "chapter_id", name="uq_progress_entry_chapter"
+        ),
+        CheckConstraint(
+            "rating IS NULL OR (rating >= 1 AND rating <= 5)", name="chk_progress_rating"
+        ),
+        CheckConstraint("playtime_minutes >= 0", name="chk_progress_playtime"),
+    )
