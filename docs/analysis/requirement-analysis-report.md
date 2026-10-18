@@ -2,7 +2,7 @@
 
 **Course:** CMPE 331 Software Engineering Concepts, Fall 2026-2027
 **Deliverable:** Requirement Analysis Report (deadline 18.10.2026 23:59)
-**Version:** 1.0
+**Version:** 1.1 (status date 18.10.2026)
 **Repository branch:** `analysis_work`
 
 | Team member | Role |
@@ -137,8 +137,9 @@ These targets are stricter or more detailed than the specification. They were ca
 The full model is in [data/domain-model.md](data/domain-model.md) and [data/er-diagram.md](data/er-diagram.md).
 
 - The model has 19 entities in 4 areas: journal, catalog, episodic logging and AI.
-- Three tables exist in the code already (`users`, `media_items`, `user_libraries`). The others are proposed.
+- The code has 13 tables now. They cover the journal (`users`, `user_libraries`, `custom_lists`, `custom_list_items`, `diary_entries`), the catalog (`media_items`, `seasons`, `chapters`) and episodic logging (`chapter_progress`, `playtime_logs`, `decision_points`, `decision_options`, `user_decisions`). The tables of Epic 5 and the catalog support tables (`external_sources`, `genres`, `sync_job_logs`) are still proposed. The database is PostgreSQL.
 - The catalog is shared. All personal data is stored in other tables.
+- The business rules BR-01 to BR-17 are listed in section 5 of [data/domain-model.md](data/domain-model.md). The rules that join two entities are also checked by the database itself, not only by the service. A chapter progress row, and a decision of a user, can only join a library entry and a chapter (or decision point) of the same title (BR-11), and a chosen option must belong to its decision point (BR-13). This is done with composite foreign keys that include the title (`media_item_id`). See [data/er-diagram.md](data/er-diagram.md).
 - Statistics need no tables. They are computed from the other tables.
 - The vector table `media_embeddings` was added for Epic 5. All media types share one vector space. See section 8 of [data/er-diagram.md](data/er-diagram.md).
 
@@ -173,24 +174,44 @@ All analysis documents were compared with each other, with the user stories, wit
 | F-10 | The Epic 3 requirement used the path `/api/catalog/...`. The tests use `/catalog/...`. | No `/api` prefix. |
 | F-11 | The first report used NFR-1 to NFR-4. They clash with NFR-01 to NFR-05 (for example 50 ms and 500 ms). | Renamed to AN-1 to AN-4. |
 | F-12 | The earlier E-R had no table for embeddings. | `media_embeddings` and `user_taste_vectors` added. |
-| F-13 | The baseline documents and the code comment say RAWG. The Charter says IGDB. | The baseline document was changed to IGDB. The comment in `entities.py` still says RAWG. |
+| F-13 | The baseline documents and the code comment said RAWG. The Charter says IGDB. | The baseline document and the code comment now say IGDB. |
 | F-14 | The user model had no admin role, but the Operator starts manual syncs. | `is_admin` proposed. |
 | F-15 | The Charter lists user profiles in Epic 2, but there is no user story. | A profile screen is listed as optional. A story could be added. |
-| F-16 | Nothing creates chapters, decision points and options for episodic games. | Open point (see section 10). |
+| F-16 | Nothing creates chapters, decision points and options for episodic games. The tables and the endpoints that use them exist now (US-09 to US-12), but no process fills them. The tests save them in the database directly. | Open point (see section 10). |
 | F-17 | Documents in `docs/analysis` were partly in Turkish. | All translated to English. |
+| F-18 | The implementation status in the traceability table came from the test run of 10.10.2026. After US-02 to US-12 were built, it mixed old and new values. | All statuses were refreshed from the test run of 18.10.2026. |
+| F-19 | The analysis model has `activity_events` (enum type, JSON payload). The code has `diary_entries` (text action, text details). | Documented in the data dictionary. The decision is open point 8 in section 10. |
+| F-20 | The analysis model has `custom_lists.name` with 100 characters and a `description`. The code has 200 characters and no description. | Documented in the data dictionary. The decision is open point 9 in section 10. |
+| F-21 | The analysis documents said the code uses SQLite. The code uses PostgreSQL (Docker Compose, Alembic migrations, CI). | Domain model updated. The database question is resolved. |
+| F-22 | BR-11 and BR-13 were only service rules. Nothing stopped a wrong row in the database. | The data dictionary now has composite foreign keys for chapter progress and for decisions (section 7). |
+
+### 9.1 Status against the code (18.10.2026)
+
+| Epic | Stories | Result of the requirement tests |
+|---|---|---|
+| 1 Infrastructure | US-01 | Implemented |
+| 2 Users and journal | US-02 to US-07 | Implemented |
+| 3 Catalog | US-08, US-09 | Implemented. Not built: the lookup by source and external id (R-EP3-01), the manual sync (UC-EP3-03) and the scheduled sync (R-EP3-05) |
+| 4 Episodic logging | US-10 to US-12 | Implemented |
+| 5 AI engine | US-13, US-14 | Not implemented |
+| 6 Analytics | US-15 | Not implemented |
+
+The test run of 18.10.2026 has 416 passed tests, 7 failed tests and 3 skipped live tests. The 7 failed tests are the requirement tests of US-13, US-14 and US-15 and the `/stats` path of NFR-02. The total coverage is 99% (NFR-05 asks for 70%).
 
 ## 10. Open issues and decisions needed
 
-| # | Issue | Suggested owner |
-|---|---|---|
-| 1 | Database: PostgreSQL (Charter, JSONB, pgvector) or SQLite (code now). Decide in the design phase. | Product Owner |
-| 2 | Rating scales: 1 to 10 for the library and 1 to 5 for chapters. One scale should be confirmed. | Product Owner |
-| 3 | Source of chapters, decision points and options for episodic games. IGDB has no standard chapter list. | Product Owner, API Integration |
-| 4 | Embedding model and its dimension. The vector column needs a fixed size. | ML Engineer |
-| 5 | Is collaborative filtering part of version 1? This report assumes content-based only. | ML Engineer |
-| 6 | Spoiler model and threshold. | ML Engineer |
-| 7 | One or many decision points for each chapter in the API. | Backend |
-| 8 | Add a user story for user profiles, or remove profiles from the Epic 2 scope. | Product Owner |
+| # | Issue | Suggested owner | Status |
+|---|---|---|---|
+| 1 | Database: PostgreSQL (Charter, JSONB, pgvector) or SQLite. | Product Owner | Resolved. PostgreSQL is used |
+| 2 | Rating scales: 1 to 10 for the library and 1 to 5 for chapters. | Product Owner | Resolved as proposed. Both scales are in the code and the tests |
+| 3 | Source of chapters, decision points and options for episodic games. IGDB has no standard chapter list. | Product Owner, API Integration | Open |
+| 4 | Embedding model and its dimension. The vector column needs a fixed size. | ML Engineer | Open |
+| 5 | Is collaborative filtering part of version 1? This report assumes content-based only. | ML Engineer | Open |
+| 6 | Spoiler model and threshold. | ML Engineer | Open |
+| 7 | One or many decision points for each chapter in the API. | Backend | Resolved. Many are allowed. The id `decision_point_id` is only needed when a chapter has more than one |
+| 8 | Add a user story for user profiles, or remove profiles from the Epic 2 scope. | Product Owner | Open |
+| 9 | Diary table: keep `diary_entries` (text action) or move to `activity_events` (enum and JSON payload). | Backend | Open (finding F-19) |
+| 10 | Custom list columns: align the code with the model (100 characters and a description) or the model with the code. | Backend | Open (finding F-20) |
 
 ## 11. Risks and assumptions
 
@@ -203,7 +224,8 @@ All analysis documents were compared with each other, with the user stories, wit
 - Outside rate limits can slow down the sync jobs.
 - Normalization rules differ between sources. This can make fields unclear. The Product Owner and the API Integration engineer must agree on them.
 - Epic 5 has the highest technical uncertainty and the lowest priority. It is the first candidate for scope reduction.
-- Chapter data for games is not available from the sources (finding F-16).
+- Chapter data for games is not available from the sources (finding F-16). The episodic endpoints cannot be used on real games until something fills the chapter and decision point tables.
+- Epic 5 and Epic 6 are not built yet (section 9.1). They depend on the embedding choice (open point 4) and on the statistics cache.
 - The schedule has almost no buffer (see the PERT analysis).
 
 ## 12. Traceability
@@ -213,6 +235,6 @@ The full table is in [data/traceability.md](data/traceability.md). The Epic 3 de
 ## 13. Next steps
 
 1. Review of this PR by the reviewer.
-2. Decisions on the open issues in section 10.
+2. Decisions on the open issues in section 10 (the ones with status Open).
 3. UI mockups in Figma, based on [ui/screen-list.md](ui/screen-list.md).
 4. Start of the Software Design Report (deadline 15.11.2026).
