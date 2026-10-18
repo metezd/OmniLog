@@ -328,7 +328,7 @@ class ChapterProgress(Base):
     # The title of the library entry and of the chapter (BR-11)
     media_item_id = Column(Integer, nullable=False)
     rating = Column(SmallInteger, nullable=True)  # Whole number between 1 and 5 (BR-10)
-    # Total of all playtime entries. US-11 fills it, so it stays 0 until then.
+    # Total of all playtime entries (US-11). It stays 0 until the first entry.
     playtime_minutes = Column(Integer, nullable=False, default=0, server_default=text("0"))
     # UTC, like the other timestamps. The server default also covers inserts outside the ORM.
     updated_at = Column(
@@ -353,6 +353,14 @@ class ChapterProgress(Base):
         back_populates="progress_entries",
         primaryjoin="Chapter.id == ChapterProgress.chapter_id",
         foreign_keys=[chapter_id],
+    )
+    # Every single playtime entry (US-11). playtime_minutes is the sum of these entries.
+    playtime_logs = relationship(
+        "PlaytimeLog",
+        back_populates="progress",
+        order_by="PlaytimeLog.id",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )
 
     __table_args__ = (
@@ -380,3 +388,28 @@ class ChapterProgress(Base):
         ),
         CheckConstraint("playtime_minutes >= 0", name="chk_progress_playtime"),
     )
+
+
+# 10. PLAYTIME LOG TABLE: one entry of time spent on a chapter (US-11)
+class PlaytimeLog(Base):
+    __tablename__ = "playtime_logs"
+
+    id = Column(Integer, primary_key=True)
+    chapter_progress_id = Column(
+        Integer,
+        ForeignKey("chapter_progress.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    minutes = Column(Integer, nullable=False)  # At least 1 (BR-12)
+    # UTC, like the other timestamps
+    logged_at = Column(
+        DateTime,
+        nullable=False,
+        default=datetime.utcnow,
+        server_default=text("timezone('utc', now())"),
+    )
+
+    progress = relationship("ChapterProgress", back_populates="playtime_logs")
+
+    __table_args__ = (CheckConstraint("minutes >= 1", name="chk_playtime_minutes"),)
