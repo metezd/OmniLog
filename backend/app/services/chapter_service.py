@@ -143,11 +143,13 @@ def rate_chapter(
     media_item_id = entry.media_item_id
     event_text = f"Rated {_kind_label(chapter)} {chapter.number} as {rating}"
 
-    progress, changed = _get_or_create_progress(
+    progress, created = _get_or_create_progress(
         db, entry.id, chapter.id, media_item_id, rating=rating
     )
 
-    if not changed and progress.rating != rating:
+    # A new row already holds the rating. For an existing row the rating may differ.
+    changed = created
+    if not created and progress.rating != rating:
         progress.rating = rating
         changed = True
 

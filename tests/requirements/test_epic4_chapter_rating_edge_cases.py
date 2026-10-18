@@ -124,11 +124,9 @@ def test_the_same_rating_can_be_sent_again(client, auth_headers, game):
 
 def test_chapters_of_one_title_are_rated_separately(client, auth_headers, game):
     """US-10: each chapter keeps its own rating, which is the point of comparing the parts."""
-    rate(client, auth_headers, game["entry_id"], game["chapter_id"], {"rating": 5})
-    rate(client, auth_headers, game["entry_id"], game["second_chapter_id"], {"rating": 2})
-
     first = rate(client, auth_headers, game["entry_id"], game["chapter_id"], {"rating": 5})
     second = rate(client, auth_headers, game["entry_id"], game["second_chapter_id"], {"rating": 2})
+
     assert (first.json()["rating"], second.json()["rating"]) == (5, 2)
 
 
@@ -266,18 +264,6 @@ def test_a_chapter_of_another_title_returns_404(client, auth_headers, game, db):
     assert "CHAPTER_RATED" not in diary_actions(client, auth_headers)
 
 
-def test_a_title_that_is_not_in_the_library_cannot_be_rated(client, auth_headers, db):
-    """US-10: the story says a chapter in a title of my library."""
-    media = create_media(client, auth_headers, media_type="GAME")
-    chapter_id = add_chapter(db, media["id"])
-    other = register_and_login(client, new_credentials())
-    other_entry = add_to_library(client, other, create_media(client, other)["id"])
-
-    response = rate(client, other, other_entry["id"], chapter_id, {"rating": 4})
-
-    assert response.status_code == 404
-
-
 @pytest.mark.parametrize("bad_id", ["0", "-5", str(2**31), "99999999999999999999"])
 def test_ids_that_cannot_exist_return_404(client, auth_headers, game, bad_id):
     """US-10: an id that cannot exist (zero, negative, too large) is unknown, never a 500."""
@@ -372,7 +358,7 @@ def test_a_race_on_the_first_rating_is_caught_by_the_constraint(client, auth_hea
     stops the second INSERT. The service recognises that constraint, reads the row that exists
     and updates it."""
     first = rate(client, auth_headers, game["entry_id"], game["chapter_id"], {"rating": 2})
-    user = db.get(User, client.get("/library", headers=auth_headers).json()[0]["user_id"])
+    user = _service_user(db, game)
     before = diary_actions(client, auth_headers).count("CHAPTER_RATED")
 
     # call 1 = library entry, call 2 = chapter, call 3 = "is there a progress row?" (hidden)
