@@ -1,0 +1,113 @@
+# Production stack: PostgreSQL (pgvector), Redis, backend, frontend and a reverse proxy.
+# Start:  docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+# Settings: copy env.prod.example to .env.prod and fill it in. See docs/deployment.md.
+name: omnilog
+
+x-backend-env: &backend-env
+  DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-omnilog}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.prod}@db:5432/${POSTGRES_DB:-omnilog}
+  REDIS_URL: redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env.prod}@redis:6379/0
+  SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env.prod}
+  CORS_ORIGINS: ${CORS_ORIGINS:?Set CORS_ORIGINS in .env.prod}
+  IGDB_CLIENT_ID: ${IGDB_CLIENT_ID:-}
+  IGDB_CLIENT_SECRET: ${IGDB_CLIENT_SECRET:-}
+  TMDB_API_KEY: ${TMDB_API_KEY:-}
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-omnilog}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.prod}
+      POSTGRES_DB: ${POSTGRES_DB:-omnilog}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [internal]
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # The password comes from the environment, so it does not show in the process list
+    command: ["sh", "-c", "exec redis-server --requirepass \"$$REDIS_PASSWORD\" --appendonly yes"]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env.prod}
+      REDISCLI_AUTH: ${REDIS_PASSWORD}
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [internal]
+
+  # Runs once: brings the database to the latest migration, then stops
+  migrate:
+    build: ./backend
+    image: omnilog-backend:${TAG:-latest}
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      <<: *backend-env
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+    networks: [internal]
+
+  backend:
+    build: ./backend
+    image: omnilog-backend:${TAG:-latest}
+    restart: unless-stopped
+    environment:
+      <<: *backend-env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    networks: [internal]
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # Written into the JavaScript at build time. It is the address that the browser calls.
+        NEXT_PUBLIC_API_URL: ${API_URL:?Set API_URL in .env.prod}
+    image: omnilog-frontend:${TAG:-latest}
+    restart: unless-stopped
+    networks: [internal]
+
+  proxy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?Set APP_DOMAIN in .env.prod}
+      API_DOMAIN: ${API_DOMAIN:?Set API_DOMAIN in .env.prod}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend
+      - backend
+    networks: [internal]
+
+# One private network. Only the proxy publishes ports, so the database, Redis, the backend and
+# the frontend cannot be reached from outside the host.
+networks:
+  internal:
+
+volumes:
+  pgdata:
+  redisdata:
+  caddy_data:
+  caddy_config:
