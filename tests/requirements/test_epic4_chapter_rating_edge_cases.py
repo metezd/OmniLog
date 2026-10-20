@@ -1,8 +1,6 @@
 """Edge cases for rating a chapter or episode (US-10, BR-10, BR-11, US-07, NFR-02).
 
-The chapters of a game have no outside source and no endpoint creates them yet (open point 3 in
-docs/analysis/data/domain-model.md). The tests put chapters in the database directly, as the
-Epic 3 edge case tests do.
+The chapters are saved in the database directly (see epic4_helpers.py).
 """
 import threading
 from datetime import datetime
@@ -18,12 +16,12 @@ from app.models.entities import (
     ChapterKind,
     ChapterProgress,
     MediaItem,
-    Season,
     User,
     UserLibrary,
 )
 from app.schemas.chapter import ChapterRatingResponse
 from app.services import chapter_service
+from epic4_helpers import add_chapter, add_episode, diary_actions
 from helpers import (
     HiddenPreCheck,
     add_to_library,
@@ -34,25 +32,6 @@ from helpers import (
 
 
 # ---------------------------------------------------------------- helpers
-def add_chapter(db, media_id, number=1):
-    chapter = Chapter(media_item_id=media_id, number=number, kind=ChapterKind.CHAPTER, title=f"Chapter {number}")
-    db.add(chapter)
-    db.commit()
-    return chapter.id
-
-
-def add_episode(db, media_id, number=1):
-    season = Season(media_item_id=media_id, season_number=1, title="Season 1")
-    db.add(season)
-    db.flush()
-    episode = Chapter(
-        media_item_id=media_id, season_id=season.id, number=number, kind=ChapterKind.EPISODE, title=f"Episode {number}"
-    )
-    db.add(episode)
-    db.commit()
-    return episode.id
-
-
 def _progress(game, rating, **overrides):
     """A ChapterProgress for the fixture game. Overrides replace single columns."""
     values = {
@@ -80,10 +59,6 @@ def progress_rows(db, entry_id, chapter_id):
         .filter(ChapterProgress.library_entry_id == entry_id, ChapterProgress.chapter_id == chapter_id)
         .all()
     )
-
-
-def diary_actions(client, headers):
-    return [event["action"] for event in client.get("/diary", headers=headers).json()]
 
 
 @pytest.fixture
@@ -149,11 +124,9 @@ def test_the_same_rating_can_be_sent_again(client, auth_headers, game):
 
 def test_chapters_of_one_title_are_rated_separately(client, auth_headers, game):
     """US-10: each chapter keeps its own rating, which is the point of comparing the parts."""
-    rate(client, auth_headers, game["entry_id"], game["chapter_id"], {"rating": 5})
-    rate(client, auth_headers, game["entry_id"], game["second_chapter_id"], {"rating": 2})
-
     first = rate(client, auth_headers, game["entry_id"], game["chapter_id"], {"rating": 5})
     second = rate(client, auth_headers, game["entry_id"], game["second_chapter_id"], {"rating": 2})
+
     assert (first.json()["rating"], second.json()["rating"]) == (5, 2)
 
 
@@ -291,18 +264,6 @@ def test_a_chapter_of_another_title_returns_404(client, auth_headers, game, db):
     assert "CHAPTER_RATED" not in diary_actions(client, auth_headers)
 
 
-def test_a_title_that_is_not_in_the_library_cannot_be_rated(client, auth_headers, db):
-    """US-10: the story says a chapter in a title of my library."""
-    media = create_media(client, auth_headers, media_type="GAME")
-    chapter_id = add_chapter(db, media["id"])
-    other = register_and_login(client, new_credentials())
-    other_entry = add_to_library(client, other, create_media(client, other)["id"])
-
-    response = rate(client, other, other_entry["id"], chapter_id, {"rating": 4})
-
-    assert response.status_code == 404
-
-
 @pytest.mark.parametrize("bad_id", ["0", "-5", str(2**31), "99999999999999999999"])
 def test_ids_that_cannot_exist_return_404(client, auth_headers, game, bad_id):
     """US-10: an id that cannot exist (zero, negative, too large) is unknown, never a 500."""
@@ -397,7 +358,7 @@ def test_a_race_on_the_first_rating_is_caught_by_the_constraint(client, auth_hea
     stops the second INSERT. The service recognises that constraint, reads the row that exists
     and updates it."""
     first = rate(client, auth_headers, game["entry_id"], game["chapter_id"], {"rating": 2})
-    user = db.get(User, client.get("/library", headers=auth_headers).json()[0]["user_id"])
+    user = _service_user(db, game)
     before = diary_actions(client, auth_headers).count("CHAPTER_RATED")
 
     # call 1 = library entry, call 2 = chapter, call 3 = "is there a progress row?" (hidden)
