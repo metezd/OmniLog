@@ -95,10 +95,11 @@ This check runs before every chapter operation. It protects the data of other us
 
 ### 4.3 Log Playtime (US-11)
 1. Request: `POST /library/{id}/chapters/{chapter_id}/playtime` with `minutes`.
-2. The minutes must be 1 or more. A negative value gives 422.
-3. Insert a row in `playtime_logs` and add the minutes to `playtime_minutes`. Both changes are made in one transaction.
+2. The minutes must be a whole number from 1 to 100,000. A negative value, 0 or a larger value gives 422. A total of more than 10,000,000 minutes for one chapter also gives 422.
+3. Create the progress row when it does not exist. Insert a row in `playtime_logs` and add the minutes to `playtime_minutes`. The database adds the minutes (`total = total + minutes`), so two entries sent at the same moment are both counted. Everything is saved in one transaction.
 4. Example: 90 minutes and then 30 minutes give a total of 120.
-5. Send a `PLAYTIME_LOGGED` event to 2.5. Delete the cached statistics of the user.
+5. Send a `PLAYTIME_LOGGED` event to 2.5. The answer is 201 with the saved entry and the new total.
+6. The cached statistics of the user are deleted here once the statistics cache exists (US-15). Until then there is nothing to delete.
 
 ### 4.4 Record Decision (US-12)
 1. Request: `PUT /library/{id}/chapters/{chapter_id}/decision` with `choice`.
@@ -108,8 +109,8 @@ This check runs before every chapter operation. It protects the data of other us
 5. Send a `DECISION_RECORDED` event to 2.5.
 
 ### 4.5 Serve Chapter Progress
-- `GET /library/{id}/chapters/{chapter_id}` returns `rating`, `playtime_minutes` and `choice`.
-- When the user has no data for the chapter, the values are empty or zero.
+- `GET /library/{id}/chapters/{chapter_id}` returns `rating`, `playtime_minutes` and `choice`. The field `choice` is added with US-12.
+- When the user has no data for the chapter, the rating is empty and the playtime is 0. Reading creates no row.
 
 ## 5. Data store usage (CRUD)
 
