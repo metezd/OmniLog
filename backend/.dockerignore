@@ -1,0 +1,13 @@
+# Secrets and local files never go into the image
+.env
+.env.*
+!.env.example
+
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.coverage
+.venv/
+venv/
+.git/
