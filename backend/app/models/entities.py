@@ -302,6 +302,8 @@ class Chapter(Base):
         ),
     )
 
+    
+
     # Relationships
     media_item = relationship("MediaItem")
     season = relationship("Season", back_populates="episodes")
@@ -413,3 +415,58 @@ class PlaytimeLog(Base):
     progress = relationship("ChapterProgress", back_populates="playtime_logs")
 
     __table_args__ = (CheckConstraint("minutes >= 1", name="chk_playtime_minutes"),)
+
+# 11
+class DecisionPoint(Base):
+    __tablename__ = "decision_points"
+
+    id = Column(Integer, primary_key=True, index=True)
+    chapter_id = Column(Integer, ForeignKey("chapters.id", ondelete="CASCADE"), nullable=False)
+    media_item_id = Column(Integer, ForeignKey("media_items.id", ondelete="CASCADE"), nullable=False)
+    prompt = Column(String, nullable=True)
+    position = Column(Integer, default=1, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        CheckConstraint("position >= 1", name="ck_decision_points_position_min"),
+    )
+
+    chapter = relationship("Chapter", backref="decision_points")
+    media_item = relationship("MediaItem")
+    options = relationship("DecisionOption", back_populates="decision_point", cascade="all, delete-orphan", order_by="DecisionOption.id")
+
+
+class DecisionOption(Base):
+    __tablename__ = "decision_options"
+
+    id = Column(Integer, primary_key=True, index=True)
+    decision_point_id = Column(Integer, ForeignKey("decision_points.id", ondelete="CASCADE"), nullable=False)
+    label = Column(String, nullable=False)  # "A", "B" gibi seçenek etiketi
+    text = Column(String, nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("decision_point_id", "label", name="uq_decision_options_point_label"),
+    )
+
+    decision_point = relationship("DecisionPoint", back_populates="options")
+
+
+class UserDecision(Base):
+    __tablename__ = "user_decisions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    library_entry_id = Column(Integer, ForeignKey("user_libraries.id", ondelete="CASCADE"), nullable=False)
+    chapter_id = Column(Integer, ForeignKey("chapters.id", ondelete="CASCADE"), nullable=False)
+    decision_point_id = Column(Integer, ForeignKey("decision_points.id", ondelete="CASCADE"), nullable=False)
+    choice = Column(String, nullable=False)
+    decided_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("library_entry_id", "decision_point_id", name="uq_user_decisions_entry_point"),
+    )
+
+    decision_point = relationship("DecisionPoint")
+    library_entry = relationship("UserLibrary")
+    user = relationship("User")
+    chapter = relationship("Chapter")

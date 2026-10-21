@@ -3,7 +3,7 @@
 The chapters of a game have no outside source and no endpoint creates them yet (open point 3 in
 docs/analysis/data/domain-model.md), so the tests save chapters in the database directly.
 """
-from app.models.entities import Chapter, ChapterKind, Season
+from app.models.entities import Chapter, ChapterKind, Season, DecisionOption, DecisionPoint
 
 
 def add_chapter(db, media_id, number=1):
@@ -36,3 +36,25 @@ def add_episode(db, media_id, number=1):
 def diary_actions(client, headers):
     """The action names of the diary of the user, newest first."""
     return [event["action"] for event in client.get("/diary", headers=headers).json()]
+
+def add_decision_point(db, chapter_id, media_id=None, labels=("A", "B"), position=1, prompt="Choice 1"):
+    """Save a decision point with given option labels and return its id."""
+    point = DecisionPoint(
+        chapter_id=chapter_id,
+        media_item_id=media_id,
+        prompt=prompt,
+        position=position,
+    )
+    db.add(point)
+    db.flush()
+
+    for label in labels:
+        opt = DecisionOption(
+            decision_point_id=point.id,
+            label=label,
+            text=f"Option {label}",
+        )
+        db.add(opt)
+
+    db.commit()
+    return point.id

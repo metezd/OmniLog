@@ -10,6 +10,9 @@ from app.models.entities import (
     Season,
     Chapter,
     ChapterKind,
+    DecisionOption,
+    DecisionPoint,
+    UserDecision,
 )
 
 __all__ = [
@@ -24,4 +27,7 @@ __all__ = [
     "Season",
     "Chapter",
     "ChapterKind",
+    "DecisionOption",
+    "DecisionPoint",
+    "UserDecision",
 ]
