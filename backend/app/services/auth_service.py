@@ -42,16 +42,21 @@ def register_user(db: Session, data: UserCreate) -> User:
     return user
 
 
-def authenticate_user(db: Session, username: str, password: str) -> Optional[User]:
-    """Return the user when the credentials are correct, otherwise None."""
+def authenticate_user(db: Session, identifier: str, password: str) -> Optional[User]:
+    """Return the user when the credentials are correct, otherwise None.
+
+    The identifier is a username or an email. A username never has an @ (BR-18), so a value with
+    @ is an email. The schema has already normalized the identifier.
+    """
     if "\x00" in password or len(password.encode("utf-8")) > BCRYPT_MAX_BYTES:
         # bcrypt rejects NUL bytes and truncates longer input, so such a password is
         # never sent to bcrypt. No registered password can match it, so the answer is 401.
         return None
 
-    user = db.query(User).filter(User.username == username).first()
+    column = User.email if "@" in identifier else User.username
+    user = db.query(User).filter(column == identifier).first()
     if user is None:
-        # Hash anyway so the response time does not reveal which usernames exist
+        # Hash anyway so the response time does not reveal which usernames or emails exist
         verify_password(password, DUMMY_HASH)
         return None
     if not verify_password(password, user.hashed_password):
