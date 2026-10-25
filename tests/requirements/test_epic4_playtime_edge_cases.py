@@ -299,6 +299,7 @@ def test_a_chapter_without_data_returns_no_rating_and_zero_minutes(client, auth_
         "playtime_minutes": 0,
         "updated_at": None,
         "choice": None,
+        "decided_at": None,
         "decisions": [],
     }
     assert progress_rows(db, game["entry_id"], game["chapter_id"]) == []  # reading creates nothing
