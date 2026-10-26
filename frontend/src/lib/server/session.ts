@@ -2,29 +2,14 @@ import "server-only";
 
 import { cookies } from "next/headers";
 
+import { hasLiveToken, SESSION_COOKIE, tokenExpiry } from "@/lib/auth/token";
+
 // The login token is kept in an httpOnly cookie, so the JavaScript of the page can never read it.
 // Only server code (Server Actions and Server Components) reads it and sends it to the backend.
 
-export const SESSION_COOKIE = "omnilog_session";
-
-/**
- * When a login token ends, read from its exp claim. Returns null when the token has no readable
- * end time.
- *
- * The signature is NOT checked here. Only the backend can do that, and it does on every call.
- * The date is only used to give the cookie the same lifetime as the token.
- */
-export function tokenExpiry(token: string): Date | null {
-  const parts = token.split(".");
-  if (parts.length !== 3) return null;
-  try {
-    const claims: unknown = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8"));
-    const exp = typeof claims === "object" && claims !== null ? (claims as { exp?: unknown }).exp : undefined;
-    return typeof exp === "number" && Number.isFinite(exp) && exp > 0 ? new Date(exp * 1000) : null;
-  } catch {
-    return null;
-  }
-}
+// Both live in a file without server-only code, because the proxy needs them too. They are
+// exported again here, so the server code keeps one place to import from.
+export { SESSION_COOKIE, tokenExpiry };
 
 /**
  * Save the login token in the session cookie. The cookie ends when the token ends. A token
@@ -58,14 +43,9 @@ export async function createSession(token: string): Promise<void> {
 /** The login token of this request, or undefined when nobody is logged in. */
 export async function getSessionToken(): Promise<string | undefined> {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
-  if (!token) return undefined;
-
   // The browser removes the cookie when it ends. This also covers a cookie that is still sent
   // a moment too long.
-  const expiry = tokenExpiry(token);
-  if (expiry && expiry.getTime() <= Date.now()) return undefined;
-
-  return token;
+  return hasLiveToken(token) ? token : undefined;
 }
 
 /** Log out: remove the session cookie. Only works in a Server Action or a Route Handler. */

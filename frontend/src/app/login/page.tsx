@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import AuthBanner from "@/components/auth/AuthBanner";
 import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 import LoginForm from "@/components/auth/LoginForm";
 
@@ -11,9 +12,9 @@ export const metadata: Metadata = {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ registered?: string }>;
+  searchParams: Promise<{ registered?: string; expired?: string }>;
 }) {
-  const { registered } = await searchParams;
+  const { registered, expired } = await searchParams;
 
   return (
     <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center p-4">
@@ -26,6 +27,10 @@ export default async function LoginPage({
             Sign in to access your media logs & friend stream
           </p>
         </div>
+
+        {expired === "1" && (
+          <AuthBanner variant="info">Your session has ended. Please sign in again.</AuthBanner>
+        )}
 
         <GoogleSignInButton />
 
