@@ -16,4 +16,11 @@ describe("AuthBanner", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Your account was created.");
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
+
+  it("announces an info note politely too", () => {
+    render(<AuthBanner variant="info">Your session has ended.</AuthBanner>);
+
+    expect(screen.getByRole("status")).toHaveTextContent("Your session has ended.");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
 });
