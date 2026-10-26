@@ -1,52 +1,54 @@
 "use client";
 
-import React, { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useActionState } from "react";
 
-export default function LoginForm() {
-  const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+import AuthBanner from "@/components/auth/AuthBanner";
+import AuthField from "@/components/auth/AuthField";
+import { loginAction } from "@/lib/actions/auth";
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    // Temporary redirect to dashboard
-    router.push("/");
-  };
+interface LoginFormProps {
+  /** True when the user comes from a registration whose automatic login failed. */
+  registered?: boolean;
+}
+
+export default function LoginForm({ registered = false }: LoginFormProps) {
+  const [state, formAction, pending] = useActionState(loginAction, undefined);
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="space-y-1.5">
-        <label className="text-xs font-medium text-slate-300">Email address</label>
-        <input
-          type="email"
-          required
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="name@example.com"
-          className="w-full rounded-xl bg-black/40 border border-white/10 px-3.5 py-2 text-sm text-slate-200 placeholder-slate-500 focus:border-horizon-cyan focus:outline-none focus:ring-1 focus:ring-horizon-cyan transition-all"
-        />
-      </div>
+    // noValidate: the backend is the only judge of the data, and its messages are shown here
+    <form action={formAction} noValidate className="space-y-4">
+      {registered && !state && <AuthBanner variant="success">Your account was created. Please sign in.</AuthBanner>}
+      {state?.message && <AuthBanner variant="error">{state.message}</AuthBanner>}
 
-      <div className="space-y-1.5">
-        <div className="flex items-center justify-between">
-          <label className="text-xs font-medium text-slate-300">Password</label>
-        </div>
-        <input
-          type="password"
-          required
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="••••••••"
-          className="w-full rounded-xl bg-black/40 border border-white/10 px-3.5 py-2 text-sm text-slate-200 placeholder-slate-500 focus:border-horizon-cyan focus:outline-none focus:ring-1 focus:ring-horizon-cyan transition-all"
-        />
-      </div>
+      <AuthField
+        name="username"
+        label="Username or Email"
+        placeholder="Enter your username or email..."
+        autoComplete="username"
+        defaultValue={state?.values?.username}
+        error={state?.fieldErrors?.username}
+      />
+
+      <AuthField
+        name="password"
+        type="password"
+        label="Password"
+        placeholder="••••••••"
+        autoComplete="current-password"
+        error={state?.fieldErrors?.password}
+        labelAside={
+          <a href="#" className="text-[11px] text-horizon-cyan hover:underline">
+            Forgot?
+          </a>
+        }
+      />
 
       <button
         type="submit"
-        className="w-full rounded-xl bg-horizon-cyan/20 border border-horizon-cyan/40 py-2.5 text-sm font-medium text-cyan-200 hover:bg-horizon-cyan/30 hover:border-horizon-cyan hover:text-white transition-all shadow-[0_0_15px_rgba(0,155,185,0.25)] active:scale-95 mt-2"
+        disabled={pending}
+        className="w-full py-2.5 rounded-xl bg-horizon-crimson/30 hover:bg-horizon-crimson/50 border border-horizon-crimson/60 text-white font-medium text-xs transition-all shadow-[0_0_20px_rgba(229,29,36,0.3)] active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
       >
-        Sign In
+        {pending ? "Signing in..." : "Sign In"}
       </button>
     </form>
   );

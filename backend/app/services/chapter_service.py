@@ -1,8 +1,12 @@
-"""Business logic for the personal record of a chapter or episode (US-10 and US-11).
+"""Business logic for the personal record of a chapter or episode (US-10, US-11 and US-12).
 
-Process 4.1 (validate chapter access), 4.2 (rate chapter), 4.3 (log playtime) and 4.5 (serve
-chapter progress) in docs/analysis/behavior/dfd-epic4-episodic.md.
+Process 4.1 (validate chapter access), 4.2 (rate chapter), 4.3 (log playtime), 4.4 (record
+decision) and 4.5 (serve chapter progress) in docs/analysis/behavior/dfd-epic4-episodic.md.
 """
+from dataclasses import dataclass
+from datetime import datetime
+
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -10,8 +14,11 @@ from app.models.entities import (
     Chapter,
     ChapterKind,
     ChapterProgress,
+    DecisionOption,
+    DecisionPoint,
     PlaytimeLog,
     User,
+    UserDecision,
     UserLibrary,
 )
 from app.services.diary_service import DiaryAction, record_event
@@ -35,6 +42,15 @@ class ChapterNotFoundError(Exception):
 
 class PlaytimeLimitError(Exception):
     """The new entry would make the total playtime of the chapter too large."""
+
+
+class DecisionPointNotFoundError(Exception):
+    """The decision point does not exist, or it belongs to another chapter."""
+
+
+class DecisionNotAllowedError(Exception):
+    """The choice cannot be recorded: the chapter has no usable decision point, or the choice is
+    not one of its options. The message names the allowed options."""
 
 
 def get_chapter_context(
@@ -195,10 +211,130 @@ def log_playtime(
     return log, progress
 
 
+def _find_decision(db: Session, entry_id: int, decision_point_id: int) -> UserDecision | None:
+    return (
+        db.query(UserDecision)
+        .filter(
+            UserDecision.library_entry_id == entry_id,
+            UserDecision.decision_point_id == decision_point_id,
+        )
+        .first()
+    )
+
+
+def _resolve_decision_point(chapter: Chapter, decision_point_id: int | None) -> DecisionPoint:
+    """Find the decision point of the request.
+
+    A chapter with one decision point needs no id. With several, the request must name one.
+    """
+    points = chapter.decision_points
+    if decision_point_id is not None:
+        for point in points:
+            if point.id == decision_point_id:
+                return point
+        raise DecisionPointNotFoundError("Decision point not found")
+    if not points:
+        raise DecisionNotAllowedError("This chapter has no decision point")
+    if len(points) > 1:
+        raise DecisionNotAllowedError(
+            "This chapter has several decision points. Send decision_point_id"
+        )
+    return points[0]
+
+
+def record_decision(
+    db: Session,
+    user: User,
+    entry_id: int,
+    chapter_id: int,
+    choice: str,
+    decision_point_id: int | None = None,
+) -> tuple[DecisionPoint, DecisionOption, UserDecision]:
+    """Process 4.4: record the option the user chose at a decision point.
+
+    A user has one decision per decision point. A new choice replaces the old one (BR-13). A
+    DECISION_RECORDED event is written only when the choice changes, so sending the same choice
+    again changes nothing and commits nothing.
+    """
+    entry, chapter = get_chapter_context(db, user, entry_id, chapter_id)
+
+    # Plain values are kept here, because a rollback expires the loaded objects
+    user_id = user.id
+    entry_pk = entry.id
+    media_item_id = entry.media_item_id
+
+    point = _resolve_decision_point(chapter, decision_point_id)
+    if not point.options:
+        raise DecisionNotAllowedError("This decision point has no options")
+    option = next((item for item in point.options if item.label == choice), None)
+    if option is None:
+        allowed = ", ".join(item.label for item in point.options)
+        raise DecisionNotAllowedError(f"Choice must be one of: {allowed}")
+
+    point_pk = point.id
+    option_pk = option.id
+    event_text = f"Chose {option.label} in {_kind_label(chapter)} {chapter.number}"
+
+    decision = _find_decision(db, entry_pk, point_pk)
+    if decision is not None and decision.option_id == option_pk:
+        return point, option, decision  # the same choice again: nothing to save
+
+    try:
+        if decision is None:
+            # The first choice. ON CONFLICT also covers two first choices sent at the same
+            # moment: the one that comes second replaces the choice of the first.
+            db.execute(
+                pg_insert(UserDecision)
+                .values(
+                    library_entry_id=entry_pk,
+                    media_item_id=media_item_id,
+                    decision_point_id=point_pk,
+                    option_id=option_pk,
+                )
+                .on_conflict_do_update(
+                    constraint="uq_user_decision_entry_point",
+                    set_={"option_id": option_pk, "decided_at": datetime.utcnow()},
+                )
+            )
+        else:
+            decision.option_id = option_pk
+        record_event(db, user_id, DiaryAction.DECISION_RECORDED, media_item_id, event_text)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise  # a real database error. The cause stays visible.
+
+    return point, option, _find_decision(db, entry_pk, point_pk)
+
+
+@dataclass
+class ChapterProgressView:
+    """What the user has recorded for a chapter. The progress is None when there is no rating and
+    no playtime yet. A decision is a tuple of (decision point id, option label, time)."""
+
+    library_entry_id: int
+    chapter_id: int
+    progress: ChapterProgress | None
+    decisions: list[tuple[int, str, datetime]]
+
+
 def get_chapter_progress(
     db: Session, user: User, entry_id: int, chapter_id: int
-) -> tuple[UserLibrary, Chapter, ChapterProgress | None]:
-    """Process 4.5: what the user has recorded for a chapter. The progress is None when there is
-    no data yet. Nothing is created or changed by reading."""
+) -> ChapterProgressView:
+    """Process 4.5: what the user has recorded for a chapter. Nothing is created or changed by
+    reading."""
     entry, chapter = get_chapter_context(db, user, entry_id, chapter_id)
-    return entry, chapter, _find_progress(db, entry.id, chapter.id)
+    decisions = (
+        db.query(DecisionPoint.id, DecisionOption.label, UserDecision.decided_at)
+        .join(UserDecision, UserDecision.decision_point_id == DecisionPoint.id)
+        .join(DecisionOption, DecisionOption.id == UserDecision.option_id)
+        .filter(DecisionPoint.chapter_id == chapter.id, UserDecision.library_entry_id == entry.id)
+        .order_by(DecisionPoint.position, DecisionPoint.id)
+        .all()
+    )
+    return ChapterProgressView(
+        library_entry_id=entry.id,
+        chapter_id=chapter.id,
+        progress=_find_progress(db, entry.id, chapter.id),
+        decisions=[tuple(row) for row in decisions],
+    )
