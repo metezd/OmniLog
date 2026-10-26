@@ -22,7 +22,7 @@ flowchart LR
 |---|---|
 | `docker-compose.prod.yml` | The production stack |
 | `backend/Dockerfile` | Backend image (Python 3.11, runs as a normal user) |
-| `frontend/Dockerfile` | Frontend image (Node 20, Next.js standalone output) |
+| `frontend/Dockerfile` | Frontend image (Node 24, Next.js standalone output) |
 | `docker/Caddyfile` | The proxy settings |
 | `env.prod.example` | A list of all settings. Copy it to `.env.prod` |
 | `.github/workflows/docker-build.yml` | Builds the images and tests the stack on every change |

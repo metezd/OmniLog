@@ -36,7 +36,7 @@ CORS_ORIGINS = [
 ]
 
 # How long a login token stays valid, in minutes
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "90"))
 
 # - External catalog (US-08)
 # IGDB (games) uses Twitch OAuth client credentials. Leave both empty to turn game search off.

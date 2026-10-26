@@ -2,6 +2,7 @@
 import pytest
 
 from app.models.entities import Chapter, ChapterKind
+from epic4_helpers import add_decision_point
 from helpers import add_to_library, create_media
 
 
@@ -9,16 +10,19 @@ from helpers import add_to_library, create_media
 def chapter_context(client, auth_headers, db):
     """A library entry for an episodic game plus the id of its first chapter.
 
-    No endpoint creates the chapters of a game yet (open point 3 in
-    docs/analysis/data/domain-model.md), so the chapter is saved in the database directly.
+    No endpoint creates the chapters of a game or their decision points yet (open point 3 in
+    docs/analysis/data/domain-model.md), so the chapter and one decision point with the options
+    A and B are saved in the database directly.
     The Epic 3 edge case tests do the same. The chapter is then read from GET /catalog/{id},
     as a client would do.
     """
     media = create_media(client, auth_headers, media_type="GAME")
     entry = add_to_library(client, auth_headers, media["id"], status="IN_PROGRESS")
 
-    db.add(Chapter(media_item_id=media["id"], number=1, kind=ChapterKind.CHAPTER, title="Chapter 1"))
+    chapter = Chapter(media_item_id=media["id"], number=1, kind=ChapterKind.CHAPTER, title="Chapter 1")
+    db.add(chapter)
     db.commit()
+    add_decision_point(db, chapter.id, media["id"])
 
     detail = client.get(f"/catalog/{media['id']}", headers=auth_headers)
     assert detail.status_code == 200, f"catalog detail failed: {detail.status_code}"

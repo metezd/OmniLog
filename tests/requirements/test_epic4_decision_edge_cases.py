@@ -99,6 +99,36 @@ def test_the_choice_is_returned_on_the_chapter(client, auth_headers, game):
     assert [(d["decision_point_id"], d["choice"]) for d in body["decisions"]] == [(game["point_id"], "A")]
 
 
+def test_the_chapter_shows_when_the_choice_was_made(client, auth_headers, game):
+    saved = decide(client, auth_headers, game["entry_id"], game["chapter_id"], {"choice": "A"}).json()
+
+    body = progress(client, auth_headers, game["entry_id"], game["chapter_id"])
+
+    assert set(body) == {
+        "library_entry_id",
+        "chapter_id",
+        "rating",
+        "playtime_minutes",
+        "updated_at",
+        "choice",
+        "decided_at",
+        "decisions",
+    }
+    assert body["decided_at"] is not None
+    assert body["decided_at"] == saved["decided_at"] == body["decisions"][0]["decided_at"]
+
+
+def test_the_time_on_the_chapter_follows_a_new_choice_and_not_the_same_choice(client, auth_headers, game):
+    first = decide(client, auth_headers, game["entry_id"], game["chapter_id"], {"choice": "A"}).json()
+    again = decide(client, auth_headers, game["entry_id"], game["chapter_id"], {"choice": "A"}).json()
+    assert again["decided_at"] == first["decided_at"]  # the same choice changes nothing
+
+    decide(client, auth_headers, game["entry_id"], game["chapter_id"], {"choice": "B"})
+    body = progress(client, auth_headers, game["entry_id"], game["chapter_id"])
+
+    assert datetime.fromisoformat(body["decided_at"]) > datetime.fromisoformat(first["decided_at"])
+
+
 def test_a_new_choice_replaces_the_old_one(client, auth_headers, game, db):
     """US-12 and BR-13: only the latest choice is kept, in one row."""
     decide(client, auth_headers, game["entry_id"], game["chapter_id"], {"choice": "A"})
@@ -139,7 +169,7 @@ def test_a_choice_creates_no_progress_row(client, auth_headers, game, db):
 def test_a_chapter_without_a_choice_returns_none(client, auth_headers, game):
     body = progress(client, auth_headers, game["entry_id"], game["chapter_id"])
 
-    assert (body["choice"], body["decisions"]) == (None, [])
+    assert (body["choice"], body["decided_at"], body["decisions"]) == (None, None, [])
 
 
 def test_two_users_choose_independently(client, auth_headers, game):
@@ -251,6 +281,7 @@ def test_each_decision_point_keeps_its_own_choice(client, auth_headers, two_poin
         (two_points["second_point_id"], "X"),
     ]
     assert body["choice"] == "B"
+    assert body["decided_at"] == body["decisions"][0]["decided_at"]  # the time of `choice`
     assert len(decision_rows(db, entry)) == 2
 
 
