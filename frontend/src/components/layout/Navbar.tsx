@@ -1,21 +1,31 @@
 "use client";
 
+import { LogOut } from "lucide-react";
 import Link from "next/link";
-import Logo from "./Logo";
-import { useSearch } from "@/context/SearchContext";
 
-export default function Navbar() {
+import { useSearch } from "@/context/SearchContext";
+import { logoutAction } from "@/lib/actions/auth";
+import { USER_NAV_LINKS } from "@/lib/navigation";
+import type { CurrentUser } from "@/types/api";
+import Logo from "./Logo";
+
+interface NavbarProps {
+  /** The logged-in user, or null for a visitor. The layout reads it from the backend. */
+  user: CurrentUser | null;
+}
+
+export default function Navbar({ user }: NavbarProps) {
   const { searchQuery, setSearchQuery } = useSearch();
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-white/10 bg-black/40 backdrop-blur-xl">
       <div className="container mx-auto flex h-16 items-center justify-between px-4 gap-4">
-        {/* Sol Taraf: Logo */}
+        {/* Left: logo */}
         <Link href="/" className="flex items-center gap-2 shrink-0">
           <Logo />
         </Link>
 
-        {/* Orta Taraf: Canlı Arama Çubuğu */}
+        {/* Middle: live search bar */}
         <div className="flex-1 max-w-md mx-2 sm:mx-6">
           <div className="relative flex items-center">
             <svg
@@ -52,7 +62,7 @@ export default function Navbar() {
           </div>
         </div>
 
-        {/* Sağ Taraf: Navigasyon Linkleri */}
+        {/* Right: navigation links */}
         <nav className="flex items-center gap-4 shrink-0">
           <Link
             href="/"
@@ -60,18 +70,48 @@ export default function Navbar() {
           >
             Dashboard
           </Link>
-          <Link
-            href="/login"
-            className="text-sm font-medium text-slate-300 hover:text-white transition-colors"
-          >
-            Sign In
-          </Link>
-          <Link
-            href="/register"
-            className="rounded-xl bg-horizon-crimson/20 border border-horizon-crimson/40 px-3.5 py-1.5 text-xs sm:text-sm font-medium text-rose-200 hover:bg-horizon-crimson/30 hover:border-horizon-crimson hover:text-white transition-all shadow-[0_0_15px_rgba(229,29,36,0.25)] active:scale-95"
-          >
-            Get Started
-          </Link>
+
+          {user ? (
+            <>
+              {USER_NAV_LINKS.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className="text-sm font-medium text-slate-300 hover:text-white transition-colors"
+                >
+                  {link.label}
+                </Link>
+              ))}
+              <span className="hidden text-xs text-slate-400 md:block" title={user.email}>
+                @{user.username}
+              </span>
+              {/* The logout action removes the session cookie on the server */}
+              <form action={logoutAction}>
+                <button
+                  type="submit"
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs sm:text-sm font-medium text-slate-300 transition-all hover:border-white/25 hover:text-white active:scale-95"
+                >
+                  <LogOut className="h-3.5 w-3.5" aria-hidden="true" />
+                  Log out
+                </button>
+              </form>
+            </>
+          ) : (
+            <>
+              <Link
+                href="/login"
+                className="text-sm font-medium text-slate-300 hover:text-white transition-colors"
+              >
+                Sign In
+              </Link>
+              <Link
+                href="/register"
+                className="rounded-xl bg-horizon-crimson/20 border border-horizon-crimson/40 px-3.5 py-1.5 text-xs sm:text-sm font-medium text-rose-200 hover:bg-horizon-crimson/30 hover:border-horizon-crimson hover:text-white transition-all shadow-[0_0_15px_rgba(229,29,36,0.25)] active:scale-95"
+              >
+                Get Started
+              </Link>
+            </>
+          )}
         </nav>
       </div>
     </header>
