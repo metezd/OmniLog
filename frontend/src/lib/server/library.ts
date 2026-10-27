@@ -27,3 +27,12 @@ export function updateLibraryEntry(
 ): Promise<LibraryEntry> {
   return authedFetch<LibraryEntry>(`/library/${entryId}`, { method: "PATCH", body: changes });
 }
+
+/**
+ * Remove a title from the library. The chapter ratings, playtime and decisions that the user
+ * logged for it are deleted with it, so ask the user to confirm before calling this. The backend
+ * answers 404 when the entry does not exist or was already removed.
+ */
+export function removeFromLibrary(entryId: number): Promise<void> {
+  return authedFetch<void>(`/library/${entryId}`, { method: "DELETE" });
+}

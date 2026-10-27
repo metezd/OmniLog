@@ -22,6 +22,7 @@ _MAX_EXTERNAL_ID = 2**31 - 1
 # Limits of the media_items columns and of the response schema
 MAX_TITLE_LENGTH = 200
 MAX_URL_LENGTH = 500
+MAX_DESCRIPTION_LENGTH = 5000
 
 # Limits for the seasons and episodes of one series (US-09). Season and episode numbers and the
 # length of an episode are small whole numbers. A larger value is wrong data, so it is dropped.
@@ -48,6 +49,18 @@ class ExternalTitle:
 
 
 @dataclass(frozen=True)
+class ExternalDetails:
+    """The description and the genres of one title, in the OmniLog format (US-09).
+
+    The genre names are already normalized (see genres.py). Both can be empty: an outside service
+    does not know every field of every title.
+    """
+
+    description: Optional[str]
+    genres: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class ExternalEpisode:
     """One episode of a season, in the OmniLog format."""
 
@@ -66,6 +79,14 @@ class ExternalSeason:
     title: Optional[str]
     air_date: Optional[str]
     episodes: list[ExternalEpisode]
+
+
+@dataclass(frozen=True)
+class ExternalSeries:
+    """A series as TMDB describes it: its seasons with their episodes, and its details."""
+
+    seasons: list["ExternalSeason"]
+    details: ExternalDetails
 
 
 def request_with_retry(
@@ -148,6 +169,19 @@ def clean_title(value: Any) -> Optional[str]:
         return None
     title = " ".join(value.split())
     return title[:MAX_TITLE_LENGTH] if title else None
+
+
+# Control characters except the tab and the line break. A NUL character would be refused by the
+# database, and the others have no place in a synopsis.
+_CONTROL_CHARACTERS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+
+
+def clean_text(value: Any, max_length: int = MAX_DESCRIPTION_LENGTH) -> Optional[str]:
+    """A synopsis: the line breaks stay, a text that is too long is cut."""
+    if not isinstance(value, str):
+        return None
+    text = _CONTROL_CHARACTERS.sub("", value.replace("\r\n", "\n").replace("\r", "\n")).strip()
+    return text[:max_length].rstrip() or None
 
 
 def clean_url(value: Optional[str]) -> Optional[str]:
