@@ -1,4 +1,4 @@
-"""Library endpoints: add a title, list my library, rate and update an entry (US-04, US-05)."""
+"""Library endpoints: add a title, list my library, rate, update and remove an entry (US-04, US-05)."""
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -52,5 +52,20 @@ def update_library_entry(
     """Rate or change the status of an entry (US-05). Changes are recorded in the diary (US-07)."""
     try:
         return library_service.update_entry(db, current_user, entry_id, payload)
+    except LibraryEntryNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+
+
+@router.delete("/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_library_entry(
+    entry_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Remove a title from the library. The chapter ratings, playtime and decisions of the user for
+    this title are deleted with it, so a client should ask for confirmation first. The removal is
+    recorded in the diary."""
+    try:
+        library_service.remove_entry(db, current_user, entry_id)
     except LibraryEntryNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))

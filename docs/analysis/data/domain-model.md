@@ -33,7 +33,7 @@ Statistics (Epic 6) need no tables of their own. They are computed from the othe
 | 5 | CustomListItem | `custom_list_items` | 2 | Proposed |
 | 6 | ActivityEvent | `activity_events` | 2 | Proposed |
 | 7 | ExternalSource | `external_sources` | 3 | Proposed |
-| 8 | Genre | `genres`, `media_item_genres` | 3 | Proposed |
+| 8 | Genre | `genres`, `media_item_genres` | 3 | Implemented (migration 0010) |
 | 9 | Season | `seasons` | 3 | Implemented (US-09) |
 | 10 | Chapter | `chapters` | 3 and 4 | Implemented (US-09) |
 | 11 | SyncJobLog | `sync_job_logs` | 3 | Proposed |
@@ -73,8 +73,8 @@ A named list that a user builds, for example "Best narrative games". The item ta
 
 ### 3.5 ActivityEvent
 One entry of the activity diary. It records an action of the user.
-- Event types: `LIBRARY_ADDED`, `STATUS_CHANGED`, `RATED`, `CHAPTER_RATED`, `PLAYTIME_LOGGED`, `DECISION_RECORDED`, `LIST_CREATED`, `LIST_ITEM_ADDED`, `REVIEW_POSTED`.
-- Rules: events are only appended. They are never edited. The diary shows them newest first.
+- Event types: `LIBRARY_ADDED`, `STATUS_CHANGED`, `RATED`, `CHAPTER_RATED`, `PLAYTIME_LOGGED`, `DECISION_RECORDED`, `LIST_CREATED`, `LIST_ITEM_ADDED`, `LIBRARY_REMOVED`, `LIST_ITEM_REMOVED`, `LIST_DELETED`, `REVIEW_POSTED`.
+- Rules: events are only appended. They are never edited or deleted. A removal is a new event and the older events about the same title stay. The diary shows them newest first.
 
 ### 3.6 ExternalSource
 An outside data provider. The values are `IGDB` and `TMDB`.
@@ -83,7 +83,7 @@ An outside data provider. The values are `IGDB` and `TMDB`.
 
 ### 3.7 Genre
 A canonical genre name. A media item has many genres and a genre belongs to many media items.
-- Rule: the genre names from IGDB and TMDB are normalized to one canonical name.
+- Rule: the genre names from IGDB and TMDB are normalized to one canonical name. Implemented as a short list of rules (`backend/app/integrations/genres.py`): the joined names of TMDB such as "Action & Adventure" are split into plain names, and every other name stays as the source wrote it.
 
 ### 3.8 Season and Chapter
 A series has seasons. A season has episodes. An episodic game has chapters.
@@ -192,7 +192,7 @@ Cached responses with a time to live. It is not a table in the relational databa
 |---|---|---|
 | 1 | Database | PostgreSQL is needed for JSONB and pgvector. The code uses SQLite now. Decide in the design phase. |
 | 2 | Rating scales | Keep 1 to 10 for the library and 1 to 5 for chapters. This is the current open issue in the requirement specification. |
-| 3 | Chapter and decision point data for games | IGDB does not give a standard chapter list, and no source gives decision points and options. They may need to be added by hand (for example by the Operator or a seed file). No process creates them yet. |
+| 3 | Chapter and decision point data for games | IGDB does not give a standard chapter list, and no source gives decision points and options. They may need to be added by hand (for example by the Operator or a seed file). **Implemented as a seed file:** `backend/app/seed/game_chapters.json`, loaded with `python -m app.seed`. Operator endpoints are not built and would need `is_admin` (point 6). |
 | 4 | Decision points per chapter | The model allows many. The API in the tests assumes one. Add an optional `decision_point_id` to the request. |
 | 5 | Reviews per library entry | One review for each entry. Posting again replaces the old review. |
 | 6 | Admin role | Add `is_admin` to `users`. |

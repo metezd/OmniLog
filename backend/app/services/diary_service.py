@@ -1,4 +1,5 @@
-"""Activity diary (US-07). Events are appended only. They are never edited or deleted."""
+"""Activity diary (US-07). Events are appended only. They are never edited or deleted. A removal
+is a new event, and the older events about the same title stay."""
 from sqlalchemy.orm import Session
 
 from app.models.entities import DiaryEntry
@@ -15,6 +16,9 @@ class DiaryAction:
     DECISION_RECORDED = "DECISION_RECORDED"
     LIST_CREATED = "LIST_CREATED"
     LIST_ITEM_ADDED = "LIST_ITEM_ADDED"
+    LIBRARY_REMOVED = "LIBRARY_REMOVED"
+    LIST_ITEM_REMOVED = "LIST_ITEM_REMOVED"
+    LIST_DELETED = "LIST_DELETED"
 
 
 def record_event(

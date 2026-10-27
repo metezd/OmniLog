@@ -26,6 +26,16 @@ export function addItemToList(listId: number, mediaItemId: number): Promise<Cust
   });
 }
 
+/** Take a title out of a list. The title stays in the catalog and in the library. 404 when it is not in the list. */
+export function removeItemFromList(listId: number, mediaItemId: number): Promise<void> {
+  return authedFetch<void>(`/lists/${listId}/items/${mediaItemId}`, { method: "DELETE" });
+}
+
+/** Delete a list with its items. The titles are not touched, and the name can be used again. */
+export function deleteList(listId: number): Promise<void> {
+  return authedFetch<void>(`/lists/${listId}`, { method: "DELETE" });
+}
+
 /** Newest first. */
 export function getDiary(): Promise<DiaryEntry[]> {
   return authedFetch<DiaryEntry[]>("/diary");
