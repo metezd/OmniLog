@@ -149,6 +149,8 @@ A game is joined to the catalog by its IGDB id (`external_api_id`). To find it, 
 
 The shipped file holds a draft for one game. Its `external_api_id` is `0` on purpose: the command refuses it until the real IGDB id is filled in, and the chapter titles and decisions should be checked against the game first.
 
+**Removal.** This goes beyond the stories of the Charter. `DELETE /library/{id}` removes a title from the library, and the chapter ratings, playtime and decisions that the user logged for it are deleted with it, so a client should ask for confirmation first. `DELETE /lists/{id}/items/{media_item_id}` takes a title out of a list, and `DELETE /lists/{id}` deletes a list with its items. All three answer 204, and 404 when the thing does not exist, is not the user's, or was already removed. Titles are never deleted from the catalog. Each removal adds a diary event (`LIBRARY_REMOVED`, `LIST_ITEM_REMOVED`, `LIST_DELETED`), and the older events stay.
+
 The tests do not call IGDB or TMDB. They use a fake at the HTTP level (`tests/requirements/fake_external_apis.py`), so no keys are needed. To check the real services once, put real keys in `backend/.env` and run:
 
 ```bash

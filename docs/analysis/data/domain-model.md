@@ -73,8 +73,8 @@ A named list that a user builds, for example "Best narrative games". The item ta
 
 ### 3.5 ActivityEvent
 One entry of the activity diary. It records an action of the user.
-- Event types: `LIBRARY_ADDED`, `STATUS_CHANGED`, `RATED`, `CHAPTER_RATED`, `PLAYTIME_LOGGED`, `DECISION_RECORDED`, `LIST_CREATED`, `LIST_ITEM_ADDED`, `REVIEW_POSTED`.
-- Rules: events are only appended. They are never edited. The diary shows them newest first.
+- Event types: `LIBRARY_ADDED`, `STATUS_CHANGED`, `RATED`, `CHAPTER_RATED`, `PLAYTIME_LOGGED`, `DECISION_RECORDED`, `LIST_CREATED`, `LIST_ITEM_ADDED`, `LIBRARY_REMOVED`, `LIST_ITEM_REMOVED`, `LIST_DELETED`, `REVIEW_POSTED`.
+- Rules: events are only appended. They are never edited or deleted. A removal is a new event and the older events about the same title stay. The diary shows them newest first.
 
 ### 3.6 ExternalSource
 An outside data provider. The values are `IGDB` and `TMDB`.
