@@ -24,7 +24,7 @@ _outside_ids = itertools.count(1_000_000)
 
 DETAIL_FIELDS = {
     "id", "title", "media_type", "poster_url", "release_date", "external_api_id",
-    "seasons", "chapters",
+    "genres", "description", "seasons", "chapters",
 }
 
 
@@ -108,7 +108,7 @@ def test_the_response_has_the_documented_fields_only(client, auth_headers, fake_
     assert set(body) == DETAIL_FIELDS
     assert set(body["seasons"][1]) == {"id", "season_number", "title", "air_date", "episodes"}
     assert set(body["seasons"][1]["episodes"][0]) == {
-        "id", "number", "kind", "title", "release_date", "runtime_minutes",
+        "id", "number", "kind", "title", "release_date", "runtime_minutes", "decision_points",
     }
 
 
@@ -433,8 +433,9 @@ def test_the_chapters_of_one_game_do_not_show_in_another(client, auth_headers, m
     assert open_title(client, auth_headers, other["id"]).json()["chapters"] == []
 
 
-def test_game_details_make_no_outside_call(client, auth_headers, fake_external_apis):
-    """US-09: IGDB has no chapter list, so a game is read from the database only."""
+def test_game_details_ask_igdb_for_description_and_genres_only(client, auth_headers, fake_external_apis):
+    """US-09: IGDB has no chapter list, so the chapters of a game come from the database. IGDB is
+    asked once for the description and the genres, and TMDB is not asked at all."""
     found = client.get("/catalog/search", params={"q": "Life is Strange", "type": "GAME"}, headers=auth_headers)
     game = next(item for item in found.json() if item["title"] == "Life is Strange")
     calls = fake_external_apis.count()
@@ -442,7 +443,17 @@ def test_game_details_make_no_outside_call(client, auth_headers, fake_external_a
     response = open_title(client, auth_headers, game["id"])
 
     assert response.status_code == 200
-    assert fake_external_apis.count() == calls
+    assert fake_external_apis.count() == calls + 1
+    assert fake_external_apis.calls_to("igdb")[-1].body.startswith("fields summary,genres.name; where id = ")
+    assert fake_external_apis.calls_to("tmdb") == []
+
+
+def test_a_game_added_by_hand_makes_no_outside_call(client, auth_headers, fake_external_apis, media_item):
+    """US-09: a title without an outside id has nothing to ask for."""
+    response = open_title(client, auth_headers, media_item["id"])
+
+    assert response.status_code == 200
+    assert fake_external_apis.count() == 0
 
 
 def test_games_still_work_when_tmdb_is_down(client, auth_headers, fake_external_apis, media_item):
