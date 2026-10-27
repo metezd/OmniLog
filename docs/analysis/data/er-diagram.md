@@ -245,7 +245,7 @@ Of the new columns, only `last_synced` is implemented so far (US-09).
 | `media_type` | ENUM | NN | `GAME`, `SERIES` or `MOVIE` |
 | `poster_url` | VARCHAR(500) | NULL | Cover image |
 | `release_date` | VARCHAR(50) | NULL | Release date text |
-| `description` | TEXT | NULL | **New.** Synopsis. Used for embeddings |
+| `description` | TEXT | NULL | **New. Implemented (migration 0010).** Synopsis. Used for embeddings. Loaded when the details of the title are opened (US-09) |
 | `source_id` | INTEGER | FK to `external_sources.id`, NULL | **New.** Data provider. Empty for items created by hand |
 | `external_id` | VARCHAR(50) | NULL | **New.** Id at the provider. Replaces `external_api_id` |
 | `normalized_payload` | JSON | NULL | **New.** Normalized provider data |
@@ -255,11 +255,11 @@ Of the new columns, only `last_synced` is implemented so far (US-09).
 
 Unique index on (`source_id`, `external_id`). Index on `last_synced`.
 
-### genres and media_item_genres (Proposed)
+### genres and media_item_genres (Implemented, migration 0010)
 | Column | Type | Constraints | Description |
 |---|---|---|---|
 | `genres.id` | INTEGER | PK | Identifier |
-| `genres.name` | VARCHAR(50) | UK, NN | Canonical genre name |
+| `genres.name` | VARCHAR(50) | UK, NN | Canonical genre name. The few rules are in `backend/app/integrations/genres.py`: other names stay as the source wrote them. A new genre is matched to an existing one without regard to case |
 | `media_item_genres.media_item_id` | INTEGER | PK, FK, cascade | Title |
 | `media_item_genres.genre_id` | INTEGER | PK, FK, cascade | Genre |
 
@@ -430,7 +430,7 @@ Unique on (`decision_options.decision_point_id`, `decision_options.label`). Uniq
 
 | Key pattern | Content | TTL | Written by |
 |---|---|---|---|
-| `omni:catalog:{source}:{external_id}` | Normalized catalog record. For US-09 the source is `tmdb_tv` (the ids of TMDB series and movies are different number spaces) and the record is the seasons and episodes of the series, or `{"found": false}` when TMDB does not know the id | 1 hour to 24 hours. US-09 uses `DETAILS_CACHE_TTL_SECONDS`, default 24 hours | Process 3.5 |
+| `omni:catalog:{source}:{external_id}` | Normalized catalog record. For US-09 the source is `tmdb_tv` (the ids of TMDB series and movies are different number spaces) and the record is the seasons and episodes of the series with its description and genres, or `{"found": false}` when TMDB does not know the id. The sources `igdb` (a game) and `tmdb_movie` (a movie) hold the description and genres of one title | 1 hour to 24 hours. US-09 uses `DETAILS_CACHE_TTL_SECONDS`, default 24 hours | Process 3.5 |
 | `omni:search:{type}:{query_hash}` | List of search results | 1 hour | Process 3.2 |
 | `omni:reco:{user_id}:{target}` | List of recommended media ids | 10 minutes | Process 5.3 |
 | `omni:stats:{user_id}` | Statistics response | 5 minutes. Deleted when the library or progress changes | Process 6.5 |
