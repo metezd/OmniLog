@@ -11,6 +11,8 @@ from sqlalchemy import (
     Float,
     Index,
     SmallInteger,
+    Table,
+    Text,
     UniqueConstraint,
     CheckConstraint,
     text,
@@ -69,6 +71,26 @@ class User(Base):
     )
 
 
+# Genres of titles (US-09, US-15). The names are made the same for every outside source before they
+# are saved (app/integrations/genres.py), so one genre can group games, series and movies.
+class Genre(Base):
+    __tablename__ = "genres"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(50), nullable=False, unique=True)
+
+
+# Links a title to its genres. Both foreign keys cascade, so a deleted title or genre leaves no
+# link behind. The index on genre_id serves the genre statistics (US-15).
+media_item_genres = Table(
+    "media_item_genres",
+    Base.metadata,
+    Column("media_item_id", Integer, ForeignKey("media_items.id", ondelete="CASCADE"), primary_key=True),
+    Column("genre_id", Integer, ForeignKey("genres.id", ondelete="CASCADE"), primary_key=True),
+    Index("ix_media_item_genres_genre_id", "genre_id"),
+)
+
+
 # 2. MEDIA ITEM TABLE (Games and TV Series)
 class MediaItem(Base):
     __tablename__ = "media_items"
@@ -79,13 +101,17 @@ class MediaItem(Base):
     poster_url = Column(String(500), nullable=True)
     release_date = Column(String(50), nullable=True)
 
+    # The synopsis from the outside service (US-09). Empty until the title details were loaded.
+    description = Column(Text, nullable=True)
+
     # External IDs from IGDB (games) or TMDB (series and movies). Ids of IGDB and TMDB are
     # different number spaces, so the media type is part of the key. Several titles without an
     # outside id are allowed (NULL values are not equal in a unique constraint).
     external_api_id = Column(Integer, index=True, nullable=True)
 
-    # When the seasons and episodes were last loaded from the outside service (US-09). Empty
-    # until then. A search result alone does not set it, because a search does not give seasons.
+    # When the details (seasons and episodes of a series, description and genres of any title) were
+    # last loaded from the outside service (US-09). Empty until then. A search result alone does
+    # not set it, because a search does not give them.
     last_synced = Column(DateTime, nullable=True)
 
     __table_args__ = (
@@ -97,6 +123,17 @@ class MediaItem(Base):
 
     # Relationship: Referenced in custom list items
     list_items = relationship("CustomListItem", back_populates="media_item")
+
+    # Relationship: The genres of the title, sorted by name. They are loaded together with the
+    # title, so a list of titles does not cost a query for each one. The link rows are removed by
+    # the database (ON DELETE CASCADE).
+    genres = relationship(
+        "Genre",
+        secondary=media_item_genres,
+        order_by="Genre.name",
+        lazy="selectin",
+        passive_deletes=True,
+    )
 
     # Relationship: The seasons of a series, in season order (US-09). The rows are removed by the
     # database (ON DELETE CASCADE), so the ORM does not load them just to delete them.
