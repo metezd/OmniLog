@@ -1,19 +1,20 @@
 import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import LoginForm from "@/components/auth/LoginForm";
 import { loginAction, type AuthFormState } from "@/lib/actions/auth";
+import { fillField, setupUser, type FillMode } from "../../helpers/forms";
 
 // The real action talks to the backend. A form test only needs to control its answer.
 vi.mock("@/lib/actions/auth", () => ({ loginAction: vi.fn(), registerAction: vi.fn() }));
 
 const login = vi.mocked(loginAction);
 
-async function fillAndSubmit(username: string, password: string) {
-  const user = userEvent.setup();
-  if (username) await user.type(screen.getByLabelText("Username or Email"), username);
-  if (password) await user.type(screen.getByLabelText("Password"), password);
+// The values are pasted, because most tests only look at what the form sends. One test types.
+async function fillAndSubmit(username: string, password: string, mode: FillMode = "paste") {
+  const user = setupUser();
+  if (username) await fillField(user, "Username or Email", username, mode);
+  if (password) await fillField(user, "Password", password, mode);
   await user.click(screen.getByRole("button", { name: /sign in/i }));
 }
 
@@ -31,7 +32,7 @@ describe("LoginForm", () => {
     login.mockResolvedValue(undefined);
     render(<LoginForm />);
 
-    await fillAndSubmit("ali@example.com", "StrongPass123!");
+    await fillAndSubmit("ali@example.com", "StrongPass123!", "type");
 
     await waitFor(() => expect(login).toHaveBeenCalledTimes(1));
     const [, formData] = login.mock.calls[0];
