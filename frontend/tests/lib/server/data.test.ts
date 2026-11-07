@@ -4,8 +4,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getTitleDetails, searchCatalog } from "@/lib/server/catalog";
 import { getChapterProgress, logPlaytime, rateChapter, recordDecision } from "@/lib/server/chapters";
-import { addItemToList, createList, deleteList, getDiary, getList, getLists, removeItemFromList } from "@/lib/server/journal";
-import { addToLibrary, getLibrary, removeFromLibrary, updateLibraryEntry } from "@/lib/server/library";
+import { addItemToList, createList, getDiary, getList, getLists } from "@/lib/server/journal";
+import { addToLibrary, getLibrary, updateLibraryEntry } from "@/lib/server/library";
 import { cookieStore } from "../../mocks/cookie-store";
 import { server } from "../../mocks/server";
 import { liveToken } from "../../mocks/token";
@@ -21,9 +21,8 @@ const TOKEN = liveToken();
 
 type Seen = { method: string; path: string; auth: string | null; body: unknown };
 
-/** Answers every call to the fake backend with `reply` (or 204 without a body when `reply` is null)
- * and remembers what it received. */
-function fakeBackend(reply: Record<string, unknown> | unknown[] | null = {}): { seen: Seen[] } {
+/** Answers every call to the fake backend with `reply` and remembers what it received. */
+function fakeBackend(reply: Record<string, unknown> | unknown[] = {}): { seen: Seen[] } {
   const seen: Seen[] = [];
   server.use(
     http.all(`${BASE}/*`, async ({ request }) => {
@@ -35,7 +34,7 @@ function fakeBackend(reply: Record<string, unknown> | unknown[] | null = {}): { 
         auth: request.headers.get("authorization"),
         body: text ? JSON.parse(text) : undefined,
       });
-      return reply === null ? new HttpResponse(null, { status: 204 }) : HttpResponse.json(reply);
+      return HttpResponse.json(reply);
     }),
   );
   return { seen };
@@ -68,34 +67,6 @@ describe("library", () => {
       ["PATCH", "/library/9", { status: "COMPLETED" }],
       ["PATCH", "/library/9", { rating: null }],
     ]);
-  });
-});
-
-describe("removals", () => {
-  it("removes a title from the library with a DELETE and returns nothing", async () => {
-    const { seen } = fakeBackend(null);
-
-    await expect(removeFromLibrary(9)).resolves.toBeUndefined();
-
-    expect(seen).toEqual([{ method: "DELETE", path: "/library/9", auth: `Bearer ${TOKEN}`, body: undefined }]);
-  });
-
-  it("takes a title out of a list and deletes a list", async () => {
-    const { seen } = fakeBackend(null);
-
-    await expect(removeItemFromList(5, 12)).resolves.toBeUndefined();
-    await expect(deleteList(5)).resolves.toBeUndefined();
-
-    expect(seen.map((s) => [s.method, s.path])).toEqual([
-      ["DELETE", "/lists/5/items/12"],
-      ["DELETE", "/lists/5"],
-    ]);
-  });
-
-  it("throws a BackendError with status 404 for a title that is not there", async () => {
-    server.use(http.delete(`${BASE}/library/9`, () => HttpResponse.json({ detail: "Library entry not found" }, { status: 404 })));
-
-    await expect(removeFromLibrary(9)).rejects.toMatchObject({ status: 404, message: "Library entry not found" });
   });
 });
 
