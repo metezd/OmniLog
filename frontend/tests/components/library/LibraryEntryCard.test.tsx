@@ -19,7 +19,6 @@ function entry(overrides: Partial<LibraryEntry> = {}, item: Partial<LibraryEntry
       poster_url: "https://images.test/lis.jpg",
       release_date: "2015-01-30",
       external_api_id: 1,
-      genres: ["Adventure", "Indie"],
       ...item,
     },
     ...overrides,
