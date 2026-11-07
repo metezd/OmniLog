@@ -4,14 +4,14 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
 from app.core.database import get_db
-from app.models.entities import MediaItem, User, UserLibrary
+from app.models.entities import MediaItem, MediaType, User, UserLibrary
 
 router = APIRouter(prefix="/recommendations", tags=["Recommendations"])
 
 
 @router.get("", status_code=status.HTTP_200_OK)
 def get_recommendations(
-    target: Optional[str] = Query(None),
+    target: Optional[MediaType] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
