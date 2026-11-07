@@ -1,11 +1,11 @@
 import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import Navbar from "@/components/layout/Navbar";
 import { SearchProvider } from "@/context/SearchContext";
 import { logoutAction } from "@/lib/actions/auth";
 import type { CurrentUser } from "@/types/api";
+import { setupUser } from "../../helpers/forms";
 
 // The real action talks to the backend. The navbar test only needs to see that it is called.
 vi.mock("@/lib/actions/auth", () => ({ logoutAction: vi.fn() }));
@@ -44,7 +44,7 @@ describe("Navbar for a logged-in user", () => {
   it("calls the logout action from the Log out button", async () => {
     renderNavbar(USER);
 
-    await userEvent.setup().click(screen.getByRole("button", { name: "Log out" }));
+    await setupUser().click(screen.getByRole("button", { name: "Log out" }));
 
     await waitFor(() => expect(logoutAction).toHaveBeenCalledTimes(1));
   });
