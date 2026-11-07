@@ -1,11 +1,11 @@
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import EmptyState from "@/components/states/EmptyState";
 import ErrorState from "@/components/states/ErrorState";
 import LoadingState from "@/components/states/LoadingState";
 import RetryButton from "@/components/states/RetryButton";
+import { setupUser } from "../../helpers/forms";
 
 const { refresh } = vi.hoisted(() => ({ refresh: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
@@ -46,7 +46,7 @@ describe("RetryButton", () => {
   it("loads the page again from the server by default", async () => {
     render(<RetryButton />);
 
-    await userEvent.setup().click(screen.getByRole("button", { name: "Try again" }));
+    await setupUser().click(screen.getByRole("button", { name: "Try again" }));
 
     expect(refresh).toHaveBeenCalledTimes(1);
   });
@@ -55,7 +55,7 @@ describe("RetryButton", () => {
     const onRetry = vi.fn();
     render(<RetryButton onRetry={onRetry} />);
 
-    await userEvent.setup().click(screen.getByRole("button", { name: "Try again" }));
+    await setupUser().click(screen.getByRole("button", { name: "Try again" }));
 
     expect(onRetry).toHaveBeenCalledTimes(1);
     expect(refresh).not.toHaveBeenCalled();
