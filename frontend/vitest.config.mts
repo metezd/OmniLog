@@ -15,9 +15,11 @@ export default defineConfig({
     },
   },
   test: {
-    // Components run in a simulated browser. A test that needs plain Node (server code) starts
-    // with the line: // @vitest-environment node
-    environment: "jsdom",
+    // Components run in a simulated browser. happy-dom is used instead of jsdom because the tests
+    // of the forms were about 22% faster with it. Keep it at version 20 or higher: older versions
+    // run the scripts of a page by default, and they had serious security problems.
+    // A test that needs plain Node (server code) starts with the line: // @vitest-environment node
+    environment: "happy-dom",
     include: ["tests/**/*.test.{ts,tsx}"],
     setupFiles: ["./tests/setup.ts"],
     // Every test starts with fresh mocks: no calls and no answers left over from the test before
