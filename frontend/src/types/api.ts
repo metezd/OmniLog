@@ -36,6 +36,19 @@ export interface DecisionPoint {
   options: DecisionOption[]; // sorted by label
 }
 
+export interface DecisionOption {
+  id: number;
+  label: string; // such as "A". recordDecision() takes this value as `choice`.
+  text: string | null;
+}
+
+export interface DecisionPoint {
+  id: number;
+  position: number;
+  prompt: string;
+  options: DecisionOption[]; // sorted by label
+}
+
 export interface Chapter {
   id: number;
   number: number;
