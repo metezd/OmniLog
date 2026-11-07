@@ -20,6 +20,22 @@ export default defineConfig({
     // run the scripts of a page by default, and they had serious security problems.
     // A test that needs plain Node (server code) starts with the line: // @vitest-environment node
     environment: "happy-dom",
+    environmentOptions: {
+      happyDOM: {
+        // happy-dom had several security problems that let a page run code on the machine of the
+        // developer (see tests/security/happy-dom.test.ts). Version 20 turned these off by
+        // default. They are set here too, so a later change of the defaults cannot turn them on.
+        // The tests never need them: components are rendered by React, not loaded from a page.
+        settings: {
+          enableJavaScriptEvaluation: false,
+          disableJavaScriptFileLoading: true,
+          enableCSSFileLoading: false,
+          enableImageFileLoading: false,
+          enableIframePageLoading: false,
+          enableFileSystemHttpRequests: false,
+        },
+      },
+    },
     include: ["tests/**/*.test.{ts,tsx}"],
     setupFiles: ["./tests/setup.ts"],
     // Every test starts with fresh mocks: no calls and no answers left over from the test before
