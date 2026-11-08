@@ -1,36 +1,46 @@
-# Backend image for production (FastAPI + Uvicorn).
-# Build context: the backend/ folder.  docker build -t omnilog-backend ./backend
-# The Python version is the one of the CI (3.11). The Debian release is named, so a new Debian
-# release does not change the image unless this file changes.
-FROM python:3.11-slim-bookworm
+# Frontend image for production (Next.js, standalone output).
+# Build context: the frontend/ folder.
+#   docker build --build-arg NEXT_PUBLIC_API_URL=https://api.example.com -t omnilog-frontend ./frontend
+#
+# NEXT_PUBLIC_API_URL is written into the JavaScript at build time (Next.js does this for every
+# NEXT_PUBLIC_ variable). Changing the API address means building the image again.
 
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
-
+FROM node:24-alpine AS deps
 WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
 
-# The application does not run as root. The group and the user have the same fixed id (10001),
-# so a file has the same owner on every host. The user has no home folder and no login shell.
-RUN groupadd --system --gid 10001 omnilog \
-    && useradd --system --uid 10001 --gid 10001 --no-create-home --shell /usr/sbin/nologin omnilog
+FROM node:24-alpine AS build
+WORKDIR /app
+ENV NEXT_TELEMETRY_DISABLED=1
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
 
-# The dependencies come first, so this layer is reused when only the code changes
-COPY requirements.txt .
-RUN pip install -r requirements.txt
+ARG NEXT_PUBLIC_API_URL
+# Stop early. Without the address the browser would call http://localhost:8000
+RUN test -n "$NEXT_PUBLIC_API_URL" || (echo "Build argument NEXT_PUBLIC_API_URL is required" && exit 1)
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+RUN npm run build
 
-# The code belongs to root. The application user can read it but cannot change it.
-COPY alembic.ini .
-COPY migrations ./migrations
-COPY app ./app
+FROM node:24-alpine AS runtime
+WORKDIR /app
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    PORT=3000 \
+    HOSTNAME=0.0.0.0
 
-USER 10001:10001
+RUN addgroup -S -g 10001 nextjs && adduser -S -u 10001 -G nextjs nextjs
 
-EXPOSE 8000
+# The standalone folder has the server and only the files it needs. The static files and the
+# public folder are not copied into it by Next.js, so they are copied here.
+COPY --from=build --chown=nextjs:nextjs /app/.next/standalone ./
+COPY --from=build --chown=nextjs:nextjs /app/.next/static ./.next/static
+COPY --from=build --chown=nextjs:nextjs /app/public ./public
+
+USER 10001
+EXPOSE 3000
 
 HEALTHCHECK --interval=10s --timeout=5s --start-period=20s --retries=5 \
-    CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+    CMD ["wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/"]
 
-# Migrations are not run here. The compose file runs `alembic upgrade head` in a separate step.
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["node", "server.js"]
