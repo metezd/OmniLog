@@ -7,7 +7,7 @@ import time
 
 import pytest
 
-from helpers import new_credentials, not_built
+from helpers import new_credentials
 
 
 def test_nfr01_cached_search_p95_under_500ms(client, auth_headers):
@@ -34,8 +34,7 @@ def test_nfr01_cached_search_p95_under_500ms(client, auth_headers):
         "/library",
         "/lists",
         "/diary",
-        # The statistics endpoint is part of US-15. Remove the mark when it is built.
-        pytest.param("/stats", marks=not_built("US-15 (the /stats endpoint)")),
+        "/stats",
     ],
 )
 def test_nfr02_protected_endpoints_require_token(client, path):
