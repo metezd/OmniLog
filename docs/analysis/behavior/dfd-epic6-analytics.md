@@ -75,7 +75,7 @@ flowchart TB
 - Join the playtime totals from D6. A title has no playtime when no chapter has playtime.
 
 ### 6.2 Compute Media Split and Ratings
-- **Media split:** the share of each media type in the library, as a whole percent. Example: 3 games and 1 series give `GAME` 75 and `SERIES` 25. `MOVIE` is also in the result and is 0 when there are none.
+- **Media split:** the share of each media type in the library, as a whole percent. Example: 3 games and 1 series give `GAME` 75 and `SERIES` 25. `MOVIE` is also in the result and is 0 when there are none. The percents add up to 100: the types with the largest remainders get the leftover points, so three equal types give 34, 33 and 33 (a tie goes to the earlier type: `GAME`, `SERIES`, `MOVIE`).
 - **Rating distribution:** the count of entries for each rating from 1 to 10. A rating with a decimal is rounded to the nearest whole number (halves go up). Entries without a rating are not counted. Example: ratings 8, 8 and 6 give 2 for `"8"` and 1 for `"6"`.
 - **Empty library:** all counts and percentages are 0. The status is 200.
 
@@ -85,15 +85,17 @@ flowchart TB
 
 ### 6.4 Compute Playtime Histogram
 - Add up the chapter playtime of each title. Show the total minutes for the whole library.
-- Put the titles in buckets by total playtime. The bucket width is a design parameter. The proposal is 5 hours.
+- Put the titles in buckets by total playtime. The bucket width is 5 hours. A title with no playtime is in the first bucket (`0-5h`). A bucket includes its lower edge, so exactly 5 hours is in `5-10h`. Empty buckets between the first and the last are listed, so a chart has no gaps. An empty library has an empty histogram.
 
 ### 6.5 Assemble and Cache Statistics
+> **Status:** `GET /stats` is implemented without the cache. The numbers are computed on every request, so they are never old. The cache (steps 1 and 3) and the deletion of the entry after a change (step 4) are planned as one change, because a cache without the deletion would show old numbers.
+
 1. Check Redis with the key `omni:stats:{user_id}`. On a hit, return the cached response.
 2. On a miss, run 6.1 to 6.4 and build the response.
 3. Save the response in Redis for 5 minutes.
 4. The cache entry is deleted when the library changes (process 2.3) or playtime is logged (process 4.3). So the user never sees old numbers after a change.
 
-## 5. Response format (proposal)
+## 5. Response format
 
 ```json
 {
@@ -108,7 +110,7 @@ flowchart TB
 }
 ```
 
-The tests check `media_split`, `rating_distribution` (with string keys) and `total_items`. The other fields follow the Charter and are open to change in the design phase.
+The tests check `media_split`, `rating_distribution` (with string keys) and `total_items`. The other fields follow the Charter. `genre_breakdown` is sorted by count, largest first, and by name when the counts are equal. A title without genres is not in it.
 
 ## 6. Data store usage (CRUD)
 
