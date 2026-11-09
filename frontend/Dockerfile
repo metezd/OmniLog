@@ -37,7 +37,7 @@ COPY --from=build --chown=nextjs:nextjs /app/.next/standalone ./
 COPY --from=build --chown=nextjs:nextjs /app/.next/static ./.next/static
 COPY --from=build --chown=nextjs:nextjs /app/public ./public
 
-USER nextjs
+USER 10001
 EXPOSE 3000
 
 HEALTHCHECK --interval=10s --timeout=5s --start-period=20s --retries=5 \
