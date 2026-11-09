@@ -1,19 +1,23 @@
 import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import RegisterForm from "@/components/auth/RegisterForm";
 import { registerAction, type AuthFormState } from "@/lib/actions/auth";
+import { fillField, setupUser, type FillMode } from "../../helpers/forms";
 
 vi.mock("@/lib/actions/auth", () => ({ loginAction: vi.fn(), registerAction: vi.fn() }));
 
 const register = vi.mocked(registerAction);
 
-async function fillAndSubmit(values: { username?: string; email?: string; password?: string }) {
-  const user = userEvent.setup();
-  if (values.username) await user.type(screen.getByLabelText("Username"), values.username);
-  if (values.email) await user.type(screen.getByLabelText("Email address"), values.email);
-  if (values.password) await user.type(screen.getByLabelText("Password"), values.password);
+// The values are pasted, because most tests only look at what the form sends. One test types.
+async function fillAndSubmit(
+  values: { username?: string; email?: string; password?: string },
+  mode: FillMode = "paste",
+) {
+  const user = setupUser();
+  if (values.username) await fillField(user, "Username", values.username, mode);
+  if (values.email) await fillField(user, "Email address", values.email, mode);
+  if (values.password) await fillField(user, "Password", values.password, mode);
   await user.click(screen.getByRole("button", { name: /create account/i }));
 }
 
@@ -31,7 +35,7 @@ describe("RegisterForm", () => {
     register.mockResolvedValue(undefined);
     render(<RegisterForm />);
 
-    await fillAndSubmit({ username: "ali", email: "ali@example.com", password: "StrongPass123!" });
+    await fillAndSubmit({ username: "ali", email: "ali@example.com", password: "StrongPass123!" }, "type");
 
     await waitFor(() => expect(register).toHaveBeenCalledTimes(1));
     expect(Object.fromEntries(register.mock.calls[0][1] as FormData)).toEqual({

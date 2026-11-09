@@ -19,7 +19,7 @@ COPY app ./app
 
 # The application does not run as root
 RUN useradd --system --uid 10001 --no-create-home omnilog
-USER omnilog
+USER 10001
 
 EXPOSE 8000
 
