@@ -16,7 +16,7 @@ export default function LoginForm({ registered = false }: LoginFormProps) {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
     setPending(true);
@@ -25,8 +25,12 @@ export default function LoginForm({ registered = false }: LoginFormProps) {
       await login({ username, password });
       router.push("/");
       router.refresh();
-    } catch (err: any) {
-      setError(err?.message || "Sign in failed. Please check your credentials.");
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Sign in failed. Please check your credentials.";
+      setError(message);
     } finally {
       setPending(false);
     }
