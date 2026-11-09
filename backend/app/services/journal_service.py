@@ -1,4 +1,4 @@
-"""Business logic for custom lists (US-06) and the activity diary (US-07)."""
+"""Business logic for custom lists (US-06, removal) and the activity diary (US-07)."""
 from typing import List, Tuple
 
 from sqlalchemy.exc import IntegrityError
@@ -14,6 +14,10 @@ class ListNotFoundError(Exception):
 
 class MediaNotFoundError(Exception):
     """The media item does not exist."""
+
+
+class ListItemNotFoundError(Exception):
+    """The title is not in the list."""
 
 
 class DuplicateListNameError(Exception):
@@ -112,6 +116,32 @@ def add_item(
     db.commit()
     db.refresh(item)
     return item, True
+
+
+def remove_item(db: Session, user: User, list_id: int, media_item_id: int) -> None:
+    """Take a title out of a list. The title stays in the catalog and in the library."""
+    custom_list = _get_own_list(db, user, list_id)
+    item = next((i for i in custom_list.items if i.media_item_id == media_item_id), None)
+    if item is None:
+        raise ListItemNotFoundError("Title is not in the list")
+
+    db.delete(item)
+    record_event(
+        db, user.id, DiaryAction.LIST_ITEM_REMOVED, media_item_id,
+        f"Removed from list {custom_list.name}",
+    )
+    db.commit()
+
+
+def delete_list(db: Session, user: User, list_id: int) -> None:
+    """Delete a list with its items. The titles stay in the catalog and in the library, and the
+    name can be used again."""
+    custom_list = _get_own_list(db, user, list_id)
+    name = custom_list.name
+
+    db.delete(custom_list)
+    record_event(db, user.id, DiaryAction.LIST_DELETED, None, f"Deleted list {name}")
+    db.commit()
 
 
 def diary_for_user(db: Session, user: User) -> List[DiaryEntry]:

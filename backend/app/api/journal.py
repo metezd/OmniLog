@@ -1,4 +1,4 @@
-"""Custom list and activity diary endpoints (US-06, US-07)."""
+"""Custom list and activity diary endpoints (US-06, US-07, removal)."""
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
@@ -17,6 +17,7 @@ from app.schemas.journal import (
 from app.services import journal_service
 from app.services.journal_service import (
     DuplicateListNameError,
+    ListItemNotFoundError,
     ListNotFoundError,
     MediaNotFoundError,
 )
@@ -76,6 +77,33 @@ def add_item_to_list(
 
     response.status_code = status.HTTP_201_CREATED if created else status.HTTP_200_OK
     return item
+
+
+@router.delete("/lists/{list_id}/items/{media_item_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_item_from_list(
+    list_id: int,
+    media_item_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Take a title out of a list. 404 when the list is not the user's or the title is not in it."""
+    try:
+        journal_service.remove_item(db, current_user, list_id, media_item_id)
+    except (ListNotFoundError, ListItemNotFoundError) as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+
+
+@router.delete("/lists/{list_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_custom_list(
+    list_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Delete a list with its items. The titles themselves are not touched."""
+    try:
+        journal_service.delete_list(db, current_user, list_id)
+    except ListNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
 
 
 # ---------------------------------------------------------------- US-07: Activity diary

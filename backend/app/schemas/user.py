@@ -1,3 +1,4 @@
+import unicodedata
 from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
@@ -31,6 +32,14 @@ class UserCreate(BaseModel):
     def username_has_no_nul(cls, value: str) -> str:
         return _reject_nul(value)
 
+    @field_validator("username")
+    @classmethod
+    def username_has_no_at(cls, value: str) -> str:
+        # A value with @ is read as an email at login, so a username must never have one (BR-18)
+        if "@" in value:
+            raise ValueError("must not contain @")
+        return value
+
     @field_validator("password")
     @classmethod
     def password_is_valid(cls, value: str) -> str:
@@ -41,16 +50,24 @@ class UserCreate(BaseModel):
 
 
 class UserLogin(BaseModel):
-    username: str = Field(min_length=1, max_length=50)
+    # A username or an email. The field keeps the name "username", so older clients still work.
+    # 100 characters is the length of the email column.
+    username: str = Field(min_length=1, max_length=100)
     # No byte-length or NUL check on the password: a password that can never match
     # (NUL bytes, or longer than bcrypt's limit) gets 401 from the service layer
     password: str = Field(min_length=1, max_length=128)
 
     @field_validator("username", mode="before")
     @classmethod
-    def normalize_username(cls, value):
-        # Same rule as registration, so the lookup matches the stored value
-        return canonical_username(value) if isinstance(value, str) else value
+    def normalize_identifier(cls, value):
+        if not isinstance(value, str):
+            return value
+        if "@" in value:
+            # An email. It is stored in plain lower case, so the Turkish letter rules of the
+            # usernames must not be used here: they would turn "I" into "\u0131" (dotless i).
+            return unicodedata.normalize("NFC", value.strip()).lower()
+        # A username: the same rule as registration, so the lookup matches the stored value
+        return canonical_username(value)
 
     @field_validator("username")
     @classmethod

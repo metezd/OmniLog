@@ -76,6 +76,20 @@ _ensure_test_database_exists(os.environ["DATABASE_URL"])
 
 
 @pytest.fixture(scope="session", autouse=True)
+def fast_password_hashing():
+    """Use the lowest bcrypt cost in tests.
+
+    Almost every test registers and logs in a new user. At the production cost (12) that is
+    about 0.65 s of hashing per test. Cost 4 is the minimum bcrypt allows and takes a few
+    milliseconds. The hash format and the verify logic stay the same.
+    """
+    from app.core.security import pwd_context
+
+    pwd_context.update(bcrypt__rounds=4)
+    yield
+
+
+@pytest.fixture(scope="session", autouse=True)
 def database_schema():
     """Recreate all tables once per test session so every run starts clean."""
     from app.core.database import Base, engine
@@ -84,6 +98,22 @@ def database_schema():
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     yield
+
+
+@pytest.fixture
+def db():
+    """A database session for a test that needs to read or prepare rows directly.
+
+    Use this fixture instead of opening SessionLocal() in a test or in another fixture. The
+    session is closed after the test, so an open transaction never leaks into the next test.
+    """
+    from app.core.database import SessionLocal
+
+    session = SessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()
 
 
 @pytest.fixture(scope="session")
@@ -134,7 +164,7 @@ def pytest_collection_modifyitems(config, items):
 
 @pytest.fixture(autouse=True)
 def fake_external_apis(request, monkeypatch):
-    """Put a fake under the IGDB and TMDB calls, and start every test with an empty search cache.
+    """Put a fake under the IGDB and TMDB calls, and start every test with empty catalog caches.
 
     The real client code still runs. Tests marked `live` skip the fake and use the real services.
     """
@@ -142,7 +172,9 @@ def fake_external_apis(request, monkeypatch):
     from app.integrations import igdb
 
     cache.reset_connection()
+    # Redis keeps its data between test runs, but the database is created again for each run
     cache.clear_prefix("omni:search:")
+    cache.clear_prefix("omni:catalog:")
     igdb.reset_access_token()
 
     if request.node.get_closest_marker("live"):

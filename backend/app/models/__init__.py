@@ -7,6 +7,9 @@ from app.models.entities import (
     CustomList,
     CustomListItem,
     DiaryEntry,
+    Season,
+    Chapter,
+    ChapterKind,
 )
 
 __all__ = [
@@ -18,4 +21,7 @@ __all__ = [
     "CustomList",
     "CustomListItem",
     "DiaryEntry",
+    "Season",
+    "Chapter",
+    "ChapterKind",
 ]

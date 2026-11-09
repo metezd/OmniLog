@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import { SearchProvider } from "@/context/SearchContext";
+import { getCurrentUser } from "@/lib/server/user";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -20,11 +21,14 @@ export const metadata: Metadata = {
   description: "Track movies, TV shows, and video games with a liquid glass aesthetic.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Read on every request, so the navigation shows the right links after a login or a logout
+  const user = await getCurrentUser();
+
   return (
     <html lang="en" className="dark">
       <body
@@ -39,7 +43,7 @@ export default function RootLayout({
 
           {/* Navigation */}
           <header className="relative z-50">
-            <Navbar />
+            <Navbar user={user} />
           </header>
 
           {/* Main Content */}
