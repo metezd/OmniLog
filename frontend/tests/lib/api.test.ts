@@ -1,6 +1,5 @@
 // @vitest-environment node
-// Axios runs here as it does on the server. In the simulated browser (jsdom) a call to another
-// address needs CORS headers, which the fake backend does not send.
+// Axios runs here as it does on the server, in plain Node and without a simulated browser.
 import { http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 
