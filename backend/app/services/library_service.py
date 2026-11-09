@@ -1,4 +1,4 @@
-"""Business logic for a user's library (US-04, US-05)."""
+"""Business logic for a user's library (US-04, US-05, removal)."""
 from typing import List
 
 from sqlalchemy.exc import IntegrityError
@@ -67,7 +67,7 @@ def list_entries(db: Session, user: User) -> List[UserLibrary]:
     )
 
 
-def update_entry(db: Session, user: User, entry_id: int, data: UserLibraryUpdate) -> UserLibrary:
+def _get_own_entry(db: Session, user: User, entry_id: int) -> UserLibrary:
     entry = (
         db.query(UserLibrary)
         .filter(UserLibrary.id == entry_id, UserLibrary.user_id == user.id)
@@ -75,6 +75,11 @@ def update_entry(db: Session, user: User, entry_id: int, data: UserLibraryUpdate
     )
     if entry is None:
         raise LibraryEntryNotFoundError("Library entry not found")
+    return entry
+
+
+def update_entry(db: Session, user: User, entry_id: int, data: UserLibraryUpdate) -> UserLibrary:
+    entry = _get_own_entry(db, user, entry_id)
 
     # Only fields the client sent are considered. Events are written only for real changes.
     changes = data.model_dump(exclude_unset=True)
@@ -94,3 +99,19 @@ def update_entry(db: Session, user: User, entry_id: int, data: UserLibraryUpdate
     db.commit()
     db.refresh(entry)
     return entry
+
+
+def remove_entry(db: Session, user: User, entry_id: int) -> None:
+    """Remove a title from the library of the user.
+
+    The ratings, playtime and decisions that the user logged for the chapters of this title go
+    with it: the database deletes them together with the entry (ON DELETE CASCADE). The title
+    itself stays in the catalog, and so do the older diary events about it. The removal is a new
+    diary event, written in the same transaction as the delete.
+    """
+    entry = _get_own_entry(db, user, entry_id)
+    media_item_id = entry.media_item_id
+
+    db.delete(entry)
+    record_event(db, user.id, DiaryAction.LIBRARY_REMOVED, media_item_id, "Removed from library")
+    db.commit()

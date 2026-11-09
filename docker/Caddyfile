@@ -1,0 +1,12 @@
+# Reverse proxy with automatic HTTPS (Let's Encrypt). The two names come from the .env.prod file.
+# The proxy is the only service that is open to the network (ports 80 and 443).
+
+{$APP_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy frontend:3000
+}
+
+{$API_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy backend:8000
+}
