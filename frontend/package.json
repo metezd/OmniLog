@@ -35,7 +35,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.4.3",
     "happy-dom": "^21.0.4",
-    "msw": "^3.0.4",
+    "msw": "^2.15.0",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vite": "^6.4.1",
