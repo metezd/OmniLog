@@ -1,0 +1,132 @@
+name: Docker build
+
+# Builds the production images and starts the whole production stack once.
+# It runs only when a file that the images or the stack use is changed.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - "frontend/**"
+      - "docker/**"
+      - "docker-compose.prod.yml"
+      - "env.prod.example"
+      - ".github/workflows/docker-build.yml"
+  pull_request:
+    paths:
+      - "backend/**"
+      - "frontend/**"
+      - "docker/**"
+      - "docker-compose.prod.yml"
+      - "env.prod.example"
+      - ".github/workflows/docker-build.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dockerfile-lint:
+    name: Lint the Dockerfiles
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Lint backend/Dockerfile
+        uses: hadolint/hadolint-action@v3.5.0
+        with:
+          dockerfile: backend/Dockerfile
+
+      - name: Lint frontend/Dockerfile
+        uses: hadolint/hadolint-action@v3.5.0
+        with:
+          dockerfile: frontend/Dockerfile
+
+  production-stack:
+    name: Production stack smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # The values are made for this run only. The names `localhost` and `api.localhost` make the
+      # proxy create a certificate from its own local authority, so no real domain is needed.
+      - name: Create the settings of the test stack
+        run: |
+          {
+            echo "POSTGRES_PASSWORD=$(openssl rand -hex 16)"
+            echo "REDIS_PASSWORD=$(openssl rand -hex 16)"
+            echo "SECRET_KEY=$(openssl rand -hex 32)"
+            echo "APP_DOMAIN=localhost"
+            echo "API_DOMAIN=api.localhost"
+            echo "API_URL=https://api.localhost"
+            echo "CORS_ORIGINS=https://localhost"
+            echo "TAG=ci"
+          } > .env.prod
+
+      - name: Validate the compose file
+        run: docker compose -f docker-compose.prod.yml --env-file .env.prod config --quiet
+
+      - name: Build the images
+        run: docker compose -f docker-compose.prod.yml --env-file .env.prod build
+
+      - name: Start the stack
+        run: docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
+
+      - name: Wait for the API
+        run: |
+          for attempt in $(seq 1 60); do
+            if curl -ksf --resolve api.localhost:443:127.0.0.1 https://api.localhost/health > /dev/null; then
+              echo "The API answers after $attempt attempts."
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "The API did not answer in time."
+          exit 1
+
+      - name: Check the API through the proxy
+        run: |
+          api() { curl -ks --resolve api.localhost:443:127.0.0.1 "$@"; }
+
+          code=$(api -o /dev/null -w "%{http_code}" -X POST https://api.localhost/auth/register \
+            -H "Content-Type: application/json" \
+            -d '{"username":"smoke","email":"smoke@example.com","password":"StrongPass123!"}')
+          test "$code" = "201" || { echo "register returned $code"; exit 1; }
+
+          api -X POST https://api.localhost/auth/login \
+            -H "Content-Type: application/json" \
+            -d '{"username":"smoke","password":"StrongPass123!"}' | grep -q access_token \
+            || { echo "login returned no token"; exit 1; }
+
+          # A browser call from the app address is allowed
+          api -i -X OPTIONS https://api.localhost/health \
+            -H "Origin: https://localhost" -H "Access-Control-Request-Method: GET" \
+            | grep -qi "access-control-allow-origin: https://localhost" \
+            || { echo "CORS does not allow the app address"; exit 1; }
+
+      - name: Check the frontend through the proxy
+        run: |
+          for path in / /login /register; do
+            code=$(curl -ks -o /dev/null -w "%{http_code}" "https://localhost$path")
+            test "$code" = "200" || { echo "GET $path returned $code"; exit 1; }
+          done
+
+      - name: Check that the database and Redis are not open to the network
+        run: |
+          for port in 5432 6379 8000 3000; do
+            if (echo > "/dev/tcp/127.0.0.1/$port") 2>/dev/null; then
+              echo "Port $port is open on the host"
+              exit 1
+            fi
+          done
+
+      - name: Show the logs when a step failed
+        if: failure()
+        run: docker compose -f docker-compose.prod.yml --env-file .env.prod logs --no-color --tail=200
+
+      - name: Stop the stack
+        if: always()
+        run: docker compose -f docker-compose.prod.yml --env-file .env.prod down -v

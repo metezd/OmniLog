@@ -1,4 +1,4 @@
-"""TMDB client (TV series and movies). Search, and the seasons of a series.
+"""TMDB client (TV series and movies). Search, the details of a movie, and a series with its seasons.
 
 See https://developer.themoviedb.org
 """
@@ -11,13 +11,16 @@ from app.core import config
 from app.integrations.common import (
     MAX_EPISODES_PER_SEASON,
     MAX_SEASONS,
+    ExternalDetails,
     ExternalEpisode,
     ExternalSeason,
+    ExternalSeries,
     ExternalServiceError,
     ExternalTitle,
     clean_date,
     clean_external_id,
     clean_number,
+    clean_text,
     clean_title,
     clean_url,
     dedupe,
@@ -25,6 +28,7 @@ from app.integrations.common import (
     json_body,
     request_with_retry,
 )
+from app.integrations.genres import genres_from_entries
 from app.models.entities import MediaType
 
 logger = logging.getLogger(__name__)
@@ -105,16 +109,48 @@ def _normalize(item: Any, title_field: str, date_field: str) -> Optional[Externa
     )
 
 
-# ---------------------------------------------------------------- seasons of a series (US-09)
+# ---------------------------------------------------------------- details (US-09)
+def fetch_movie_details(external_id: int) -> Optional[ExternalDetails]:
+    """The description and the genres of a movie. Returns None when TMDB does not know the movie.
+
+    Raises ExternalServiceError when TMDB fails.
+    """
+    # int(): the id is only ever a number in the URL
+    response = _get(f"/movie/{int(external_id)}", {})
+    if response.status_code == 404:
+        return None
+    if response.status_code != 200:
+        raise ExternalServiceError(f"TMDB answered {response.status_code}")
+
+    body = json_body(response, SOURCE)
+    if not isinstance(body, dict):
+        raise ExternalServiceError("TMDB sent an unexpected answer")
+    return _details_of(body)
+
+
+def _details_of(body: dict) -> ExternalDetails:
+    """The description and the genres in the answer for a movie or a series."""
+    return ExternalDetails(
+        description=clean_text(body.get("overview")),
+        genres=genres_from_entries(body.get("genres")),
+    )
+
+
 def fetch_series_seasons(external_id: int) -> Optional[list[ExternalSeason]]:
-    """Return the seasons of a series with their episodes, in season order.
+    """The seasons of a series with their episodes, in season order. See fetch_series."""
+    series = fetch_series(external_id)
+    return None if series is None else series.seasons
+
+
+def fetch_series(external_id: int) -> Optional[ExternalSeries]:
+    """Return a series with its details and its seasons, each with its episodes, in season order.
 
     Returns None when TMDB does not know the series. Raises ExternalServiceError when TMDB
     fails, so the caller never saves half of a series.
 
-    One call lists the seasons. The episodes come from further calls that ask for up to 20
-    seasons each (`append_to_response`), so a series with many seasons needs a few calls, not one
-    call for each season.
+    One call lists the seasons, and it also holds the description and the genres. The episodes
+    come from further calls that ask for up to 20 seasons each (`append_to_response`), so a series
+    with many seasons needs a few calls, not one call for each season.
     """
     show = _get_series(external_id)
     if show is None:
@@ -144,7 +180,7 @@ def fetch_series_seasons(external_id: int) -> Optional[list[ExternalSeason]]:
             logger.warning("TMDB sent no details for season %s of series %s", number, external_id)
             continue
         seasons.append(_normalize_season(number, listed[number], details[number]))
-    return seasons
+    return ExternalSeries(seasons=seasons, details=_details_of(show))
 
 
 def _get_series(external_id: int, append: Optional[list[str]] = None) -> Optional[dict]:
