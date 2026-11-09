@@ -1,46 +1,65 @@
 "use client";
 
-import React, { useState } from "react";
-import { Friend } from "../../types/social";
+import { useEffect, useState } from "react";
 
-const INITIAL_FRIENDS: Friend[] = [
-  {
-    id: "u-1",
-    username: "aylin_y",
-    displayName: "Aylin Yılmaz",
-    avatarUrl: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150",
-    status: "online",
-    activityText: "Watching Severance S1",
-  },
-  {
-    id: "u-2",
-    username: "canerk",
-    displayName: "Caner K.",
-    avatarUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150",
-    status: "in_game",
-    activityText: "Playing Elden Ring",
-  },
-];
+import {
+  getFriends,
+  removeFriend,
+  sendFriendRequest,
+} from "@/lib/services/social";
+import type { Friend } from "@/types/social";
 
 interface AddFriendModalProps {
   isOpen: boolean;
   onClose: () => void;
+  // Called after the friend list changed (friend added or removed).
+  onChange?: () => void;
 }
 
-export default function AddFriendModal({ isOpen, onClose }: AddFriendModalProps) {
+export default function AddFriendModal({
+  isOpen,
+  onClose,
+  onChange,
+}: AddFriendModalProps) {
   const [searchUsername, setSearchUsername] = useState("");
-  const [friendsList] = useState<Friend[]>(INITIAL_FRIENDS);
-  const [sentMessage, setSentMessage] = useState<string | null>(null);
+  const [friendsList, setFriendsList] = useState<Friend[]>([]);
+  const [feedback, setFeedback] = useState<{ ok: boolean; message: string } | null>(null);
+  const [isSending, setIsSending] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    getFriends().then((data) => {
+      if (!cancelled) setFriendsList(data);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
-  const handleSendRequest = (e: React.FormEvent) => {
+  const handleSendRequest = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!searchUsername.trim()) return;
+    if (!searchUsername.trim() || isSending) return;
 
-    setSentMessage(`Friend request sent to @${searchUsername}`);
-    setSearchUsername("");
-    setTimeout(() => setSentMessage(null), 3000);
+    setIsSending(true);
+    const result = await sendFriendRequest(searchUsername);
+    setFeedback(result);
+    setIsSending(false);
+    setTimeout(() => setFeedback(null), 3000);
+
+    if (result.ok) {
+      setSearchUsername("");
+      setFriendsList(await getFriends());
+      onChange?.();
+    }
+  };
+
+  const handleRemove = async (friendId: string) => {
+    await removeFriend(friendId);
+    setFriendsList(await getFriends());
+    onChange?.();
   };
 
   return (
@@ -72,13 +91,22 @@ export default function AddFriendModal({ isOpen, onClose }: AddFriendModalProps)
             />
             <button
               type="submit"
-              className="px-4 py-2 bg-horizon-crimson/20 border border-horizon-crimson/40 text-rose-200 hover:bg-horizon-crimson/30 rounded-xl text-xs font-medium transition-all"
+              disabled={isSending}
+              className="px-4 py-2 bg-horizon-crimson/20 border border-horizon-crimson/40 text-rose-200 hover:bg-horizon-crimson/30 rounded-xl text-xs font-medium transition-all disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              Add Friend
+              {isSending ? "Adding..." : "Add Friend"}
             </button>
           </div>
-          {sentMessage && (
-            <p className="text-xs text-emerald-400 font-medium">✓ {sentMessage}</p>
+          {feedback && (
+            <p
+              role="status"
+              className={`text-xs font-medium ${
+                feedback.ok ? "text-emerald-400" : "text-rose-400"
+              }`}
+            >
+              {feedback.ok ? "✓ " : ""}
+              {feedback.message}
+            </p>
           )}
         </form>
 
@@ -88,13 +116,18 @@ export default function AddFriendModal({ isOpen, onClose }: AddFriendModalProps)
           </h4>
 
           <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+            {friendsList.length === 0 && (
+              <p className="text-xs text-slate-500">
+                No friends yet. Try adding mert_d or selin_a.
+              </p>
+            )}
             {friendsList.map((f) => (
               <div
                 key={f.id}
-                className="flex items-center justify-between p-2.5 rounded-xl bg-white/5 border border-white/5"
+                className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-white/5 border border-white/5"
               >
-                <div className="flex items-center gap-3">
-                  <div className="relative">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="relative shrink-0">
                     <img
                       src={f.avatarUrl}
                       alt={f.displayName}
@@ -110,14 +143,27 @@ export default function AddFriendModal({ isOpen, onClose }: AddFriendModalProps)
                       }`}
                     />
                   </div>
-                  <div>
-                    <p className="text-xs font-bold text-white">{f.displayName}</p>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-white truncate">
+                      {f.displayName}
+                    </p>
                     <p className="text-[10px] text-slate-400">@{f.username}</p>
                   </div>
                 </div>
-                <span className="text-[10px] text-slate-400 bg-white/5 px-2 py-1 rounded-md border border-white/10">
-                  {f.activityText}
-                </span>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-[10px] text-slate-400 bg-white/5 px-2 py-1 rounded-md border border-white/10">
+                    {f.isPending ? "Pending" : f.activityText}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleRemove(f.id)}
+                    className="text-[10px] text-slate-500 hover:text-rose-400 transition-colors"
+                    title={`Remove ${f.displayName}`}
+                  >
+                    Remove
+                  </button>
+                </div>
               </div>
             ))}
           </div>

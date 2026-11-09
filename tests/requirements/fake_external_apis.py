@@ -25,20 +25,34 @@ def _unix(year: int, month: int, day: int) -> int:
 
 GAMES = [
     {"id": 90001, "name": "Life is Strange", "first_release_date": _unix(2015, 1, 30),
-     "cover": {"id": 1, "image_id": "co1life"}},
+     "cover": {"id": 1, "image_id": "co1life"},
+     "summary": "A student discovers that she can rewind time.",
+     "genres": [{"id": 31, "name": "Adventure"}, {"id": 32, "name": "Indie"}]},
     {"id": 90002, "name": "Life is Strange 2", "first_release_date": _unix(2018, 9, 27),
      "cover": {"id": 2, "image_id": "co2life"}},
     {"id": 90003, "name": "Life is Strange: Before the Storm", "first_release_date": _unix(2017, 8, 31)},
 ]
 
 SERIES = [
-    {"id": 70001, "name": "Breaking Bad", "poster_path": "/bb.jpg", "first_air_date": "2008-01-20"},
+    {"id": 70001, "name": "Breaking Bad", "poster_path": "/bb.jpg", "first_air_date": "2008-01-20",
+     "overview": "A teacher turns to crime.", "genre_ids": [18, 80]},
     {"id": 70002, "name": "Breaking Point", "poster_path": None, "first_air_date": ""},
 ]
 
 MOVIES = [
-    {"id": 80001, "title": "Blade Runner", "poster_path": "/br.jpg", "release_date": "1982-06-25"},
+    {"id": 80001, "title": "Blade Runner", "poster_path": "/br.jpg", "release_date": "1982-06-25",
+     "overview": "A blade runner hunts replicants.", "genre_ids": [878, 53]},
 ]
+
+# What TMDB says about a movie or a series on its own page, by TMDB id (made-up test data)
+MOVIE_DETAILS = {
+    80001: {"title": "Blade Runner", "overview": "A blade runner hunts replicants.",
+            "genres": [{"id": 878, "name": "Science Fiction"}, {"id": 53, "name": "Thriller"}]},
+}
+SERIES_INFO = {
+    70001: {"overview": "A teacher turns to crime.",
+            "genres": [{"id": 18, "name": "Drama"}, {"id": 80, "name": "Crime"}]},
+}
 
 
 
@@ -81,7 +95,28 @@ SERIES_DETAILS = {
 # TMDB answers at most 20 appended sub-requests in one call
 _TMDB_MAX_APPENDED = 20
 
-_IGDB_QUERY = re.compile(r'search "([^"]*)"; fields ([a-z_.,]+); limit (\d+);')
+_IGDB_SEARCH = re.compile(r'search "([^"]*)"; fields ([a-z_.,]+); limit (\d+);')
+_IGDB_BY_ID = re.compile(r'fields ([a-z_.,]+); where id = (\d+); limit (\d+);')
+
+
+def _project(game: dict, fields: str) -> dict:
+    """Keep the fields that were asked for, as IGDB does. The id is always there. A field such as
+    genres.name asks for the name of each entry of genres."""
+    result = {"id": game["id"]}
+    for field in fields.split(","):
+        top, _, sub = field.partition(".")
+        if top not in game:
+            continue
+        value = game[top]
+        if sub and isinstance(value, dict):
+            result.setdefault(top, {"id": value["id"]})[sub] = value[sub]
+        elif sub and isinstance(value, list):
+            entries = result.setdefault(top, [{"id": entry["id"]} for entry in value])
+            for entry, source in zip(entries, value):
+                entry[sub] = source[sub]
+        elif not sub:
+            result[top] = value
+    return result
 
 
 @dataclass
@@ -116,6 +151,11 @@ class FakeExternalApis:
         self._valid_tokens: set[str] = set()
         # TMDB series by id. Every test gets its own copy, so it can change what TMDB "knows".
         self.series: dict[int, dict] = copy.deepcopy(SERIES_DETAILS)
+        # What TMDB says about a series (description and genres) and a movie, and what IGDB says
+        # about a game. Tests can change them, like `series`.
+        self.series_info: dict[int, dict] = copy.deepcopy(SERIES_INFO)
+        self.movies: dict[int, dict] = copy.deepcopy(MOVIE_DETAILS)
+        self.games: list[dict] = copy.deepcopy(GAMES)
 
     # ------------------------------------------------------------ what tests can ask
     def calls_to(self, service: str) -> list[Call]:
@@ -204,11 +244,16 @@ class FakeExternalApis:
             return make_response(401, {"message": "Authorization Failure"})
 
         body = kwargs["data"].decode("utf-8")
-        parsed = _IGDB_QUERY.fullmatch(body)
-        assert parsed, f"IGDB query has an unexpected shape: {body!r}"
-        text, limit = parsed.group(1), int(parsed.group(3))
-        matches = [g for g in GAMES if text.lower() in g["name"].lower()]
-        return make_response(200, matches[:limit])
+        by_id = _IGDB_BY_ID.fullmatch(body)
+        if by_id:
+            fields, game_id, limit = by_id.group(1), int(by_id.group(2)), int(by_id.group(3))
+            matches = [g for g in self.games if g["id"] == game_id]
+        else:
+            parsed = _IGDB_SEARCH.fullmatch(body)
+            assert parsed, f"IGDB query has an unexpected shape: {body!r}"
+            text, fields, limit = parsed.group(1), parsed.group(2), int(parsed.group(3))
+            matches = [g for g in self.games if text.lower() in g["name"].lower()]
+        return make_response(200, [_project(g, fields) for g in matches[:limit]])
 
     def _tmdb(self, method: str, url: str, kwargs: dict) -> requests.Response:
         from app.core import config
@@ -227,6 +272,13 @@ class FakeExternalApis:
         series_path = re.fullmatch(r"/3/tv/(\d+)", path)
         if series_path:
             return self._tmdb_series(int(series_path.group(1)), params)
+        movie_path = re.fullmatch(r"/3/movie/(\d+)", path)
+        if movie_path:
+            movie = self.movies.get(int(movie_path.group(1)))
+            if movie is None:
+                return make_response(404, {"success": False, "status_code": 34,
+                                           "status_message": "The resource you requested could not be found."})
+            return make_response(200, {"id": int(movie_path.group(1)), **movie})
         if path == "/3/search/tv":
             pool, field = SERIES, "name"
         elif path == "/3/search/movie":
@@ -246,6 +298,7 @@ class FakeExternalApis:
         body = {
             "id": series_id,
             "name": show["name"],
+            **self.series_info.get(series_id, {}),
             "seasons": [
                 {"season_number": season["season_number"], "name": season["name"],
                  "air_date": season["air_date"], "episode_count": len(season["episodes"])}

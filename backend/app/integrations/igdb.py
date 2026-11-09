@@ -1,4 +1,4 @@
-"""IGDB client (games). Search only.
+"""IGDB client (games). Search, and the details of a game.
 
 IGDB uses Twitch OAuth: the client id and secret are exchanged for an access token, which is
 sent with every request. See https://api-docs.igdb.com
@@ -11,10 +11,13 @@ from typing import Any, Optional
 import requests
 
 from app.core import config
+from app.integrations.genres import genres_from_entries
 from app.integrations.common import (
+    ExternalDetails,
     ExternalServiceError,
     ExternalTitle,
     clean_external_id,
+    clean_text,
     clean_title,
     clean_url,
     date_from_unix,
@@ -98,12 +101,31 @@ def _quoted(text: str) -> str:
 
 
 def search_games(query: str, limit: int) -> list[ExternalTitle]:
-    body = (
+    games = _query(
         f"search {_quoted(query)}; "
         "fields name,first_release_date,cover.image_id; "
         f"limit {int(limit)};"
     )
+    return dedupe([t for t in (_normalize(game) for game in games) if t])
 
+
+def fetch_game_details(external_id: int) -> Optional[ExternalDetails]:
+    """The description and the genres of a game. Returns None when IGDB does not know the game.
+
+    Raises ExternalServiceError when IGDB fails.
+    """
+    games = _query(f"fields summary,genres.name; where id = {int(external_id)}; limit 1;")
+    game = games[0] if games else None
+    if not isinstance(game, dict):
+        return None
+    return ExternalDetails(
+        description=clean_text(game.get("summary")),
+        genres=genres_from_entries(game.get("genres")),
+    )
+
+
+def _query(body: str) -> list:
+    """Send an Apicalypse query to IGDB and return the list that it answers."""
     rejected: Optional[str] = None
     for attempt in range(2):
         access_token = _get_access_token(rejected)
@@ -130,7 +152,7 @@ def search_games(query: str, limit: int) -> list[ExternalTitle]:
     games = json_body(response, SOURCE)
     if not isinstance(games, list):
         raise ExternalServiceError("IGDB sent an unexpected answer")
-    return dedupe([t for t in (_normalize(game) for game in games) if t])
+    return games
 
 
 def _normalize(game: Any) -> Optional[ExternalTitle]:

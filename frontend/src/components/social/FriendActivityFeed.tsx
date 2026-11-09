@@ -1,101 +1,49 @@
 "use client";
 
-import React, { useState } from "react";
-import { FriendActivity } from "../../types/social";
+import { useEffect, useState } from "react";
 
-const MOCK_ACTIVITIES: FriendActivity[] = [
-  {
-    id: "act-1",
-    friendId: "u-101",
-    friendName: "Aylin Yılmaz",
-    friendUsername: "aylin_y",
-    friendAvatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150",
-    mediaTitle: "Arcane: Season 2",
-    mediaType: "tv",
-    mediaImage: "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=600",
-    actionType: "watched_episode",
-    episodeDetails: "Season 2 • Episode 6: 'The Beast Within'",
-    rating: 9.8,
-    commentText: "Bölümün sonundaki sahne inanılmazdı! Görsel efektler ve müzik uyumu diziyi bambaşka bir seviyeye taşıyor.",
-    likesCount: 12,
-    hasLiked: false,
-    timestamp: "2 hours ago",
-    comments: [
-      {
-        id: "c-1",
-        authorName: "Mert",
-        authorAvatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150",
-        text: "Kesinlikle katılıyorum, 2. sezonun en iyi bölümüydü!",
-        timestamp: "1 hour ago",
-      },
-    ],
-  },
-  {
-    id: "act-2",
-    friendId: "u-102",
-    friendName: "Caner K.",
-    friendUsername: "canerk",
-    friendAvatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150",
-    mediaTitle: "Cyberpunk 2077",
-    mediaType: "game",
-    mediaImage: "https://images.unsplash.com/photo-1542751371-adc38448a05e?w=600",
-    actionType: "completed",
-    episodeDetails: "Phantom Liberty Expansion • All Endings Unlocked",
-    rating: 9.5,
-    commentText: "Dogtown hikayesi ana oyundan bile daha sürükleyiciydi. Reed ve Songbird karakter yazımları harika.",
-    likesCount: 24,
-    hasLiked: true,
-    timestamp: "5 hours ago",
-    comments: [],
-  },
-];
+import { addComment, getActivities, toggleLike } from "@/lib/services/social";
+import type { FriendActivity } from "@/types/social";
 
 interface FriendActivityFeedProps {
   onOpenAddFriend: () => void;
+  // Change this value to reload the feed, for example after the friend list changed.
+  refreshKey?: number;
 }
 
-export default function FriendActivityFeed({ onOpenAddFriend }: FriendActivityFeedProps) {
-  const [activities, setActivities] = useState<FriendActivity[]>(MOCK_ACTIVITIES);
+export default function FriendActivityFeed({
+  onOpenAddFriend,
+  refreshKey = 0,
+}: FriendActivityFeedProps) {
+  const [activities, setActivities] = useState<FriendActivity[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [activeCommentBox, setActiveCommentBox] = useState<string | null>(null);
-  const [newCommentInput, setNewCommentInput] = useState<string>("");
+  const [newCommentInput, setNewCommentInput] = useState("");
 
-  const handleLike = (id: string) => {
-    setActivities((prev) =>
-      prev.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              hasLiked: !item.hasLiked,
-              likesCount: item.hasLiked ? item.likesCount - 1 : item.likesCount + 1,
-            }
-          : item
-      )
-    );
+  useEffect(() => {
+    let cancelled = false;
+    getActivities().then((data) => {
+      if (cancelled) return;
+      setActivities(data);
+      setIsLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshKey]);
+
+  const reload = async () => setActivities(await getActivities());
+
+  const handleLike = async (id: string) => {
+    await toggleLike(id);
+    await reload();
   };
 
-  const handleAddComment = (activityId: string) => {
+  const handleAddComment = async (activityId: string) => {
     if (!newCommentInput.trim()) return;
-
-    setActivities((prev) =>
-      prev.map((item) =>
-        item.id === activityId
-          ? {
-              ...item,
-              comments: [
-                ...item.comments,
-                {
-                  id: `c-${Date.now()}`,
-                  authorName: "You",
-                  authorAvatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150",
-                  text: newCommentInput,
-                  timestamp: "Just now",
-                },
-              ],
-            }
-          : item
-      )
-    );
+    await addComment(activityId, newCommentInput);
     setNewCommentInput("");
+    await reload();
   };
 
   return (
@@ -121,6 +69,17 @@ export default function FriendActivityFeed({ onOpenAddFriend }: FriendActivityFe
           <span>👥 Manage Friends</span>
         </button>
       </div>
+
+      {isLoading && (
+        <p className="text-xs text-slate-400">Loading activity...</p>
+      )}
+
+      {!isLoading && activities.length === 0 && (
+        <div className="liquid-glass rounded-2xl border border-white/10 p-8 text-center text-sm text-slate-400">
+          No activity yet. Add friends to see what they are watching, playing
+          and rating.
+        </div>
+      )}
 
       <div className="space-y-6">
         {activities.map((item) => (
@@ -149,6 +108,7 @@ export default function FriendActivityFeed({ onOpenAddFriend }: FriendActivityFe
                       {item.actionType === "watched_episode" && "📺 Watched an Episode"}
                       {item.actionType === "completed" && "🏆 Completed"}
                       {item.actionType === "rated" && "⭐ Rated"}
+                      {item.actionType === "reviewed" && "📝 Reviewed"}
                     </span>
                     <span>•</span>
                     <span>{item.timestamp}</span>
@@ -156,7 +116,7 @@ export default function FriendActivityFeed({ onOpenAddFriend }: FriendActivityFe
                 </div>
               </div>
 
-              {item.rating && (
+              {item.rating !== undefined && (
                 <div className="flex items-center gap-1 bg-amber-500/10 border border-amber-500/30 px-2.5 py-1 rounded-xl text-amber-300 font-bold text-xs">
                   <span>★</span>
                   <span>{item.rating} / 10</span>
@@ -212,7 +172,10 @@ export default function FriendActivityFeed({ onOpenAddFriend }: FriendActivityFe
             {item.comments.length > 0 && (
               <div className="space-y-2 pt-2 border-t border-white/5">
                 {item.comments.map((c) => (
-                  <div key={c.id} className="flex items-start gap-2 text-xs bg-white/5 p-2.5 rounded-xl">
+                  <div
+                    key={c.id}
+                    className="flex items-start gap-2 text-xs bg-white/5 p-2.5 rounded-xl"
+                  >
                     <img
                       src={c.authorAvatar}
                       alt={c.authorName}
@@ -220,8 +183,12 @@ export default function FriendActivityFeed({ onOpenAddFriend }: FriendActivityFe
                     />
                     <div className="flex-1">
                       <div className="flex items-center justify-between">
-                        <span className="font-semibold text-slate-200">{c.authorName}</span>
-                        <span className="text-[10px] text-slate-500">{c.timestamp}</span>
+                        <span className="font-semibold text-slate-200">
+                          {c.authorName}
+                        </span>
+                        <span className="text-[10px] text-slate-500">
+                          {c.timestamp}
+                        </span>
                       </div>
                       <p className="text-slate-300 mt-0.5">{c.text}</p>
                     </div>
@@ -236,6 +203,9 @@ export default function FriendActivityFeed({ onOpenAddFriend }: FriendActivityFe
                   type="text"
                   value={newCommentInput}
                   onChange={(e) => setNewCommentInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleAddComment(item.id);
+                  }}
                   placeholder="Write a reply or thought..."
                   className="flex-1 rounded-xl bg-black/50 border border-white/10 px-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-horizon-cyan"
                 />

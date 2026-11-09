@@ -1,0 +1,40 @@
+{
+  "games": [
+    {
+      "external_api_id": 0,
+      "title": "Life is Strange",
+      "release_date": "2015-01-30",
+      "chapters": [
+        {
+          "number": 1,
+          "title": "Chrysalis",
+          "decision_points": [
+            {
+              "prompt": "Does Max make fun of Victoria or help her?",
+              "options": [
+                { "label": "A", "text": "Make fun of Victoria" },
+                { "label": "B", "text": "Help Victoria" }
+              ]
+            }
+          ]
+        },
+        { "number": 2, "title": "Out of Time" },
+        { "number": 3, "title": "Chaos Theory" },
+        { "number": 4, "title": "Dark Room" },
+        {
+          "number": 5,
+          "title": "Polarized",
+          "decision_points": [
+            {
+              "prompt": "The final choice: what does Max give up?",
+              "options": [
+                { "label": "A", "text": "Sacrifice Chloe (the storm is stopped)" },
+                { "label": "B", "text": "Sacrifice Arcadia Bay (Chloe lives)" }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
