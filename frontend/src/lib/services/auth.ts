@@ -1,28 +1,38 @@
-import type { LoginPayload, RegisterPayload, User } from "@/types/user";
+import axios from "axios";
 
-const MOCK_DELAY_MS = 600;
+// Axios istemcisini doğrudan buraya kuruyoruz ki import hatası hiç yaşanmasın
+const api = axios.create({
+  baseURL: "http://localhost:8000", // Backend adresin
+  headers: {
+    "Content-Type": "application/json",
+  },
+});
 
-const wait = (ms: number) =>
-  new Promise<void>((resolve) => setTimeout(resolve, ms));
-
-// Mock implementation used until the backend auth endpoints exist.
-// Replace each body with an Axios call, e.g. api.post<User>("/auth/login", payload).
-export async function login(payload: LoginPayload): Promise<User> {
-  await wait(MOCK_DELAY_MS);
-  return {
-    id: 1,
-    email: payload.email,
-    username: payload.email.split("@")[0],
-    createdAt: new Date().toISOString(),
-  };
+export interface LoginPayload {
+  username: string;
+  password: string;
 }
 
-export async function register(payload: RegisterPayload): Promise<User> {
-  await wait(MOCK_DELAY_MS);
-  return {
-    id: 1,
-    email: payload.email,
-    username: payload.username,
-    createdAt: new Date().toISOString(),
-  };
+export interface RegisterPayload {
+  username: string;
+  email: string;
+  password: string;
+}
+
+export async function login(data: LoginPayload) {
+  const formData = new URLSearchParams();
+  formData.append("username", data.username);
+  formData.append("password", data.password);
+
+  const response = await api.post("/auth/login", formData, {
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+  });
+  return response.data;
+}
+
+export async function register(data: RegisterPayload) {
+  const response = await api.post("/auth/register", data);
+  return response.data;
 }
