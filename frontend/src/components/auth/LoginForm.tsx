@@ -1,86 +1,47 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useActionState } from "react";
+
 import AuthBanner from "@/components/auth/AuthBanner";
-import { login } from "@/lib/services/auth";
+import AuthField from "@/components/auth/AuthField";
+import { loginAction } from "@/lib/actions/auth";
 
 interface LoginFormProps {
+  /** True when the user comes from a registration whose automatic login failed. */
   registered?: boolean;
 }
 
 export default function LoginForm({ registered = false }: LoginFormProps) {
-  const router = useRouter();
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setError(null);
-    setPending(true);
-
-    try {
-      await login({ username, password });
-      router.push("/");
-      router.refresh();
-    } catch (err: unknown) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : "Sign in failed. Please check your credentials.";
-      setError(message);
-    } finally {
-      setPending(false);
-    }
-  };
+  const [state, formAction, pending] = useActionState(loginAction, undefined);
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      {registered && (
-        <AuthBanner variant="success">
-          Your account was created. Please sign in.
-        </AuthBanner>
-      )}
-      {error && <AuthBanner variant="error">{error}</AuthBanner>}
+    // noValidate: the backend is the only judge of the data, and its messages are shown here
+    <form action={formAction} noValidate className="space-y-4">
+      {registered && !state && <AuthBanner variant="success">Your account was created. Please sign in.</AuthBanner>}
+      {state?.message && <AuthBanner variant="error">{state.message}</AuthBanner>}
 
-      <div className="space-y-1.5">
-        <label className="block text-xs font-medium text-slate-300">
-          Username or Email
-        </label>
-        <input
-          type="text"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          required
-          minLength={1}
-          maxLength={100}
-          className="w-full rounded-xl bg-black/50 border border-white/10 px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-horizon-cyan transition-colors"
-          placeholder="Enter your username or email..."
-        />
-      </div>
+      <AuthField
+        name="username"
+        label="Username or Email"
+        placeholder="Enter your username or email..."
+        autoComplete="username"
+        defaultValue={state?.values?.username}
+        error={state?.fieldErrors?.username}
+      />
 
-      <div className="space-y-1.5">
-        <div className="flex justify-between items-center">
-          <label className="block text-xs font-medium text-slate-300">
-            Password
-          </label>
+      <AuthField
+        name="password"
+        type="password"
+        label="Password"
+        placeholder="••••••••"
+        autoComplete="current-password"
+        error={state?.fieldErrors?.password}
+        labelAside={
           <a href="#" className="text-[11px] text-horizon-cyan hover:underline">
             Forgot?
           </a>
-        </div>
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          minLength={1}
-          maxLength={128}
-          className="w-full rounded-xl bg-black/50 border border-white/10 px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-horizon-cyan transition-colors"
-          placeholder="••••••••"
-        />
-      </div>
+        }
+      />
 
       <button
         type="submit"
