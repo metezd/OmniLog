@@ -115,17 +115,23 @@ flowchart TB
   2. If the rating is not from 1 to 10, answer 422. The entry stays unchanged.
   3. Save the new status or rating.
   4. Send a `RATED` event when the rating changed and a `STATUS_CHANGED` event when the status changed.
+- **Remove an entry (`DELETE /library/{id}`, extension, not a story of the Charter):**
+  1. Find the entry. If it does not exist or belongs to another user, answer 404. A second delete of the same entry is also a 404.
+  2. Delete the entry. The chapter ratings, playtime and decisions of the user for this title are deleted with it (`ON DELETE CASCADE`). The title stays in the catalog. The client is expected to ask the user for confirmation first.
+  3. Send a `LIBRARY_REMOVED` event to 2.5, in the same transaction as the delete. Answer 204.
 - After every change, delete the cached statistics of the user (`omni:stats:{user_id}`).
 
 ### 2.4 Manage Custom Lists (US-06)
-1. `POST /lists`: if the name is empty, answer 422. Otherwise create the list and answer 201.
-2. `POST /lists/{id}/items`: check that the list belongs to the user and that the title exists. Add the item. A title that is already in the list is not added a second time.
-3. `GET /lists/{id}`: return the list with its items.
+1. `POST /lists`: if the name is empty, answer 422. If the user already has a list with this name, answer 409. Otherwise create the list and answer 201.
+2. `POST /lists/{id}/items`: check that the list belongs to the user and that the title exists. Add the item. A title that is already in the list is not added a second time: answer 201 when it is added, 200 when it was already there.
+3. `GET /lists`: return all lists of the user. `GET /lists/{id}`: return the list with its items.
 4. Send `LIST_CREATED` and `LIST_ITEM_ADDED` events to 2.5.
+5. `DELETE /lists/{id}/items/{media_item_id}` (extension): take a title out of a list that belongs to the user. If the list is not the user's or the title is not in it, answer 404. Send a `LIST_ITEM_REMOVED` event. Answer 204. The title stays in the catalog and in the library.
+6. `DELETE /lists/{id}` (extension): delete a list of the user with its items. If the list is not the user's, answer 404. Send a `LIST_DELETED` event (no title). Answer 204. The name can be used again.
 
 ### 2.5 Record Activity (US-07)
 - Receives an event with the user id, the type, the title and a small payload.
-- Appends the event to D4. Events are never edited.
+- Appends the event to D4. Events are never edited and never deleted. A removal is a new event, and the older events about the same title stay.
 
 ### 2.6 Serve Diary (US-07)
 - Reads the events of the logged-in user from D4. The newest event comes first.
@@ -139,8 +145,8 @@ C is create, R is read, U is update and D is delete.
 |---|---|---|---|---|---|
 | 2.1 Register Account | C, R | | | | |
 | 2.2 Authenticate User | R | | | | |
-| 2.3 Manage Library | | C, R, U | | | R |
-| 2.4 Manage Custom Lists | | | C, R | | R |
+| 2.3 Manage Library | | C, R, U, D | | | R |
+| 2.4 Manage Custom Lists | | | C, R, D | | R |
 | 2.5 Record Activity | | | | C | |
 | 2.6 Serve Diary | | | | R | |
 
@@ -152,6 +158,7 @@ C is create, R is read, U is update and D is delete.
 | US-03 | 2.2 | `POST /auth/login` | `test_us03_*` |
 | US-04 | 2.3 | `POST /library`, `GET /library` | `test_us04_*` |
 | US-05 | 2.3 | `PATCH /library/{id}` | `test_us05_*` |
+| Extension | 2.3, 2.4 | `DELETE /library/{id}`, `DELETE /lists/{id}/items/{media_item_id}`, `DELETE /lists/{id}` | `test_epic2_removal.py` |
 | US-06 | 2.4 | `POST /lists`, `POST /lists/{id}/items`, `GET /lists/{id}` | `test_us06_*` |
 | US-07 | 2.5, 2.6 | `GET /diary` | `test_us07_*` |
 | NFR-02 | 1.0 | All protected paths | `test_nfr02_*` |

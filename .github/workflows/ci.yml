@@ -25,8 +25,19 @@ jobs:
       TEST_DATABASE_URL: postgresql+psycopg2://omnilog:omnilog@localhost:5432/omnilog_test
       # Throwaway key used only in CI
       SECRET_KEY: ci-only-secret-key-not-used-anywhere-else
+      REDIS_URL: redis://localhost:6379/0
 
     services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
       postgres:
         image: pgvector/pgvector:pg16
         env:
@@ -43,10 +54,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.11"
           cache: pip
@@ -75,9 +86,41 @@ jobs:
             --cov-report=xml \
             --cov-fail-under=70
 
+      # Real IGDB and TMDB calls. Only on a manual run, so normal runs never use the keys.
+      # The `secrets` context cannot be used in an `if`, so a first step looks at the secrets and
+      # writes a yes or no. It prints the names of missing secrets, never their values.
+      # TMDB_API holds the long "API Read Access Token" (it starts with eyJ).
+      - name: Check live API secrets (manual run only)
+        id: live_keys
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          IGDB_ID: ${{ secrets.IGDB_ID }}
+          IGDB_API_KEY: ${{ secrets.IGDB_API_KEY }}
+          TMDB_API: ${{ secrets.TMDB_API }}
+        run: |
+          missing=""
+          [ -n "$IGDB_ID" ] || missing="$missing IGDB_ID"
+          [ -n "$IGDB_API_KEY" ] || missing="$missing IGDB_API_KEY"
+          [ -n "$TMDB_API" ] || missing="$missing TMDB_API"
+          if [ -n "$missing" ]; then
+            echo "::notice title=Live API tests skipped::Missing repository secrets:$missing"
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Live API tests (manual run only)
+        if: github.event_name == 'workflow_dispatch' && steps.live_keys.outputs.available == 'true'
+        env:
+          RUN_LIVE_API_TESTS: "1"
+          IGDB_CLIENT_ID: ${{ secrets.IGDB_ID }}
+          IGDB_CLIENT_SECRET: ${{ secrets.IGDB_API_KEY }}
+          TMDB_API_KEY: ${{ secrets.TMDB_API }}
+        run: python -m pytest tests/requirements/test_epic3_catalog_live.py -v
+
       - name: Upload backend coverage
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: backend-coverage
           path: coverage.xml
@@ -92,7 +135,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Validate the Compose file
         run: docker compose config --quiet
@@ -111,7 +154,7 @@ jobs:
         run: docker compose exec -T redis redis-cli ping | grep PONG
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.11"
           cache: pip
@@ -145,17 +188,23 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: "20"
+          node-version: "24"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
         run: npm ci
+
+      # Fails on a known high or critical problem in a package that runs in production. The
+      # development tools are left out on purpose: vitest has open advisories that need a major
+      # upgrade, which is planned as separate work.
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
 
       - name: Lint
         run: npm run lint
