@@ -1,0 +1,38 @@
+name: Task
+description: A piece of work for the project, such as a feature, a screen or a chore
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What should be done and why, in a few short sentences.
+    validations:
+      required: true
+  - type: textarea
+    id: done
+    attributes:
+      label: Definition of done
+      description: A checklist that tells when the work is finished.
+      placeholder: |
+        - [ ] First thing
+        - [ ] Second thing
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Backend
+        - Frontend
+        - Database
+        - Documentation
+        - CI and tooling
+    validations:
+      required: true
+  - type: input
+    id: reference
+    attributes:
+      label: User story or screen
+      description: For example US-09 or S-04. Leave empty when there is none.

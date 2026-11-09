@@ -5,6 +5,24 @@ test fails with a clear message when a prerequisite endpoint is missing.
 """
 import uuid
 
+import pytest
+
+
+def not_built(story: str):
+    """Mark a requirement test of a story that is not built yet as an expected failure.
+
+    The test stays in the suite and still runs, so the suite is green while the story is open.
+    The mark is strict. When the story is built the test passes, and pytest reports that as a
+    failure (XPASS strict). That is the sign to remove the mark.
+
+    Only an AssertionError counts as the expected failure, which is what a missing endpoint gives
+    (404 instead of 200). Any other error, such as a broken fixture or an import error, is still
+    reported as a real failure.
+    """
+    return pytest.mark.xfail(
+        strict=True, raises=AssertionError, reason=f"{story} is not implemented yet"
+    )
+
 
 def unique(prefix: str = "user") -> str:
     """Return a unique name so repeated test runs never collide (409)."""
@@ -57,3 +75,34 @@ def add_to_library(client, headers: dict, media_item_id: int,
     resp = client.post("/library", json=payload, headers=headers)
     assert resp.status_code == 201, f"add to library failed: {resp.status_code} {resp.text}"
     return resp.json()
+
+
+class HiddenPreCheck:
+    """Wraps a session so the n-th call to query(...).first() returns None.
+
+    Two requests can both pass an "already exists?" check before either one writes.
+    Hiding that check lets a test reach the unique-constraint fallback, as in a real race.
+    """
+
+    def __init__(self, session, hide_call: int):
+        self._session = session
+        self._hide_call = hide_call
+        self._calls = 0
+
+    def query(self, *args, **kwargs):
+        self._calls += 1
+        query = self._session.query(*args, **kwargs)
+        if self._calls != self._hide_call:
+            return query
+
+        class _NoMatch:
+            def filter(self, *a, **k):
+                return self
+
+            def first(self):
+                return None
+
+        return _NoMatch()
+
+    def __getattr__(self, name):
+        return getattr(self._session, name)
