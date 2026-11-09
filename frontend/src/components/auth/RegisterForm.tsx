@@ -13,7 +13,7 @@ export default function RegisterForm() {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
 
@@ -27,8 +27,12 @@ export default function RegisterForm() {
     try {
       await register({ username, email, password });
       router.push("/login?registered=true");
-    } catch (err: any) {
-      setError(err?.message || "Registration failed. Please try again.");
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Registration failed. Please try again.";
+      setError(message);
     } finally {
       setPending(false);
     }

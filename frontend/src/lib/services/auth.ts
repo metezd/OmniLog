@@ -23,14 +23,24 @@ export interface UserResponse {
   created_at: string;
 }
 
-function parseErrorMessage(errorData: any, fallback: string): string {
+interface ValidationErrorItem {
+  loc?: Array<string | number>;
+  msg?: string;
+}
+
+interface ErrorResponseData {
+  detail?: string | ValidationErrorItem[] | Record<string, unknown>;
+}
+
+function parseErrorMessage(errorData: ErrorResponseData, fallback: string): string {
   const detail = errorData?.detail;
   if (!detail) return fallback;
   if (typeof detail === "string") return detail;
   if (Array.isArray(detail) && detail.length > 0) {
     const first = detail[0];
-    const field = first.loc ? first.loc[first.loc.length - 1] : "";
-    return field ? `${field}: ${first.msg}` : first.msg;
+    const field = first.loc && first.loc.length > 0 ? String(first.loc[first.loc.length - 1]) : "";
+    const msg = first.msg || fallback;
+    return field ? `${field}: ${msg}` : msg;
   }
   return JSON.stringify(detail);
 }
@@ -47,20 +57,22 @@ export async function login(data: LoginPayload): Promise<TokenResponse> {
     }),
   });
 
-  const result = await response.json().catch(() => ({}));
+  const result = (await response.json().catch(() => ({}))) as Partial<TokenResponse> & ErrorResponseData;
 
-  if (!response.ok) {
+  if (!response.ok || !result.access_token) {
     throw new Error(parseErrorMessage(result, "Invalid credentials"));
   }
 
-  // Token'ı hem localStorage hem de cookie'ye kaydediyoruz (middleware/proxy ve client erişimi için)
-  if (typeof window !== "undefined" && result.access_token) {
+  if (typeof window !== "undefined") {
     localStorage.setItem("access_token", result.access_token);
     localStorage.setItem("token", result.access_token);
     document.cookie = `access_token=${result.access_token}; path=/; max-age=604800; SameSite=Lax`;
   }
 
-  return result;
+  return {
+    access_token: result.access_token,
+    token_type: result.token_type || "bearer",
+  };
 }
 
 export async function register(data: RegisterPayload): Promise<UserResponse> {
@@ -76,13 +88,13 @@ export async function register(data: RegisterPayload): Promise<UserResponse> {
     }),
   });
 
-  const result = await response.json().catch(() => ({}));
+  const result = (await response.json().catch(() => ({}))) as Partial<UserResponse> & ErrorResponseData;
 
-  if (!response.ok) {
+  if (!response.ok || !result.id) {
     throw new Error(parseErrorMessage(result, "Registration failed"));
   }
 
-  return result;
+  return result as UserResponse;
 }
 
 export async function getCurrentUser(): Promise<UserResponse | null> {
@@ -97,5 +109,5 @@ export async function getCurrentUser(): Promise<UserResponse | null> {
   });
 
   if (!response.ok) return null;
-  return response.json();
+  return (await response.json()) as UserResponse;
 }
