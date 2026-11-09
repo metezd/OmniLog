@@ -22,9 +22,9 @@ Analysis status values: draft, reviewed, accepted. Implementation status values:
 | US-12 | 4 | Should | UC-EP4-03 | 4.1, 4.4, 4.5 | `decision_points`, `decision_options`, `user_decisions` | `PUT .../decision` | `test_epic4_episodic.py` | behavior/dfd-epic4-episodic.md | draft | Not implemented |
 | US-13 | 5 | Should | UC-EP5-01, UC-EP5-02 | 5.1, 5.2, 5.3 | `media_embeddings`, `user_taste_vectors`, `user_libraries` | `GET /recommendations` | `test_epic5_ai.py` | behavior/dfd-epic5-ai.md | draft | Not implemented |
 | US-14 | 5 | Could | UC-EP5-03 | 5.4, 5.5 | `reviews` | `POST /library/{id}/review` | `test_epic5_ai.py` | behavior/dfd-epic5-ai.md | draft | Not implemented |
-| US-15 | 6 | Should | UC-EP6-01 | 6.1 to 6.5 | `user_libraries`, `media_items`, `genres`, `chapter_progress` | `GET /stats` | `test_epic6_analytics.py` | behavior/dfd-epic6-analytics.md | draft | Not implemented |
+| US-15 | 6 | Should | UC-EP6-01 | 6.1 to 6.5 | `user_libraries`, `media_items`, `genres`, `chapter_progress` | `GET /stats` | `test_epic6_analytics.py`, `test_epic6_stats_edge_cases.py` | behavior/dfd-epic6-analytics.md | draft | Implemented |
 | NFR-01 | All | - | - | 3.1, 3.2 and D9 | Redis keys | `GET /catalog/search` | `test_nfr.py` | behavior/dfd-epic3-catalog.md | draft | Implemented |
-| NFR-02 | All | - | - | 1.0 | - | `/library`, `/lists`, `/diary`, `/stats` | `test_nfr.py` | behavior/dfd-level0-1.md | draft | Not implemented |
+| NFR-02 | All | - | - | 1.0 | - | `/library`, `/lists`, `/diary`, `/stats` | `test_nfr.py` | behavior/dfd-level0-1.md | draft | Implemented |
 | NFR-03 | All | - | - | 2.1 | `users` | All user responses | `test_nfr.py` | behavior/dfd-epic2-journal.md | draft | Not implemented |
 | NFR-04 | All | - | UC-EP3-04 | 3.7 | - | Catalog endpoints | `test_nfr.py` | behavior/dfd-epic3-catalog.md | draft | Implemented |
 | NFR-05 | All | - | - | - | - | - | `pytest --cov` | requirement-analysis-report.md | draft | Measured in the Testing phase |
