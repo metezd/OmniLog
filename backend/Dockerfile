@@ -1,6 +1,8 @@
 # Backend image for production (FastAPI + Uvicorn).
 # Build context: the backend/ folder.  docker build -t omnilog-backend ./backend
-FROM python:3.11-slim
+# The Python version is the one of the CI (3.11). The Debian release is named, so a new Debian
+# release does not change the image unless this file changes.
+FROM python:3.11-slim-bookworm
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -9,17 +11,21 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+# The application does not run as root. The group and the user have the same fixed id (10001),
+# so a file has the same owner on every host. The user has no home folder and no login shell.
+RUN groupadd --system --gid 10001 omnilog \
+    && useradd --system --uid 10001 --gid 10001 --no-create-home --shell /usr/sbin/nologin omnilog
+
 # The dependencies come first, so this layer is reused when only the code changes
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 
+# The code belongs to root. The application user can read it but cannot change it.
 COPY alembic.ini .
 COPY migrations ./migrations
 COPY app ./app
 
-# The application does not run as root
-RUN useradd --system --uid 10001 --no-create-home omnilog
-USER omnilog
+USER 10001:10001
 
 EXPOSE 8000
 
