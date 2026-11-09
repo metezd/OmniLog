@@ -1,8 +1,5 @@
 """Epic 6 - Analytics Dashboard (US-15)."""
-from helpers import add_to_library, create_media, not_built
-
-# US-15 is not built yet. Remove this line when it is built.
-pytestmark = not_built("US-15")
+from helpers import add_to_library, create_media
 
 
 def test_us15_personal_statistics(client, auth_headers):
