@@ -144,7 +144,7 @@ Open `https://localhost` in the browser and accept the certificate warning, beca
 - There are no automatic backups, no monitoring and no alerts.
 - The stack runs one copy of each service. Running more copies of the backend is not set up and not tested.
 - The frontend does not call the API yet, because the login and register screens still use a mock service. `API_URL` has an effect when the frontend starts to use the API client.
-- Statistics and the AI features (US-13, US-14 and US-15) are not built, so nothing of them is deployed.
+- The AI features (US-13 and US-14) are not built, so nothing of them is deployed.
 
 ## 11. Problems
 
