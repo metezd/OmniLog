@@ -7,7 +7,7 @@ import time
 
 import pytest
 
-from helpers import new_credentials
+from helpers import new_credentials, not_built
 
 
 def test_nfr01_cached_search_p95_under_500ms(client, auth_headers):
@@ -28,7 +28,16 @@ def test_nfr01_cached_search_p95_under_500ms(client, auth_headers):
     assert p95 < 0.5, f"p95 was {p95:.3f}s"
 
 
-@pytest.mark.parametrize("path", ["/library", "/lists", "/diary", "/stats"])
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/library",
+        "/lists",
+        "/diary",
+        # The statistics endpoint is part of US-15. Remove the mark when it is built.
+        pytest.param("/stats", marks=not_built("US-15 (the /stats endpoint)")),
+    ],
+)
 def test_nfr02_protected_endpoints_require_token(client, path):
     """NFR-02: protected endpoints return 401 without a valid token."""
     response = client.get(path)

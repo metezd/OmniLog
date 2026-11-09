@@ -8,6 +8,7 @@ IGDB query). A bug in the client therefore fails a test. A call to any other hos
 
 All titles and ids below are made-up test data.
 """
+import copy
 import json
 import re
 from dataclasses import dataclass
@@ -24,22 +25,98 @@ def _unix(year: int, month: int, day: int) -> int:
 
 GAMES = [
     {"id": 90001, "name": "Life is Strange", "first_release_date": _unix(2015, 1, 30),
-     "cover": {"id": 1, "image_id": "co1life"}},
+     "cover": {"id": 1, "image_id": "co1life"},
+     "summary": "A student discovers that she can rewind time.",
+     "genres": [{"id": 31, "name": "Adventure"}, {"id": 32, "name": "Indie"}]},
     {"id": 90002, "name": "Life is Strange 2", "first_release_date": _unix(2018, 9, 27),
      "cover": {"id": 2, "image_id": "co2life"}},
     {"id": 90003, "name": "Life is Strange: Before the Storm", "first_release_date": _unix(2017, 8, 31)},
 ]
 
 SERIES = [
-    {"id": 70001, "name": "Breaking Bad", "poster_path": "/bb.jpg", "first_air_date": "2008-01-20"},
+    {"id": 70001, "name": "Breaking Bad", "poster_path": "/bb.jpg", "first_air_date": "2008-01-20",
+     "overview": "A teacher turns to crime.", "genre_ids": [18, 80]},
     {"id": 70002, "name": "Breaking Point", "poster_path": None, "first_air_date": ""},
 ]
 
 MOVIES = [
-    {"id": 80001, "title": "Blade Runner", "poster_path": "/br.jpg", "release_date": "1982-06-25"},
+    {"id": 80001, "title": "Blade Runner", "poster_path": "/br.jpg", "release_date": "1982-06-25",
+     "overview": "A blade runner hunts replicants.", "genre_ids": [878, 53]},
 ]
 
-_IGDB_QUERY = re.compile(r'search "([^"]*)"; fields ([a-z_.,]+); limit (\d+);')
+# What TMDB says about a movie or a series on its own page, by TMDB id (made-up test data)
+MOVIE_DETAILS = {
+    80001: {"title": "Blade Runner", "overview": "A blade runner hunts replicants.",
+            "genres": [{"id": 878, "name": "Science Fiction"}, {"id": 53, "name": "Thriller"}]},
+}
+SERIES_INFO = {
+    70001: {"overview": "A teacher turns to crime.",
+            "genres": [{"id": 18, "name": "Drama"}, {"id": 80, "name": "Crime"}]},
+}
+
+
+
+def _episode(number: int, name: str, air_date, runtime, episode_id: int) -> dict:
+    return {"id": episode_id, "episode_number": number, "name": name,
+            "air_date": air_date, "runtime": runtime}
+
+
+def _season(number: int, name: str, air_date, episodes: list) -> dict:
+    return {"season_number": number, "name": name, "air_date": air_date, "episodes": episodes}
+
+
+# Seasons of the series above, by TMDB id. Series 70003 has many seasons, to test that they are
+# asked for in groups. A series that is not in this table is unknown to TMDB (404).
+SERIES_DETAILS = {
+    70001: {"name": "Breaking Bad", "seasons": [
+        _season(0, "Specials", None, [
+            _episode(1, "Making of the pilot", None, None, 5001),
+        ]),
+        _season(1, "Season 1", "2008-01-20", [
+            _episode(1, "Pilot", "2008-01-20", 58, 5101),
+            _episode(2, "Cat's in the Bag...", "2008-01-27", 48, 5102),
+            _episode(3, "...And the Bag's in the River", "2008-02-10", None, 5103),
+        ]),
+        _season(2, "Season 2", "2009-03-08", [
+            _episode(1, "Seven Thirty-Seven", "2009-03-08", 47, 5201),
+            _episode(2, "Grilled", "2009-03-15", 47, 5202),
+        ]),
+    ]},
+    70002: {"name": "Breaking Point", "seasons": []},
+    70003: {"name": "Endless Show", "seasons": [
+        _season(n, f"Season {n}", f"{1980 + n}-01-01", [
+            _episode(1, f"S{n} first", f"{1980 + n}-01-01", 30, 6000 + n * 10 + 1),
+            _episode(2, f"S{n} second", f"{1980 + n}-01-08", 30, 6000 + n * 10 + 2),
+        ])
+        for n in range(1, 46)
+    ]},
+}
+
+# TMDB answers at most 20 appended sub-requests in one call
+_TMDB_MAX_APPENDED = 20
+
+_IGDB_SEARCH = re.compile(r'search "([^"]*)"; fields ([a-z_.,]+); limit (\d+);')
+_IGDB_BY_ID = re.compile(r'fields ([a-z_.,]+); where id = (\d+); limit (\d+);')
+
+
+def _project(game: dict, fields: str) -> dict:
+    """Keep the fields that were asked for, as IGDB does. The id is always there. A field such as
+    genres.name asks for the name of each entry of genres."""
+    result = {"id": game["id"]}
+    for field in fields.split(","):
+        top, _, sub = field.partition(".")
+        if top not in game:
+            continue
+        value = game[top]
+        if sub and isinstance(value, dict):
+            result.setdefault(top, {"id": value["id"]})[sub] = value[sub]
+        elif sub and isinstance(value, list):
+            entries = result.setdefault(top, [{"id": entry["id"]} for entry in value])
+            for entry, source in zip(entries, value):
+                entry[sub] = source[sub]
+        elif not sub:
+            result[top] = value
+    return result
 
 
 @dataclass
@@ -72,6 +149,13 @@ class FakeExternalApis:
         self._scripted: dict[str, list[list]] = {}  # service -> [[factory, times left or None]]
         self._issued_tokens = 0
         self._valid_tokens: set[str] = set()
+        # TMDB series by id. Every test gets its own copy, so it can change what TMDB "knows".
+        self.series: dict[int, dict] = copy.deepcopy(SERIES_DETAILS)
+        # What TMDB says about a series (description and genres) and a movie, and what IGDB says
+        # about a game. Tests can change them, like `series`.
+        self.series_info: dict[int, dict] = copy.deepcopy(SERIES_INFO)
+        self.movies: dict[int, dict] = copy.deepcopy(MOVIE_DETAILS)
+        self.games: list[dict] = copy.deepcopy(GAMES)
 
     # ------------------------------------------------------------ what tests can ask
     def calls_to(self, service: str) -> list[Call]:
@@ -160,11 +244,16 @@ class FakeExternalApis:
             return make_response(401, {"message": "Authorization Failure"})
 
         body = kwargs["data"].decode("utf-8")
-        parsed = _IGDB_QUERY.fullmatch(body)
-        assert parsed, f"IGDB query has an unexpected shape: {body!r}"
-        text, limit = parsed.group(1), int(parsed.group(3))
-        matches = [g for g in GAMES if text.lower() in g["name"].lower()]
-        return make_response(200, matches[:limit])
+        by_id = _IGDB_BY_ID.fullmatch(body)
+        if by_id:
+            fields, game_id, limit = by_id.group(1), int(by_id.group(2)), int(by_id.group(3))
+            matches = [g for g in self.games if g["id"] == game_id]
+        else:
+            parsed = _IGDB_SEARCH.fullmatch(body)
+            assert parsed, f"IGDB query has an unexpected shape: {body!r}"
+            text, fields, limit = parsed.group(1), parsed.group(2), int(parsed.group(3))
+            matches = [g for g in self.games if text.lower() in g["name"].lower()]
+        return make_response(200, [_project(g, fields) for g in matches[:limit]])
 
     def _tmdb(self, method: str, url: str, kwargs: dict) -> requests.Response:
         from app.core import config
@@ -180,6 +269,16 @@ class FakeExternalApis:
             return make_response(401, {"status_code": 7, "status_message": "Invalid API key"})
 
         path = urlparse(url).path
+        series_path = re.fullmatch(r"/3/tv/(\d+)", path)
+        if series_path:
+            return self._tmdb_series(int(series_path.group(1)), params)
+        movie_path = re.fullmatch(r"/3/movie/(\d+)", path)
+        if movie_path:
+            movie = self.movies.get(int(movie_path.group(1)))
+            if movie is None:
+                return make_response(404, {"success": False, "status_code": 34,
+                                           "status_message": "The resource you requested could not be found."})
+            return make_response(200, {"id": int(movie_path.group(1)), **movie})
         if path == "/3/search/tv":
             pool, field = SERIES, "name"
         elif path == "/3/search/movie":
@@ -188,3 +287,32 @@ class FakeExternalApis:
             raise AssertionError(f"Unexpected TMDB path: {path}")
         matches = [item for item in pool if params["query"].lower() in item[field].lower()]
         return make_response(200, {"page": 1, "results": matches, "total_results": len(matches)})
+
+    def _tmdb_series(self, series_id: int, params: dict) -> requests.Response:
+        """GET /tv/{id}: the series with its season list, plus the seasons asked for."""
+        show = self.series.get(series_id)
+        if show is None:
+            return make_response(404, {"success": False, "status_code": 34,
+                                       "status_message": "The resource you requested could not be found."})
+
+        body = {
+            "id": series_id,
+            "name": show["name"],
+            **self.series_info.get(series_id, {}),
+            "seasons": [
+                {"season_number": season["season_number"], "name": season["name"],
+                 "air_date": season["air_date"], "episode_count": len(season["episodes"])}
+                for season in show["seasons"]
+            ],
+        }
+
+        appended = [part for part in params.get("append_to_response", "").split(",") if part]
+        assert len(appended) <= _TMDB_MAX_APPENDED, f"TMDB allows {_TMDB_MAX_APPENDED} appended requests"
+        for part in appended:
+            asked = re.fullmatch(r"season/(\d+)", part)
+            assert asked, f"Unexpected append_to_response value: {part!r}"
+            number = int(asked.group(1))
+            season = next((s for s in show["seasons"] if s["season_number"] == number), None)
+            if season is not None:  # TMDB leaves out a season it does not have
+                body[part] = season
+        return make_response(200, body)

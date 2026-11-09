@@ -9,3 +9,46 @@ updates:
     open-pull-requests-limit: 5
     labels:
       - "dependencies"
+
+  # The packages of the frontend (Next.js, React, the test tools). Next.js and its ESLint config
+  # are pinned to the same exact version, so they are updated together in one pull request.
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "cron"
+      cronjob: "0 9 * * 1,5"
+      timezone: "Europe/Istanbul"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+    groups:
+      next:
+        patterns:
+          - "next"
+          - "eslint-config-next"
+      react:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "@types/react"
+          - "@types/react-dom"
+    ignore:
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "vite"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@vitejs/plugin-react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "msw"
+        update-types: ["version-update:semver-major"]
+
+  # The actions that the workflows in .github/workflows use
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "cron"
+      cronjob: "0 9 * * 1,5"
+      timezone: "Europe/Istanbul"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"

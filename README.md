@@ -78,7 +78,7 @@ Each step builds on the one before. A step is done when its tests pass.
 
 | Step | Goal | Stories |
 |---|---|---|
-| 0 | Open decisions: database, rating scales, chapter data source, embedding model | - |
+| 0 | Decisions: database (PostgreSQL), rating scales (library 1 to 10, chapters 1 to 5) and chapter data source (seed file) are made. The embedding model is still open | - |
 | 1 | Infrastructure: Docker Compose, migrations, settings, test database, health check | US-01 |
 | 2 | Authentication: register, login, JWT, protected endpoints | US-02, US-03 |
 | 3 | Catalog base and library: media tables, add, rate and update titles | US-04, US-05 |
@@ -102,7 +102,7 @@ Each step builds on the one before. A step is done when its tests pass.
 
 ## Project status
 
-The project is in the analysis phase. Requirements, tests and analysis documents are ready. Roadmap steps 1 to 4 and catalog search are in place: Docker Compose services, settings, migrations, a PostgreSQL test database, registration and login with JWT (`POST /auth/register`, `POST /auth/login`), catalog entries (`POST /media`), the library (`GET /library`, `POST /library`, `PATCH /library/{id}`), custom lists and the activity diary (`/lists`, `/diary`) and catalog search in IGDB and TMDB (`GET /catalog/search`). Title details (US-09), episodic logging, statistics and recommendations are not implemented yet. The requirement-level tests are written first, so most of them fail on purpose until the features are built.
+The project is in the analysis phase. Requirements, tests and analysis documents are ready. Roadmap steps 1 to 4 and the stories of step 5 (US-08 and US-09) are in place: Docker Compose services, settings, migrations, a PostgreSQL test database, registration and login with JWT (`POST /auth/register`, `POST /auth/login`), catalog entries (`POST /media`), the library (`GET /library`, `POST /library`, `PATCH /library/{id}`), custom lists and the activity diary (`/lists`, `/diary`) catalog search in IGDB and TMDB (`GET /catalog/search`) title details with seasons, episodes and chapters (`GET /catalog/{id}`) chapter ratings (`PUT /library/{id}/chapters/{chapter_id}/rating`, US-10 of step 6) and playtime per chapter (`POST /library/{id}/chapters/{chapter_id}/playtime`, `GET /library/{id}/chapters/{chapter_id}`, US-11). The manual sync of step 5, decisions (US-12), statistics and recommendations are not implemented yet. The requirement-level tests are written first, so most of them fail on purpose until the features are built.
 
 ## Getting started
 
@@ -134,6 +134,25 @@ The API runs at `http://localhost:8000`. Interactive docs are at `http://localho
 
 **Catalog search keys.** `GET /catalog/search` needs keys for the outside services: `IGDB_CLIENT_ID` and `IGDB_CLIENT_SECRET` for games (a Twitch application, see the comments in `.env.example`) and `TMDB_API_KEY` for series and movies. A source without keys is turned off and its searches return 503. Search results are cached in Redis (`REDIS_URL`, `CACHE_TTL_SECONDS`). If Redis is down, an in-process cache is used. Never commit real keys.
 
+**Title details.** `GET /catalog/{id}` returns a title with its seasons and episodes (series) or its chapters (games). The seasons of a series are loaded from TMDB the first time the title is opened, then saved in the database and cached in Redis for `DETAILS_CACHE_TTL_SECONDS` (default 24 hours). While TMDB is down, the saved copy is returned, or 503 when the series was never loaded. IGDB has no chapter list, so the chapters of a game are read from the database only. No endpoint creates them. They come from a seed file, described below. The team chose this source (point 3 in [`docs/analysis/data/domain-model.md`](docs/analysis/data/domain-model.md)). Every title has `genres` (names, sorted), and the details answer also has the `description`. Both are loaded from IGDB or TMDB when the details are opened, so a title that was only found in a search has no genres yet. Every chapter and episode in the answer has `decision_points`, each with its `options` (id, label and text), so a client can show the choices of US-12 without another call.
+
+**Chapters and decision points of games.** IGDB has no chapter list and no source has decision points, so they are kept in [`backend/app/seed/game_chapters.json`](backend/app/seed/game_chapters.json) and loaded with:
+
+```bash
+cd backend
+python -m app.seed                 # the file next to the code
+python -m app.seed path/to/other.json
+# production: docker compose -f docker-compose.prod.yml exec backend python -m app.seed
+```
+
+A game is joined to the catalog by its IGDB id (`external_api_id`). To find it, search the title with `GET /catalog/search?type=GAME` and read `external_api_id` in the result. The file is checked before anything is written, and a file with an error saves nothing. The load is one transaction and can be run again: a row is found by its key (chapter number, position of the decision point, label of the option) and only changed when a value differs. Nothing is ever deleted, because the choices of users point to these rows. Rows that are in the database but not in the file are listed as warnings. A game that a search has already saved keeps its title and poster, and a warning appears when the title in the file is different, which usually means a wrong id. Each decision point needs at least two options with different labels.
+
+The shipped file holds a draft for one game. Its `external_api_id` is `0` on purpose: the command refuses it until the real IGDB id is filled in, and the chapter titles and decisions should be checked against the game first.
+
+**Rating scales.** The team chose two scales (point 2 in [`docs/analysis/data/domain-model.md`](docs/analysis/data/domain-model.md)). A rating of a library entry is a whole number from 1 to 10 (`POST /library`, `PATCH /library/{id}`). A rating of a chapter or episode is a whole number from 1 to 5 (`PUT /library/{id}/chapters/{chapter_id}/rating`). A value outside the range, or a value that is not a JSON number, is refused with 422. Sending `null` for the rating of a library entry in `PATCH` clears it.
+
+**Removal.** This goes beyond the stories of the Charter. `DELETE /library/{id}` removes a title from the library, and the chapter ratings, playtime and decisions that the user logged for it are deleted with it, so a client should ask for confirmation first. `DELETE /lists/{id}/items/{media_item_id}` takes a title out of a list, and `DELETE /lists/{id}` deletes a list with its items. All three answer 204, and 404 when the thing does not exist, is not the user's, or was already removed. Titles are never deleted from the catalog. Each removal adds a diary event (`LIBRARY_REMOVED`, `LIST_ITEM_REMOVED`, `LIST_DELETED`), and the older events stay.
+
 The tests do not call IGDB or TMDB. They use a fake at the HTTP level (`tests/requirements/fake_external_apis.py`), so no keys are needed. To check the real services once, put real keys in `backend/.env` and run:
 
 ```bash
@@ -164,6 +183,12 @@ The tests use the separate `omnilog_test` database, so `docker compose up -d` mu
 python -m pip install -r tests/requirements-test.txt
 python -m pytest tests/requirements -v --tb=short
 ```
+
+The frontend tests run with Vitest in happy-dom (`cd frontend && npm test`). The settings that keep happy-dom from running code of a page are in `frontend/vitest.config.mts` and are checked by `frontend/tests/security/happy-dom.test.ts`.
+
+### Dependency security
+
+Dependabot opens pull requests for the Python packages, the frontend packages and the GitHub Actions (`.github/dependabot.yml`). Next.js and `eslint-config-next` are pinned to the same exact version and are updated together. The CI job for the frontend runs `npm audit --omit=dev --audit-level=high` and fails on a known high or critical problem in a package that runs in production. Development tools are not part of that check. Vitest 3 and 4 have open advisories that are fixed only in Vitest 5, a major upgrade that is planned as separate work, so `npm audit` (without `--omit=dev`) still lists them.
 
 ## Documentation
 

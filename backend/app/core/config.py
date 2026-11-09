@@ -36,7 +36,7 @@ CORS_ORIGINS = [
 ]
 
 # How long a login token stays valid, in minutes
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "90"))
 
 # - External catalog (US-08)
 # IGDB (games) uses Twitch OAuth client credentials. Leave both empty to turn game search off.
@@ -52,6 +52,10 @@ REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
 # How long a search result stays cached, in seconds (default: 1 hour)
 CACHE_TTL_SECONDS = int(os.getenv("CACHE_TTL_SECONDS", "3600"))
+
+# How long the seasons and episodes of a series stay cached, in seconds (default: 24 hours).
+# They change rarely, so this is longer than the search cache (US-09).
+DETAILS_CACHE_TTL_SECONDS = int(os.getenv("DETAILS_CACHE_TTL_SECONDS", "86400"))
 
 # Calls to IGDB and TMDB: read timeout, retries for timeouts, 429 and 5xx, and the first
 # wait between retries (doubles after each retry). Set the wait to 0 in tests.
