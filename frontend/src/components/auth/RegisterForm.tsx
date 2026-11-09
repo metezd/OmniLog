@@ -1,53 +1,83 @@
 "use client";
 
-import { useActionState } from "react";
-
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import AuthBanner from "@/components/auth/AuthBanner";
-import AuthField from "@/components/auth/AuthField";
-import { registerAction } from "@/lib/actions/auth";
+import { register } from "@/lib/services/auth";
 
 export default function RegisterForm() {
-  const [state, formAction, pending] = useActionState(registerAction, undefined);
+  const router = useRouter();
+  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setIsLoading(true);
+
+    try {
+      await register({ username, email, password });
+      
+      // Kayıt başarılı olduktan sonra login sayfasına yönlendir
+      router.push("/login?registered=true");
+    } catch (err: any) {
+      const errorDetail = err.response?.data?.detail;
+      
+      if (typeof errorDetail === "object" && errorDetail !== null) {
+        setError(errorDetail[0]?.msg || JSON.stringify(errorDetail));
+      } else {
+        setError(errorDetail || "Kayıt olurken bir hata oluştu.");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
-    // noValidate: the backend is the only judge of the data, and its messages are shown here
-    <form action={formAction} noValidate className="space-y-4">
-      {state?.message && <AuthBanner variant="error">{state.message}</AuthBanner>}
-
-      <AuthField
-        name="username"
-        label="Username"
-        placeholder="johndoe"
-        autoComplete="username"
-        defaultValue={state?.values?.username}
-        error={state?.fieldErrors?.username}
-      />
-
-      <AuthField
-        name="email"
-        type="email"
-        label="Email address"
-        placeholder="name@example.com"
-        autoComplete="email"
-        defaultValue={state?.values?.email}
-        error={state?.fieldErrors?.email}
-      />
-
-      <AuthField
-        name="password"
-        type="password"
-        label="Password"
-        placeholder="••••••••"
-        autoComplete="new-password"
-        error={state?.fieldErrors?.password}
-      />
-
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {error && <AuthBanner variant="error">{error}</AuthBanner>}
+      <div>
+        <label className="block text-xs font-medium text-slate-300 mb-1.5">Kullanıcı Adı</label>
+        <input
+          type="text"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          required
+          className="w-full rounded-xl bg-black/50 border border-white/10 px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-horizon-cyan"
+          placeholder="kullaniciadi"
+        />
+      </div>
+      <div>
+        <label className="block text-xs font-medium text-slate-300 mb-1.5">E-posta</label>
+        <input
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+          className="w-full rounded-xl bg-black/50 border border-white/10 px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-horizon-cyan"
+          placeholder="ornek@bilgiedu.net"
+        />
+      </div>
+      <div>
+        <label className="block text-xs font-medium text-slate-300 mb-1.5">Şifre</label>
+        <input
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          className="w-full rounded-xl bg-black/50 border border-white/10 px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-horizon-cyan"
+          placeholder="••••••••"
+        />
+      </div>
       <button
         type="submit"
-        disabled={pending}
-        className="w-full rounded-xl bg-horizon-crimson/20 border border-horizon-crimson/40 py-2.5 text-sm font-medium text-rose-200 hover:bg-horizon-crimson/30 hover:border-horizon-crimson hover:text-white transition-all shadow-[0_0_15px_rgba(229,29,36,0.25)] active:scale-95 mt-2 disabled:opacity-60 disabled:cursor-not-allowed"
+        disabled={isLoading}
+        className="w-full rounded-xl bg-horizon-crimson/20 hover:bg-horizon-crimson/30 border border-horizon-crimson/40 py-2.5 text-xs font-medium text-rose-200 transition-all disabled:opacity-50"
       >
-        {pending ? "Creating account..." : "Create Account"}
+        {isLoading ? "Hesap oluşturuluyor..." : "Kayıt Ol"}
       </button>
     </form>
   );
