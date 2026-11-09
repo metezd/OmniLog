@@ -11,73 +11,85 @@ export default function RegisterForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [pending, setPending] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setIsLoading(true);
+
+    if (username.includes("@")) {
+      setError("Username must not contain '@' symbol.");
+      return;
+    }
+
+    setPending(true);
 
     try {
       await register({ username, email, password });
-      
-      // Kayıt başarılı olduktan sonra login sayfasına yönlendir
       router.push("/login?registered=true");
     } catch (err: any) {
-      const errorDetail = err.response?.data?.detail;
-      
-      if (typeof errorDetail === "object" && errorDetail !== null) {
-        setError(errorDetail[0]?.msg || JSON.stringify(errorDetail));
-      } else {
-        setError(errorDetail || "Kayıt olurken bir hata oluştu.");
-      }
+      setError(err?.message || "Registration failed. Please try again.");
     } finally {
-      setIsLoading(false);
+      setPending(false);
     }
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {error && <AuthBanner variant="error">{error}</AuthBanner>}
-      <div>
-        <label className="block text-xs font-medium text-slate-300 mb-1.5">Kullanıcı Adı</label>
+
+      <div className="space-y-1.5">
+        <label className="block text-xs font-medium text-slate-300">
+          Username
+        </label>
         <input
           type="text"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
           required
-          className="w-full rounded-xl bg-black/50 border border-white/10 px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-horizon-cyan"
-          placeholder="kullaniciadi"
+          minLength={3}
+          maxLength={50}
+          className="w-full rounded-xl bg-black/50 border border-white/10 px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-horizon-cyan transition-colors"
+          placeholder="Choose a username (min 3 chars, no @)..."
         />
       </div>
-      <div>
-        <label className="block text-xs font-medium text-slate-300 mb-1.5">E-posta</label>
+
+      <div className="space-y-1.5">
+        <label className="block text-xs font-medium text-slate-300">
+          Email
+        </label>
         <input
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
-          className="w-full rounded-xl bg-black/50 border border-white/10 px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-horizon-cyan"
-          placeholder="ornek@bilgiedu.net"
+          maxLength={100}
+          className="w-full rounded-xl bg-black/50 border border-white/10 px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-horizon-cyan transition-colors"
+          placeholder="you@example.com"
         />
       </div>
-      <div>
-        <label className="block text-xs font-medium text-slate-300 mb-1.5">Şifre</label>
+
+      <div className="space-y-1.5">
+        <label className="block text-xs font-medium text-slate-300">
+          Password
+        </label>
         <input
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
-          className="w-full rounded-xl bg-black/50 border border-white/10 px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-horizon-cyan"
-          placeholder="••••••••"
+          minLength={8}
+          className="w-full rounded-xl bg-black/50 border border-white/10 px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-horizon-cyan transition-colors"
+          placeholder="At least 8 characters..."
         />
       </div>
+
       <button
         type="submit"
-        disabled={isLoading}
-        className="w-full rounded-xl bg-horizon-crimson/20 hover:bg-horizon-crimson/30 border border-horizon-crimson/40 py-2.5 text-xs font-medium text-rose-200 transition-all disabled:opacity-50"
+        disabled={pending}
+        className="w-full py-2.5 rounded-xl bg-horizon-crimson/30 hover:bg-horizon-crimson/50 border border-horizon-crimson/60 text-white font-medium text-xs transition-all shadow-[0_0_20px_rgba(229,29,36,0.3)] active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
       >
-        {isLoading ? "Hesap oluşturuluyor..." : "Kayıt Ol"}
+        {pending ? "Creating account..." : "Create Account"}
       </button>
     </form>
   );
