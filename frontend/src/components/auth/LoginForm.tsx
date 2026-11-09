@@ -11,7 +11,7 @@ interface LoginFormProps {
 
 export default function LoginForm({ registered = false }: LoginFormProps) {
   const router = useRouter();
-  const [usernameOrEmail, setUsernameOrEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -22,22 +22,11 @@ export default function LoginForm({ registered = false }: LoginFormProps) {
     setPending(true);
 
     try {
-      // LoginPayload tipine uygun olarak 'email' alanı kullanılıyor
-      await login({ 
-        email: usernameOrEmail, 
-        password 
-      });
-
+      await login({ username, password });
       router.push("/");
       router.refresh();
     } catch (err: any) {
-      const errorDetail = err.response?.data?.detail;
-      
-      if (typeof errorDetail === "object" && errorDetail !== null) {
-        setError(errorDetail[0]?.msg || JSON.stringify(errorDetail));
-      } else {
-        setError(errorDetail || "Giriş başarısız. Lütfen bilgilerinizi kontrol edin.");
-      }
+      setError(err?.message || "Sign in failed. Please check your credentials.");
     } finally {
       setPending(false);
     }
@@ -45,15 +34,24 @@ export default function LoginForm({ registered = false }: LoginFormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {registered && <AuthBanner variant="success">Your account was created. Please sign in.</AuthBanner>}
+      {registered && (
+        <AuthBanner variant="success">
+          Your account was created. Please sign in.
+        </AuthBanner>
+      )}
       {error && <AuthBanner variant="error">{error}</AuthBanner>}
 
       <div className="space-y-1.5">
-        <label className="block text-xs font-medium text-slate-300">Username or Email</label>
+        <label className="block text-xs font-medium text-slate-300">
+          Username or Email
+        </label>
         <input
           type="text"
-          value={usernameOrEmail}
-          onChange={(e) => setUsernameOrEmail(e.target.value)}
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          required
+          minLength={1}
+          maxLength={100}
           className="w-full rounded-xl bg-black/50 border border-white/10 px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-horizon-cyan transition-colors"
           placeholder="Enter your username or email..."
         />
@@ -61,7 +59,9 @@ export default function LoginForm({ registered = false }: LoginFormProps) {
 
       <div className="space-y-1.5">
         <div className="flex justify-between items-center">
-          <label className="block text-xs font-medium text-slate-300">Password</label>
+          <label className="block text-xs font-medium text-slate-300">
+            Password
+          </label>
           <a href="#" className="text-[11px] text-horizon-cyan hover:underline">
             Forgot?
           </a>
@@ -70,6 +70,9 @@ export default function LoginForm({ registered = false }: LoginFormProps) {
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+          required
+          minLength={1}
+          maxLength={128}
           className="w-full rounded-xl bg-black/50 border border-white/10 px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-horizon-cyan transition-colors"
           placeholder="••••••••"
         />
