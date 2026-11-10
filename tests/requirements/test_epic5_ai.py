@@ -1,4 +1,4 @@
-﻿"""Epic 5 - AI-Powered Cross-Media Engine and Review Moderation (US-13, US-14)."""
+"""Epic 5 - AI-Powered Cross-Media Engine and Review Moderation (US-13, US-14)."""
 from helpers import add_to_library, create_media, not_built
 
 
@@ -35,7 +35,6 @@ def test_us13_recommendations_with_empty_library(client, auth_headers):
 
 
 # ---------------------------------------------------------------- US-14
-@not_built("US-14")
 def test_us14_spoiler_detected(client, auth_headers, library_entry):
     """US-14: a review revealing a major plot event is flagged as a spoiler."""
     text = (
@@ -53,7 +52,6 @@ def test_us14_spoiler_detected(client, auth_headers, library_entry):
     assert response.json()["contains_spoiler"] is True
 
 
-@not_built("US-14")
 def test_us14_non_spoiler_review_not_flagged(client, auth_headers, library_entry):
     """US-14: a review without plot details is not flagged."""
     text = "Great atmosphere and a wonderful soundtrack. Highly recommended."

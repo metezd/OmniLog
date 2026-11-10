@@ -3,5 +3,9 @@
 export const USER_NAV_LINKS = [
   { href: "/library", label: "Library" },
   { href: "/search", label: "Search" },
+  { href: "/lists", label: "Lists" },
+  { href: "/diary", label: "Diary" },
+  { href: "/recommendations", label: "Recommendations" },
+  { href: "/stats", label: "Stats" },
   { href: "/friends", label: "Friends" },
 ] as const;

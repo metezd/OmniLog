@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import AddToLibraryButton from "@/components/search/AddToLibraryButton";
 import { MEDIA_TYPE_LABELS, releaseYear } from "@/lib/media";
 import type { MediaItem } from "@/types/api";
@@ -29,7 +31,11 @@ export default function SearchResultCard({ item, inLibrary }: SearchResultCardPr
 
       <div className="flex flex-1 flex-col gap-3 p-5">
         <div className="space-y-1">
-          <h3 className="font-bold tracking-tight text-white">{item.title}</h3>
+          <h3 className="font-bold tracking-tight text-white">
+            <Link href={`/title/${item.id}`} className="transition-colors hover:text-cyan-300">
+              {item.title}
+            </Link>
+          </h3>
           <p className="text-xs text-slate-400">{year ?? "Release date unknown"}</p>
         </div>
 
