@@ -52,6 +52,8 @@ export default async function ListDetailPage({ params }: ListDetailPageProps) {
     );
   }
 
+  const mediaById = new Map(library.map((entry) => [entry.media_item_id, entry.media_item]));
+
   return (
     <div className="relative z-10 mx-auto w-full max-w-7xl space-y-6 px-4 py-8 sm:px-8">
       <div>
@@ -79,45 +81,50 @@ export default async function ListDetailPage({ params }: ListDetailPageProps) {
         />
       ) : (
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {list.items.map((item) => (
-            <article
-              key={item.id}
-              className="liquid-glass liquid-glass-card flex flex-col justify-between rounded-2xl border border-white/10 p-5"
-            >
-              <div className="space-y-2">
-                <span className="inline-block rounded-full border border-horizon-cyan/40 bg-horizon-cyan/20 px-2.5 py-0.5 text-[10px] font-semibold text-cyan-300">
-                  {MEDIA_TYPE_LABELS[item.media_item.media_type]}
-                </span>
-                <h3 className="font-bold tracking-tight text-white">
+          {list.items.map((item) => {
+            const media = mediaById.get(item.media_item_id);
+            return (
+              <article
+                key={item.id}
+                className="liquid-glass liquid-glass-card flex flex-col justify-between rounded-2xl border border-white/10 p-5"
+              >
+                <div className="space-y-2">
+                  {media && (
+                    <span className="inline-block rounded-full border border-horizon-cyan/40 bg-horizon-cyan/20 px-2.5 py-0.5 text-[10px] font-semibold text-cyan-300">
+                      {MEDIA_TYPE_LABELS[media.media_type]}
+                    </span>
+                  )}
+                  <h3 className="font-bold tracking-tight text-white">
+                    <Link
+                      href={`/title/${item.media_item_id}`}
+                      className="transition-colors hover:text-cyan-300"
+                    >
+                      {media?.title ?? `Title #${item.media_item_id}`}
+                    </Link>
+                  </h3>
+                </div>
+
+                <div className="mt-4 flex items-center justify-between border-t border-white/10 pt-3">
                   <Link
                     href={`/title/${item.media_item_id}`}
-                    className="transition-colors hover:text-cyan-300"
+                    className="text-xs text-slate-300 hover:text-white"
                   >
-                    {item.media_item.title}
+                    Details →
                   </Link>
-                </h3>
-              </div>
-
-              <div className="mt-4 flex items-center justify-between border-t border-white/10 pt-3">
-                <Link
-                  href={`/title/${item.media_item_id}`}
-                  className="text-xs text-slate-300 hover:text-white"
-                >
-                  Details →
-                </Link>
-                <form action={removeItemFromListAction}>
-                  <input type="hidden" name="listId" value={list.id} />
-                  <input type="hidden" name="mediaItemId" value={item.media_item_id} />
-                  <button
-                    type="submit"
-                    className="text-xs font-medium text-rose-300 hover:text-rose-200"
-                  >
-                    Remove
-                  </button>
-                </form>
-              </div>
-            </article>
-          ))}
+                  <form action={removeItemFromListAction}>
+                    <input type="hidden" name="listId" value={list.id} />
+                    <input type="hidden" name="mediaItemId" value={item.media_item_id} />
+                    <button
+                      type="submit"
+                      className="text-xs font-medium text-rose-300 hover:text-rose-200"
+                    >
+                      Remove
+                    </button>
+                  </form>
+                </div>
+              </article>
+            );
+          })}
         </div>
       )}
     </div>

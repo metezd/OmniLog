@@ -17,6 +17,7 @@ from sqlalchemy import (
     UniqueConstraint,
     CheckConstraint,
     text,
+    text as sql_text,
 )
 from sqlalchemy.orm import relationship
 from app.core.database import Base
@@ -596,7 +597,7 @@ class Review(Base):
         DateTime,
         nullable=False,
         default=datetime.utcnow,
-        server_default=text("timezone('utc', now())"),
+        server_default=sql_text("timezone('utc', now())"),
     )
     updated_at = Column(
         DateTime,

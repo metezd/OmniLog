@@ -22,7 +22,7 @@ export type ReviewActionState =
   | { status: "saved"; review: Review }
   | { status: "error"; message: string };
 
-const VALID_STATUSES: WatchStatus[] = ["WATCHING", "COMPLETED", "PLAN_TO_WATCH", "DROPPED"];
+const VALID_STATUSES: WatchStatus[] = ["IN_PROGRESS", "COMPLETED", "PLAN_TO_WATCH", "DROPPED"];
 
 function rethrowIfRedirect(error: unknown): void {
   const digest = (error as { digest?: unknown } | null)?.digest;

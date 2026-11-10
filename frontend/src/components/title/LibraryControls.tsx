@@ -15,7 +15,7 @@ interface LibraryControlsProps {
 }
 
 const INITIAL_STATE: ActionState = { status: "idle" };
-const STATUS_OPTIONS: WatchStatus[] = ["WATCHING", "COMPLETED", "PLAN_TO_WATCH", "DROPPED"];
+const STATUS_OPTIONS: WatchStatus[] = ["IN_PROGRESS", "COMPLETED", "PLAN_TO_WATCH", "DROPPED"];
 const RATING_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
 export default function LibraryControls({ entry }: LibraryControlsProps) {

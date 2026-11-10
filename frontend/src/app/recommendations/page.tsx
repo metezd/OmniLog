@@ -85,10 +85,10 @@ export default async function RecommendationsPage({ searchParams }: Recommendati
       ) : (
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {items.map((item) => {
-            const inLibrary = libraryIds.has(item.media_item_id);
+            const inLibrary = libraryIds.has(item.id);
             return (
               <article
-                key={item.media_item_id}
+                key={item.id}
                 className="liquid-glass liquid-glass-card flex flex-col justify-between gap-4 rounded-2xl border border-white/10 p-5"
               >
                 <div className="space-y-3">
@@ -96,21 +96,27 @@ export default async function RecommendationsPage({ searchParams }: Recommendati
                     <span className="rounded-full border border-horizon-cyan/40 bg-horizon-cyan/20 px-2.5 py-0.5 text-[10px] font-semibold text-cyan-300">
                       {MEDIA_TYPE_LABELS[item.media_type]}
                     </span>
-                    <span className="rounded-full border border-purple-400/40 bg-purple-400/15 px-2.5 py-0.5 text-[10px] font-semibold text-purple-200">
-                      {Math.round(item.score * 100)}% Match
-                    </span>
+                    {item.release_date && (
+                      <span className="text-[11px] text-slate-400">
+                        {item.release_date.slice(0, 4)}
+                      </span>
+                    )}
                   </div>
 
                   <h3 className="text-base font-bold tracking-tight text-white">
                     <Link
-                      href={`/title/${item.media_item_id}`}
+                      href={`/title/${item.id}`}
                       className="transition-colors hover:text-cyan-300"
                     >
                       {item.title}
                     </Link>
                   </h3>
 
-                  <p className="text-xs leading-relaxed text-slate-300">{item.reason}</p>
+                  {item.description && (
+                    <p className="line-clamp-3 text-xs leading-relaxed text-slate-300">
+                      {item.description}
+                    </p>
+                  )}
 
                   {item.genres && item.genres.length > 0 && (
                     <div className="flex flex-wrap gap-1.5">
@@ -132,7 +138,7 @@ export default async function RecommendationsPage({ searchParams }: Recommendati
                       ✓ In Library
                     </div>
                   ) : (
-                    <AddToLibraryButton mediaItemId={item.media_item_id} />
+                    <AddToLibraryButton mediaItemId={item.id} />
                   )}
                 </div>
               </article>
