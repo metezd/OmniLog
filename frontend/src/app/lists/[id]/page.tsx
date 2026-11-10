@@ -5,7 +5,12 @@ import AddListItemForm from "@/components/lists/AddListItemForm";
 import EmptyState from "@/components/states/EmptyState";
 import ErrorState from "@/components/states/ErrorState";
 import { removeItemFromListAction } from "@/lib/actions/lists";
-import { MEDIA_TYPE_LABELS } from "@/lib/media";
+import {
+  MEDIA_TYPE_BADGE_CLASSES,
+  MEDIA_TYPE_CARD_CLASSES,
+  MEDIA_TYPE_LABELS,
+  MEDIA_TYPE_TITLE_CLASSES,
+} from "@/lib/media";
 import { toErrorState } from "@/lib/server/error-state";
 import { getList } from "@/lib/server/journal";
 import { getLibrary } from "@/lib/server/library";
@@ -86,18 +91,24 @@ export default async function ListDetailPage({ params }: ListDetailPageProps) {
             return (
               <article
                 key={item.id}
-                className="liquid-glass liquid-glass-card flex flex-col justify-between rounded-2xl border border-white/10 p-5"
+                className={`liquid-glass liquid-glass-card ${media ? MEDIA_TYPE_CARD_CLASSES[media.media_type] : ""} flex flex-col justify-between rounded-2xl border border-white/10 p-5`}
               >
                 <div className="space-y-2">
                   {media && (
-                    <span className="inline-block rounded-full border border-horizon-cyan/40 bg-horizon-cyan/20 px-2.5 py-0.5 text-[10px] font-semibold text-cyan-300">
+                    <span
+                      className={`inline-block rounded-full border px-2.5 py-0.5 text-[10px] font-semibold ${MEDIA_TYPE_BADGE_CLASSES[media.media_type]}`}
+                    >
                       {MEDIA_TYPE_LABELS[media.media_type]}
                     </span>
                   )}
                   <h3 className="font-bold tracking-tight text-white">
                     <Link
                       href={`/title/${item.media_item_id}`}
-                      className="transition-colors hover:text-cyan-300"
+                      className={
+                        media
+                          ? MEDIA_TYPE_TITLE_CLASSES[media.media_type]
+                          : "transition-colors hover:text-cyan-300"
+                      }
                     >
                       {media?.title ?? `Title #${item.media_item_id}`}
                     </Link>

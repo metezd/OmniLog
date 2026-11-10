@@ -173,7 +173,9 @@ export default function MediaStream({
         {filteredMedia.map((item) => (
           <div
             key={item.id}
-            className="liquid-glass liquid-glass-card rounded-2xl overflow-hidden flex flex-col group"
+            className={`liquid-glass liquid-glass-card ${
+              item.type === "game" ? "liquid-glass-card-game" : "liquid-glass-card-series"
+            } rounded-2xl overflow-hidden flex flex-col group`}
           >
             {/* Image Banner */}
             <div className="relative h-44 w-full overflow-hidden">
@@ -184,10 +186,10 @@ export default function MediaStream({
               />
               <div className="absolute inset-0 bg-gradient-to-t from-[#090C15] via-[#090C15]/40 to-transparent" />
               <span
-                className={`absolute top-3 left-3 px-2 py-0.5 rounded-full text-[10px] font-semibold backdrop-blur-md ${
+                className={`absolute top-3 left-3 px-2 py-0.5 rounded-full text-[10px] font-semibold backdrop-blur-md border ${
                   item.type === "game"
-                    ? "bg-horizon-cyan/20 border border-horizon-cyan/40 text-cyan-300"
-                    : "bg-horizon-amber/20 border border-horizon-amber/40 text-amber-300"
+                    ? "border-sky-300/45 bg-sky-400/20 text-sky-200 shadow-[0_0_12px_rgba(56,189,248,0.35)]"
+                    : "border-emerald-400/45 bg-emerald-500/20 text-emerald-300 shadow-[0_0_12px_rgba(52,211,153,0.35)]"
                 }`}
               >
                 {item.type === "game" ? "Game" : "TV Series"}
@@ -203,7 +205,13 @@ export default function MediaStream({
             <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
               <div>
                 <div className="flex items-center justify-between">
-                  <h3 className="font-bold text-white tracking-tight">
+                  <h3
+                    className={`font-bold text-white tracking-tight transition-all ${
+                      item.type === "game"
+                        ? "group-hover:text-sky-200 group-hover:drop-shadow-[0_0_10px_rgba(56,189,248,0.55)]"
+                        : "group-hover:text-emerald-300 group-hover:drop-shadow-[0_0_10px_rgba(52,211,153,0.55)]"
+                    }`}
+                  >
                     {item.title}
                   </h3>
                   <span className="text-xs font-semibold text-amber-400">
