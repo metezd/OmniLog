@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { MEDIA_TYPE_LABELS, releaseYear, STATUS_LABELS } from "@/lib/media";
 import type { LibraryEntry } from "@/types/api";
 
@@ -5,7 +7,7 @@ interface LibraryEntryCardProps {
   entry: LibraryEntry;
 }
 
-/** One title of the library: poster, title, status and rating. Read only for now. */
+/** One title of the library: poster, title, status and rating. Links to the title detail page. */
 export default function LibraryEntryCard({ entry }: LibraryEntryCardProps) {
   const { media_item: item } = entry;
   const year = releaseYear(item.release_date);
@@ -30,7 +32,11 @@ export default function LibraryEntryCard({ entry }: LibraryEntryCardProps) {
       </div>
 
       <div className="space-y-1 p-5">
-        <h3 className="font-bold tracking-tight text-white">{item.title}</h3>
+        <h3 className="font-bold tracking-tight text-white">
+          <Link href={`/title/${item.id}`} className="transition-colors hover:text-cyan-300">
+            {item.title}
+          </Link>
+        </h3>
         <div className="flex items-center justify-between text-xs text-slate-400">
           <span>{year ?? "Release date unknown"}</span>
           <span className="font-semibold text-amber-400">

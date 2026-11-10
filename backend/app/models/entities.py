@@ -1,6 +1,7 @@
 import enum
 from datetime import datetime
 from sqlalchemy import (
+    Boolean,
     Column,
     Integer,
     String,
@@ -184,6 +185,13 @@ class UserLibrary(Base):
         back_populates="library_entry",
         primaryjoin="UserLibrary.id == ChapterProgress.library_entry_id",
         foreign_keys="ChapterProgress.library_entry_id",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    review = relationship(
+        "Review",
+        back_populates="library_entry",
+        uselist=False,
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
@@ -569,4 +577,36 @@ class UserDecision(Base):
         UniqueConstraint(
             "library_entry_id", "decision_point_id", name="uq_user_decision_entry_point"
         ),
+    )
+
+
+# 14. REVIEW TABLE: one review per library entry with spoiler detection (US-14)
+class Review(Base):
+    __tablename__ = "reviews"
+
+    id = Column(Integer, primary_key=True)
+    library_entry_id = Column(
+        Integer, ForeignKey("user_libraries.id", ondelete="CASCADE"), nullable=False
+    )
+    text = Column(Text, nullable=False)
+    contains_spoiler = Column(Boolean, nullable=True)
+    spoiler_score = Column(Float, nullable=True)
+    spoiler_model_version = Column(String(50), nullable=True)
+    created_at = Column(
+        DateTime,
+        nullable=False,
+        default=datetime.utcnow,
+        server_default=text("timezone('utc', now())"),
+    )
+    updated_at = Column(
+        DateTime,
+        nullable=True,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+    )
+
+    library_entry = relationship("UserLibrary", back_populates="review")
+
+    __table_args__ = (
+        UniqueConstraint("library_entry_id", name="uq_review_library_entry"),
     )
