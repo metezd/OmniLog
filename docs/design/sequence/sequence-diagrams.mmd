@@ -1,0 +1,24 @@
+sequenceDiagram
+  actor User
+  participant Next as Next.js (/title/[id])
+  participant API as FastAPI (/library/{id}/chapters/{cid})
+  participant NLP as ReviewService (Spoiler Classifier)
+  participant DB as PostgreSQL 16
+
+  User->>Next: Select Choice "A" / Rate 5★ / Log 45m
+  Next->>API: PUT /decision (or /rating, POST /playtime)
+  API->>DB: Verify ownership of UserLibrary & Chapter existence
+  API->>DB: Upsert ChapterProgress & UserDecision / PlaytimeLog
+  API->>DB: Insert ActivityEvent (DECISION_RECORDED / CHAPTER_RATED / PLAYTIME_LOGGED)
+  DB-->>API: Commit Transaction
+  API-->>Next: 200 OK / 201 Created
+  Next-->>User: Revalidate /title/[id], /diary, /stats
+
+  User->>Next: Submit review text
+  Next->>API: POST /library/{entry_id}/review { text }
+  API->>NLP: detect_spoilers(text)
+  NLP-->>API: (contains_spoiler, spoiler_score, model_version)
+  API->>DB: Upsert Review + Insert ActivityEvent(REVIEW_POSTED)
+  DB-->>API: Persisted Review entity
+  API-->>Next: 201 Created ReviewResponse
+  Next-->>User: Render Spoiler Warning Badge & Blur Toggle
