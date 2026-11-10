@@ -3,10 +3,10 @@
 @theme {
   --color-horizon-abyss: #07090e;
   --color-horizon-plum: #0f141d;
-  --color-horizon-cyan: #2563eb;       /* Doğal ve profesyonel bir royal mavi */
-  --color-horizon-amber: #38bdf8;      /* Açık buz mavisi vurgu */
-  --color-horizon-crimson: #1d4ed8;    /* Derin koyu mavi tonu */
-  --color-horizon-burgundy: #0f172a;   /* Slate lacivert */
+  --color-horizon-cyan: #2563eb;       
+  --color-horizon-amber: #38bdf8;      
+  --color-horizon-crimson: #1d4ed8;    
+  --color-horizon-burgundy: #0f172a;   
 }
 
 :root {
@@ -17,14 +17,14 @@
 }
 
 body {
-  background-color: #07090e; /* Çok koyu füme/siyah zemin */
+  background-color: #07090e; 
   color: #f1f5f9;
   min-height: 100vh;
   overflow-x: hidden;
   font-family: system-ui, -apple-system, sans-serif;
 }
 
-/* Doğal Mavi-Gri Arka Plan Parıltısı (Horizon Flare) */
+
 .horizon-flare {
   background: linear-gradient(
     90deg,
@@ -51,7 +51,7 @@ body {
     inset 0 -1px 1px 0 rgba(0, 0, 0, 0.4);
 }
 
-/* Kart Üzerine Gelince Şık Mavi-Gri Işıma */
+
 .liquid-glass-card {
   transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -65,7 +65,7 @@ body {
     inset 0 1px 2px 0 rgba(255, 255, 255, 0.25);
 }
 
-/* İlerleme Çubuğu - Mavi Tonları */
+
 .horizon-bar-fill {
   background: linear-gradient(90deg, #2563eb 0%, #38bdf8 100%);
 }
