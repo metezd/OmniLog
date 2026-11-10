@@ -166,7 +166,8 @@ export default async function TitleDetailPage({ params }: TitlePageProps) {
           {detail.seasons.map((season) => (
             <div key={season.id} className="space-y-4">
               <h3 className="text-sm font-semibold text-cyan-300">
-                Season {season.number}: {season.title}
+                Season {season.season_number}
+                {season.title ? `: ${season.title}` : ""}
               </h3>
               <div className="space-y-4">
                 {season.episodes.map((ep) => (

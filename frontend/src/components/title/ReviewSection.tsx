@@ -37,11 +37,11 @@ export default function ReviewSection({
           <div className="flex items-center gap-2">
             {currentReview.contains_spoiler ? (
               <span className="rounded-full border border-rose-500/40 bg-rose-500/20 px-3 py-1 text-xs font-semibold text-rose-200">
-                ⚠ Spoiler Flagged ({Math.round(currentReview.spoiler_score * 100)}% confidence)
+                ⚠ Spoiler Flagged ({Math.round((currentReview.spoiler_score ?? 0) * 100)}% confidence)
               </span>
             ) : (
               <span className="rounded-full border border-emerald-500/40 bg-emerald-500/20 px-3 py-1 text-xs font-semibold text-emerald-200">
-                ✓ Spoiler-Free ({currentReview.spoiler_model_version})
+                ✓ Spoiler-Free ({currentReview.spoiler_model_version ?? "NLP"})
               </span>
             )}
           </div>

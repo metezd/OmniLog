@@ -67,20 +67,6 @@ function formatTimestamp(iso: string): string {
   });
 }
 
-function summarizePayload(payload: Record<string, unknown> | null): string {
-  if (!payload) return "";
-  const parts: string[] = [];
-  if (typeof payload.status === "string") parts.push(`Status: ${payload.status}`);
-  if (typeof payload.rating === "number") parts.push(`Rating: ★ ${payload.rating}`);
-  if (typeof payload.minutes === "number") parts.push(`+${payload.minutes} min`);
-  if (typeof payload.choice === "string") parts.push(`Choice: "${payload.choice}"`);
-  if (typeof payload.contains_spoiler === "boolean") {
-    parts.push(payload.contains_spoiler ? "Spoiler Flagged" : "Spoiler-Free");
-  }
-  if (typeof payload.name === "string") parts.push(`"${payload.name}"`);
-  return parts.join(" • ");
-}
-
 export default async function DiaryPage() {
   let entries: DiaryEntry[] = [];
   const titleByMediaId = new Map<number, string>();
@@ -123,7 +109,7 @@ export default async function DiaryPage() {
               entry.media_item_id !== null
                 ? titleByMediaId.get(entry.media_item_id) ?? `Title #${entry.media_item_id}`
                 : null;
-            const summary = summarizePayload(entry.payload);
+            const summary = entry.details;
 
             return (
               <div

@@ -28,7 +28,7 @@ export default async function StatsPage() {
 
   const totalHours = (stats.playtime.total_minutes / 60).toFixed(1);
   const maxRatingCount = Math.max(1, ...Object.values(stats.rating_distribution));
-  const maxBucketMinutes = Math.max(1, ...stats.playtime.histogram.map((b) => b.minutes));
+  const maxBucketCount = Math.max(1, ...stats.playtime.histogram.map((b) => b.count));
   const maxGenreCount = Math.max(1, ...stats.genre_breakdown.map((g) => g.count));
 
   return (
@@ -178,12 +178,12 @@ export default async function StatsPage() {
               ) : (
                 <div className="space-y-3">
                   {stats.playtime.histogram.map((bucket) => {
-                    const pct = Math.round((bucket.minutes / maxBucketMinutes) * 100);
+                    const pct = Math.round((bucket.count / maxBucketCount) * 100);
                     return (
-                      <div key={bucket.media_item_id} className="space-y-1">
+                      <div key={bucket.bucket} className="space-y-1">
                         <div className="flex justify-between text-xs">
-                          <span className="font-medium text-slate-200">{bucket.title}</span>
-                          <span className="text-purple-300">{bucket.minutes} min</span>
+                          <span className="font-medium text-slate-200">{bucket.bucket}</span>
+                          <span className="text-purple-300">{bucket.count} chapters</span>
                         </div>
                         <div className="h-2.5 w-full overflow-hidden rounded-full bg-white/5">
                           <div

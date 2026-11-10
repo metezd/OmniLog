@@ -34,7 +34,7 @@ export default function ChapterProgressCard({
   );
 
   const currentRating = progress?.rating ?? null;
-  const totalMinutes = progress?.total_minutes ?? 0;
+  const totalMinutes = progress?.playtime_minutes ?? 0;
   const decisionsByPoint = new Map(
     (progress?.decisions ?? []).map((d) => [d.decision_point_id, d.choice]),
   );
@@ -46,9 +46,18 @@ export default function ChapterProgressCard({
           <span className="text-[11px] font-semibold uppercase tracking-wider text-cyan-300">
             Episode / Chapter {chapter.number}
           </span>
-          <h3 className="text-sm font-bold text-white">{chapter.title}</h3>
-          {chapter.description && (
-            <p className="mt-1 text-xs text-slate-400">{chapter.description}</p>
+          <h3 className="text-sm font-bold text-white">
+            {chapter.title ?? `Chapter ${chapter.number}`}
+          </h3>
+          {(chapter.release_date || chapter.runtime_minutes) && (
+            <p className="mt-1 text-xs text-slate-400">
+              {[
+                chapter.release_date,
+                chapter.runtime_minutes ? `${chapter.runtime_minutes} min` : null,
+              ]
+                .filter(Boolean)
+                .join(" • ")}
+            </p>
           )}
         </div>
         {entryId && (
@@ -173,7 +182,7 @@ export default function ChapterProgressCard({
                         }`}
                       >
                         <span className="font-bold text-purple-300">{option.label}:</span>{" "}
-                        {option.description}
+                        {option.text ?? option.label}
                       </button>
                     ))}
                   </form>
@@ -184,7 +193,7 @@ export default function ChapterProgressCard({
                         key={option.id}
                         className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-slate-400"
                       >
-                        {option.label}: {option.description}
+                        {option.label}: {option.text ?? option.label}
                       </span>
                     ))}
                   </div>
