@@ -4,7 +4,12 @@ import Link from "next/link";
 import AddToLibraryButton from "@/components/search/AddToLibraryButton";
 import EmptyState from "@/components/states/EmptyState";
 import ErrorState from "@/components/states/ErrorState";
-import { MEDIA_TYPE_LABELS } from "@/lib/media";
+import {
+  MEDIA_TYPE_BADGE_CLASSES,
+  MEDIA_TYPE_CARD_CLASSES,
+  MEDIA_TYPE_LABELS,
+  MEDIA_TYPE_TITLE_CLASSES,
+} from "@/lib/media";
 import { toErrorState } from "@/lib/server/error-state";
 import { getLibrary } from "@/lib/server/library";
 import { getRecommendations } from "@/lib/server/recommendations";
@@ -89,11 +94,13 @@ export default async function RecommendationsPage({ searchParams }: Recommendati
             return (
               <article
                 key={item.id}
-                className="liquid-glass liquid-glass-card flex flex-col justify-between gap-4 rounded-2xl border border-white/10 p-5"
+                className={`liquid-glass liquid-glass-card ${MEDIA_TYPE_CARD_CLASSES[item.media_type]} flex flex-col justify-between gap-4 rounded-2xl border border-white/10 p-5`}
               >
                 <div className="space-y-3">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="rounded-full border border-horizon-cyan/40 bg-horizon-cyan/20 px-2.5 py-0.5 text-[10px] font-semibold text-cyan-300">
+                    <span
+                      className={`rounded-full border px-2.5 py-0.5 text-[10px] font-semibold ${MEDIA_TYPE_BADGE_CLASSES[item.media_type]}`}
+                    >
                       {MEDIA_TYPE_LABELS[item.media_type]}
                     </span>
                     {item.release_date && (
@@ -106,7 +113,7 @@ export default async function RecommendationsPage({ searchParams }: Recommendati
                   <h3 className="text-base font-bold tracking-tight text-white">
                     <Link
                       href={`/title/${item.id}`}
-                      className="transition-colors hover:text-cyan-300"
+                      className={MEDIA_TYPE_TITLE_CLASSES[item.media_type]}
                     >
                       {item.title}
                     </Link>

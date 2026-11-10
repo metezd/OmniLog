@@ -6,7 +6,12 @@ import ErrorState from "@/components/states/ErrorState";
 import ChapterProgressCard from "@/components/title/ChapterProgressCard";
 import LibraryControls from "@/components/title/LibraryControls";
 import ReviewSection from "@/components/title/ReviewSection";
-import { MEDIA_TYPE_LABELS, releaseYear } from "@/lib/media";
+import {
+  MEDIA_TYPE_BADGE_CLASSES,
+  MEDIA_TYPE_LABELS,
+  MEDIA_TYPE_TITLE_CLASSES,
+  releaseYear,
+} from "@/lib/media";
 import { getTitleDetails } from "@/lib/server/catalog";
 import { getChapterProgress } from "@/lib/server/chapters";
 import { toErrorState } from "@/lib/server/error-state";
@@ -111,13 +116,17 @@ export default async function TitleDetailPage({ params }: TitlePageProps) {
         <div className="flex flex-col justify-between space-y-4">
           <div className="space-y-3">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full border border-horizon-cyan/40 bg-horizon-cyan/20 px-3 py-0.5 text-xs font-semibold text-cyan-300">
+              <span
+                className={`rounded-full border px-3 py-0.5 text-xs font-semibold ${MEDIA_TYPE_BADGE_CLASSES[detail.media_type]}`}
+              >
                 {MEDIA_TYPE_LABELS[detail.media_type]}
               </span>
               {year && <span className="text-xs text-slate-400">{year}</span>}
             </div>
 
-            <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
+            <h1
+              className={`text-2xl font-bold tracking-tight text-white sm:text-3xl ${MEDIA_TYPE_TITLE_CLASSES[detail.media_type]}`}
+            >
               {detail.title}
             </h1>
 
