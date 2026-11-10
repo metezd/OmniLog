@@ -3,7 +3,7 @@ import os
 from dotenv import load_dotenv
 
 # Load variables from a local .env file (ignored by git) if it exists
-load_dotenv()
+load_dotenv(override=os.getenv("SECRET_KEY") != "test-secret-key-at-least-32-characters-long")
 
 
 def _require(name: str) -> str:
