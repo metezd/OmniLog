@@ -1,0 +1,41 @@
+# OmniLog — System Architecture Diagram
+
+This document defines the multi-tier containerized software architecture of **OmniLog**, illustrating the client presentation layer, Next.js 16 BFF/Server Actions tier, FastAPI domain/AI backend tier, PostgreSQL + Redis persistence/caching layer, and external catalog adapters (TMDB & IGDB).
+
+```mermaid
+flowchart LR
+  subgraph Client["Browser Client"]
+    UI["Next.js App Router UI\n(React 19 Server + Client Components)"]
+  end
+
+  subgraph FrontendContainer["Frontend Container (Node 24 / Next.js 16)"]
+    MW["Edge Auth Proxy\n(proxy.ts)"]
+    SC["Server Data Layer & Server Actions\n(HttpOnly Cookie Session)"]
+  end
+
+  subgraph BackendContainer["Backend Container (Python 3.12 / FastAPI)"]
+    API["FastAPI Routers\n(/auth, /catalog, /library, /lists, /diary, /recommendations, /stats, /friends)"]
+    SVC["Domain Services\n(Catalog, Library, Chapters, Diary, Reviews, Stats, Social)"]
+    AI["AI / NLP Engine\n(Cross-Media Similarity & Spoiler Classifier)"]
+  end
+
+  subgraph DataLayer["Data & Cache Layer"]
+    PG[("PostgreSQL 16 + pgvector\n(Normalized Relational Schema)")]
+    RD[("Redis 7\n(Catalog Search & Detail Cache)")]
+  end
+
+  subgraph ExternalAPIs["External Catalog Providers"]
+    TMDB["TMDB / TVMaze / iTunes API\n(TV Series & Movies)"]
+    IGDB["IGDB / Steam Store API\n(Video Games)"]
+  end
+
+  UI --> MW --> SC
+  SC -->|"Bearer JWT over HTTP"| API
+  API --> SVC
+  API --> AI
+  SVC --> PG
+  AI --> PG
+  SVC --> RD
+  SVC --> TMDB
+  SVC --> IGDB
+```
