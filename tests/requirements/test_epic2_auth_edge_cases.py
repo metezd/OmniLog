@@ -1,4 +1,4 @@
-"""Edge cases for registration and login (US-02, US-03).
+﻿"""Edge cases for registration and login (US-02, US-03).
 
 These guard against inputs the user stories do not list explicitly but that
 used to cause server errors (500): NUL bytes, the bcrypt 72-byte limit, and
@@ -104,7 +104,7 @@ def test_us03_login_ignores_ascii_case(client):
 
 # ---------------------------------------------------------------- usernames: Turkish case rules
 def test_us02_dotted_capital_i_is_the_same_as_i(client):
-    """US-02: "İ" and "i" are the same letter, so the second registration returns 409."""
+    """US-02: "Ä°" and "i" are the same letter, so the second registration returns 409."""
     suffix = _suffix()
     first = client.post("/auth/register", json=dict(new_credentials(), username=f"\u0130stan_{suffix}"))
     assert first.status_code == 201
@@ -116,7 +116,7 @@ def test_us02_dotted_capital_i_is_the_same_as_i(client):
 
 
 def test_us02_capital_i_is_the_same_as_dotless_i(client):
-    """US-02: "I" and "ı" are the same letter, so the second registration returns 409."""
+    """US-02: "I" and "Ä±" are the same letter, so the second registration returns 409."""
     suffix = _suffix()
     first = client.post("/auth/register", json=dict(new_credentials(), username=f"Irmak_{suffix}"))
     assert first.status_code == 201
@@ -127,7 +127,7 @@ def test_us02_capital_i_is_the_same_as_dotless_i(client):
 
 
 def test_us02_dotted_and_dotless_i_are_different_letters(client):
-    """US-02: "i" and "ı" are different letters in Turkish, so both accounts are created."""
+    """US-02: "i" and "Ä±" are different letters in Turkish, so both accounts are created."""
     suffix = _suffix()
     dotted = client.post("/auth/register", json=dict(new_credentials(), username=f"ilk_{suffix}"))
     dotless = client.post("/auth/register", json=dict(new_credentials(), username=f"\u0131lk_{suffix}"))
@@ -138,7 +138,7 @@ def test_us02_dotted_and_dotless_i_are_different_letters(client):
 
 
 def test_us03_login_uses_turkish_case_rules(client):
-    """US-03: logging in with "ilkay" finds the account registered as "İlkay"."""
+    """US-03: logging in with "ilkay" finds the account registered as "Ä°lkay"."""
     suffix = _suffix()
     creds = dict(new_credentials(), username=f"\u0130lkay_{suffix}")
     assert client.post("/auth/register", json=creds).status_code == 201
@@ -152,7 +152,7 @@ def test_us03_login_uses_turkish_case_rules(client):
 
 
 def test_us02_composed_and_decomposed_text_is_the_same_username(client):
-    """US-02: "ş" written as one character or as "s" plus a combining cedilla is the same username."""
+    """US-02: "ÅŸ" written as one character or as "s" plus a combining cedilla is the same username."""
     suffix = _suffix()
     composed = client.post("/auth/register", json=dict(new_credentials(), username=f"\u015fen_{suffix}"))
     assert composed.status_code == 201
@@ -216,7 +216,7 @@ def test_invalid_token_returns_401(client):
 
 def test_token_signed_with_other_key_returns_401(client):
     """NFR-02: a token signed with a different key is rejected."""
-    from jose import jwt
+    import jwt
 
     forged = jwt.encode({"sub": "1"}, "x" * 32 + "-attacker-key", algorithm="HS256")
     response = client.get("/library", headers={"Authorization": f"Bearer {forged}"})
@@ -226,7 +226,7 @@ def test_token_signed_with_other_key_returns_401(client):
 
 def test_token_with_non_numeric_subject_returns_401(client):
     """NFR-02: a correctly signed token whose subject is not a user id returns 401."""
-    from jose import jwt
+    import jwt
     from app.core.config import SECRET_KEY
 
     token = jwt.encode({"sub": "admin"}, SECRET_KEY, algorithm="HS256")
@@ -262,3 +262,4 @@ def test_us02_duplicate_registration_race_is_caught_by_the_constraint(client):
             auth_service.register_user(HiddenPreCheck(db, hide_call=1), UserCreate(**credentials))
     finally:
         db.close()
+
