@@ -1,4 +1,4 @@
-name: CI
+﻿name: CI
 
 on:
   push:
@@ -72,6 +72,9 @@ jobs:
             -r backend/requirements.txt \
             -r tests/requirements-test.txt
 
+      - name: Audit backend dependencies
+        run: pip-audit -r backend/requirements.txt
+
       - name: Check database migrations
         working-directory: backend
         run: |
@@ -80,7 +83,7 @@ jobs:
 
       - name: Run backend tests
         run: |
-          python -m pytest tests/requirements -v \
+          python -m pytest tests -v \
             --cov=backend/app \
             --cov-report=term-missing \
             --cov-report=xml \
