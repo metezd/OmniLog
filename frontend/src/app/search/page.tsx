@@ -61,6 +61,18 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
       if (typeof digest === "string" && digest.startsWith("NEXT_REDIRECT")) throw error;
       failure = toErrorState(error);
     }
+  } else {
+    try {
+      const [found, library] = await Promise.all([
+        searchCatalog("the", type).catch(() => []),
+        getLibrary().catch(() => []),
+      ]);
+      results = found;
+      libraryIds = new Set(library.map((entry) => entry.media_item_id));
+    } catch (error) {
+      const digest = (error as { digest?: unknown } | null)?.digest;
+      if (typeof digest === "string" && digest.startsWith("NEXT_REDIRECT")) throw error;
+    }
   }
 
   return (
@@ -116,7 +128,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 
       {failure ? (
         <ErrorState kind={failure.kind} message={failure.message} />
-      ) : !query ? (
+      ) : !query && results.length === 0 ? (
         <EmptyState
           title="Search the catalog"
           message="Type a title above to find series, games or movies."
@@ -129,7 +141,15 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
       ) : (
         <>
           <p className="text-xs text-slate-400">
-            {results.length} result{results.length === 1 ? "" : "s"} for &ldquo;{query}&rdquo;
+            {query ? (
+              <>
+                {results.length} result{results.length === 1 ? "" : "s"} for &ldquo;{query}&rdquo;
+              </>
+            ) : (
+              <>
+                Showing {results.length} popular {typeLabel.toLowerCase()}
+              </>
+            )}
           </p>
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
             {results.map((item) => (

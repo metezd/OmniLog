@@ -64,6 +64,31 @@ body {
     inset 0 1px 2px 0 rgba(255, 255, 255, 0.35);
 }
 
+/* Media-type specific card hover & glow colors */
+.liquid-glass-card-game:hover {
+  border-color: rgba(56, 189, 248, 0.55);
+  box-shadow:
+    0 20px 40px -15px rgba(0, 0, 0, 0.8),
+    0 0 28px -4px rgba(56, 189, 248, 0.38),
+    inset 0 1px 2px 0 rgba(186, 230, 253, 0.35);
+}
+
+.liquid-glass-card-series:hover {
+  border-color: rgba(52, 211, 153, 0.55);
+  box-shadow:
+    0 20px 40px -15px rgba(0, 0, 0, 0.8),
+    0 0 28px -4px rgba(52, 211, 153, 0.38),
+    inset 0 1px 2px 0 rgba(167, 243, 208, 0.35);
+}
+
+.liquid-glass-card-movie:hover {
+  border-color: rgba(168, 85, 247, 0.55);
+  box-shadow:
+    0 20px 40px -15px rgba(0, 0, 0, 0.8),
+    0 0 28px -4px rgba(168, 85, 247, 0.38),
+    inset 0 1px 2px 0 rgba(233, 213, 255, 0.35);
+}
+
 /* Horizon Progress Bar Gradient */
 .horizon-bar-fill {
   background: linear-gradient(90deg, #009bb9 0%, #e26d22 100%);

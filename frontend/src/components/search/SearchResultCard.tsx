@@ -1,5 +1,13 @@
+import Link from "next/link";
+
 import AddToLibraryButton from "@/components/search/AddToLibraryButton";
-import { MEDIA_TYPE_LABELS, releaseYear } from "@/lib/media";
+import {
+  MEDIA_TYPE_BADGE_CLASSES,
+  MEDIA_TYPE_CARD_CLASSES,
+  MEDIA_TYPE_LABELS,
+  MEDIA_TYPE_TITLE_CLASSES,
+  releaseYear,
+} from "@/lib/media";
 import type { MediaItem } from "@/types/api";
 
 interface SearchResultCardProps {
@@ -12,7 +20,9 @@ export default function SearchResultCard({ item, inLibrary }: SearchResultCardPr
   const year = releaseYear(item.release_date);
 
   return (
-    <article className="liquid-glass liquid-glass-card flex flex-col overflow-hidden rounded-2xl">
+    <article
+      className={`liquid-glass liquid-glass-card ${MEDIA_TYPE_CARD_CLASSES[item.media_type]} flex flex-col overflow-hidden rounded-2xl`}
+    >
       <div className="relative h-56 w-full overflow-hidden bg-black/40">
         {item.poster_url ? (
           // A plain img, because the poster hosts of IGDB and TMDB are not configured for next/image
@@ -22,14 +32,20 @@ export default function SearchResultCard({ item, inLibrary }: SearchResultCardPr
           <div className="flex h-full items-center justify-center text-xs text-slate-500">No poster</div>
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-[#090C15] via-transparent to-transparent" />
-        <span className="absolute left-3 top-3 rounded-full border border-horizon-cyan/40 bg-horizon-cyan/20 px-2 py-0.5 text-[10px] font-semibold text-cyan-300 backdrop-blur-md">
+        <span
+          className={`absolute left-3 top-3 rounded-full border px-2 py-0.5 text-[10px] font-semibold backdrop-blur-md ${MEDIA_TYPE_BADGE_CLASSES[item.media_type]}`}
+        >
           {MEDIA_TYPE_LABELS[item.media_type]}
         </span>
       </div>
 
       <div className="flex flex-1 flex-col gap-3 p-5">
         <div className="space-y-1">
-          <h3 className="font-bold tracking-tight text-white">{item.title}</h3>
+          <h3 className="font-bold tracking-tight text-white">
+            <Link href={`/title/${item.id}`} className={MEDIA_TYPE_TITLE_CLASSES[item.media_type]}>
+              {item.title}
+            </Link>
+          </h3>
           <p className="text-xs text-slate-400">{year ?? "Release date unknown"}</p>
         </div>
 

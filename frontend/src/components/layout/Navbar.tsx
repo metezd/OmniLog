@@ -26,7 +26,7 @@ export default function Navbar({ user }: NavbarProps) {
         </Link>
 
         {/* Middle: live search bar */}
-        <div className="flex-1 max-w-md mx-2 sm:mx-6">
+        <form action="/search" className="flex-1 max-w-md mx-2 sm:mx-6">
           <div className="relative flex items-center">
             <svg
               className="absolute left-3.5 w-4 h-4 text-slate-400 pointer-events-none"
@@ -44,6 +44,7 @@ export default function Navbar({ user }: NavbarProps) {
 
             <input
               type="text"
+              name="q"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search games, series or titles..."
@@ -60,7 +61,7 @@ export default function Navbar({ user }: NavbarProps) {
               </button>
             )}
           </div>
-        </div>
+        </form>
 
         {/* Right: navigation links */}
         <nav className="flex items-center gap-4 shrink-0">

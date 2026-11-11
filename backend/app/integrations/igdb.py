@@ -101,6 +101,8 @@ def _quoted(text: str) -> str:
 
 
 def search_games(query: str, limit: int) -> list[ExternalTitle]:
+    if config.IGDB_CLIENT_ID == "public":
+        return _search_steam_games(query, limit)
     games = _query(
         f"search {_quoted(query)}; "
         "fields name,first_release_date,cover.image_id; "
@@ -114,6 +116,8 @@ def fetch_game_details(external_id: int) -> Optional[ExternalDetails]:
 
     Raises ExternalServiceError when IGDB fails.
     """
+    if config.IGDB_CLIENT_ID == "public":
+        return _fetch_steam_game_details(external_id)
     games = _query(f"fields summary,genres.name; where id = {int(external_id)}; limit 1;")
     game = games[0] if games else None
     if not isinstance(game, dict):
@@ -121,6 +125,73 @@ def fetch_game_details(external_id: int) -> Optional[ExternalDetails]:
     return ExternalDetails(
         description=clean_text(game.get("summary")),
         genres=genres_from_entries(game.get("genres")),
+    )
+
+
+def _search_steam_games(query: str, limit: int) -> list[ExternalTitle]:
+    """Keyless public game search via Steam Store API when IGDB_CLIENT_ID='public'."""
+    response = request_with_retry(
+        _session,
+        "GET",
+        "https://store.steampowered.com/api/storesearch/",
+        source=SOURCE,
+        params={"term": query, "l": "english", "cc": "US"},
+    )
+    if response.status_code != 200:
+        raise ExternalServiceError(f"Steam Store answered {response.status_code}")
+    body = json_body(response, SOURCE)
+    items = body.get("items") if isinstance(body, dict) else None
+    if not isinstance(items, list):
+        return []
+    results: list[ExternalTitle] = []
+    for item in items[: int(limit)]:
+        if not isinstance(item, dict):
+            continue
+        ext_id = clean_external_id(item.get("id"))
+        title = clean_title(item.get("name"))
+        if ext_id is None or title is None:
+            continue
+        poster = clean_url(
+            f"https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/{ext_id}/library_600x900.jpg"
+        ) or clean_url(item.get("tiny_image"))
+        results.append(
+            ExternalTitle(
+                external_id=ext_id,
+                title=title,
+                poster_url=poster,
+                release_date=None,
+            )
+        )
+    return dedupe(results)
+
+
+def _fetch_steam_game_details(external_id: int) -> Optional[ExternalDetails]:
+    """Keyless public game details via Steam Store API when IGDB_CLIENT_ID='public'."""
+    response = request_with_retry(
+        _session,
+        "GET",
+        "https://store.steampowered.com/api/appdetails",
+        source=SOURCE,
+        params={"appids": int(external_id), "l": "english"},
+    )
+    if response.status_code != 200:
+        return None
+    body = json_body(response, SOURCE)
+    entry = body.get(str(int(external_id))) if isinstance(body, dict) else None
+    if not isinstance(entry, dict) or not entry.get("success"):
+        return None
+    data = entry.get("data")
+    if not isinstance(data, dict):
+        return None
+    raw_genres = data.get("genres")
+    genre_entries = (
+        [{"name": g.get("description")} for g in raw_genres if isinstance(g, dict)]
+        if isinstance(raw_genres, list)
+        else []
+    )
+    return ExternalDetails(
+        description=clean_text(data.get("short_description")),
+        genres=genres_from_entries(genre_entries),
     )
 
 

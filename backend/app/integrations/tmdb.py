@@ -3,6 +3,7 @@
 See https://developer.themoviedb.org
 """
 import logging
+import re
 from typing import Any, Optional
 
 import requests
@@ -75,6 +76,9 @@ def _get(path: str, params: dict[str, Any]) -> requests.Response:
 
 # ---------------------------------------------------------------- search (US-08)
 def search(media_type: MediaType, query: str, limit: int) -> list[ExternalTitle]:
+    if config.TMDB_API_KEY == "public":
+        return _search_public(media_type, query, limit)
+
     path, title_field, date_field = _ENDPOINTS[media_type]
 
     response = _get(path, {"query": query, "include_adult": "false", "page": 1})
@@ -115,6 +119,9 @@ def fetch_movie_details(external_id: int) -> Optional[ExternalDetails]:
 
     Raises ExternalServiceError when TMDB fails.
     """
+    if config.TMDB_API_KEY == "public":
+        return _fetch_public_movie_details(external_id)
+
     # int(): the id is only ever a number in the URL
     response = _get(f"/movie/{int(external_id)}", {})
     if response.status_code == 404:
@@ -152,6 +159,9 @@ def fetch_series(external_id: int) -> Optional[ExternalSeries]:
     come from further calls that ask for up to 20 seasons each (`append_to_response`), so a series
     with many seasons needs a few calls, not one call for each season.
     """
+    if config.TMDB_API_KEY == "public":
+        return _fetch_public_series(external_id)
+
     show = _get_series(external_id)
     if show is None:
         return None
@@ -247,4 +257,181 @@ def _normalize_episode(raw: Any) -> Optional[ExternalEpisode]:
         release_date=clean_date(raw.get("air_date")),
         runtime_minutes=clean_number(raw.get("runtime")),
         external_id=clean_external_id(raw.get("id")),
+    )
+
+
+# ---------------------------------------------------------------- public keyless fallback
+def _strip_html(text: Any) -> Optional[str]:
+    if not isinstance(text, str):
+        return None
+    return clean_text(re.sub(r"<[^>]+>", " ", text))
+
+
+def _search_public(media_type: MediaType, query: str, limit: int) -> list[ExternalTitle]:
+    """Keyless public search via TVMaze (SERIES) and iTunes (MOVIE) when TMDB_API_KEY='public'."""
+    if media_type == MediaType.SERIES:
+        response = request_with_retry(
+            _session,
+            "GET",
+            "https://api.tvmaze.com/search/shows",
+            source=SOURCE,
+            params={"q": query},
+        )
+        if response.status_code != 200:
+            raise ExternalServiceError(f"TVMaze answered {response.status_code}")
+        body = json_body(response, SOURCE)
+        if not isinstance(body, list):
+            return []
+        results: list[ExternalTitle] = []
+        for entry in body[: int(limit)]:
+            show = entry.get("show") if isinstance(entry, dict) else None
+            if not isinstance(show, dict):
+                continue
+            ext_id = clean_external_id(show.get("id"))
+            title = clean_title(show.get("name"))
+            if ext_id is None or title is None:
+                continue
+            img = show.get("image") if isinstance(show.get("image"), dict) else {}
+            poster = clean_url(img.get("original") or img.get("medium"))
+            results.append(
+                ExternalTitle(
+                    external_id=ext_id,
+                    title=title,
+                    poster_url=poster,
+                    release_date=clean_date(show.get("premiered")),
+                )
+            )
+        return dedupe(results)
+
+    response = request_with_retry(
+        _session,
+        "GET",
+        "https://itunes.apple.com/search",
+        source=SOURCE,
+        params={"term": query, "entity": "movie", "limit": int(limit)},
+    )
+    if response.status_code != 200:
+        raise ExternalServiceError(f"iTunes answered {response.status_code}")
+    body = json_body(response, SOURCE)
+    items = body.get("results") if isinstance(body, dict) else None
+    if not isinstance(items, list):
+        return []
+    results = []
+    for item in items[: int(limit)]:
+        if not isinstance(item, dict):
+            continue
+        ext_id = clean_external_id(item.get("trackId"))
+        title = clean_title(item.get("trackName"))
+        if ext_id is None or title is None:
+            continue
+        art = item.get("artworkUrl100")
+        poster = (
+            clean_url(art.replace("100x100bb", "600x600bb"))
+            if isinstance(art, str)
+            else None
+        )
+        raw_date = item.get("releaseDate")
+        rel_date = clean_date(raw_date[:10]) if isinstance(raw_date, str) else None
+        results.append(
+            ExternalTitle(
+                external_id=ext_id,
+                title=title,
+                poster_url=poster,
+                release_date=rel_date,
+            )
+        )
+    return dedupe(results)
+
+
+def _fetch_public_movie_details(external_id: int) -> Optional[ExternalDetails]:
+    response = request_with_retry(
+        _session,
+        "GET",
+        "https://itunes.apple.com/lookup",
+        source=SOURCE,
+        params={"id": int(external_id), "entity": "movie"},
+    )
+    if response.status_code != 200:
+        return None
+    body = json_body(response, SOURCE)
+    items = body.get("results") if isinstance(body, dict) else None
+    if not isinstance(items, list) or not items:
+        return None
+    movie = items[0] if isinstance(items[0], dict) else None
+    if not movie:
+        return None
+    genre = movie.get("primaryGenreName")
+    genre_entries = [{"name": genre}] if isinstance(genre, str) else []
+    return ExternalDetails(
+        description=clean_text(movie.get("longDescription") or movie.get("shortDescription")),
+        genres=genres_from_entries(genre_entries),
+    )
+
+
+def _fetch_public_series(external_id: int) -> Optional[ExternalSeries]:
+    response = request_with_retry(
+        _session,
+        "GET",
+        f"https://api.tvmaze.com/shows/{int(external_id)}",
+        source=SOURCE,
+        params=[("embed[]", "seasons"), ("embed[]", "episodes")],
+    )
+    if response.status_code == 404:
+        return None
+    if response.status_code != 200:
+        raise ExternalServiceError(f"TVMaze answered {response.status_code}")
+    show = json_body(response, SOURCE)
+    if not isinstance(show, dict):
+        return None
+    raw_genres = show.get("genres")
+    genre_entries = (
+        [{"name": g} for g in raw_genres if isinstance(g, str)]
+        if isinstance(raw_genres, list)
+        else []
+    )
+    details = ExternalDetails(
+        description=_strip_html(show.get("summary")),
+        genres=genres_from_entries(genre_entries),
+    )
+    embedded = show.get("_embedded") if isinstance(show.get("_embedded"), dict) else {}
+    raw_seasons = embedded.get("seasons") if isinstance(embedded.get("seasons"), list) else []
+    raw_episodes = embedded.get("episodes") if isinstance(embedded.get("episodes"), list) else []
+
+    eps_by_season: dict[int, dict[int, ExternalEpisode]] = {}
+    for ep in raw_episodes:
+        if not isinstance(ep, dict):
+            continue
+        s_num = clean_number(ep.get("season"))
+        e_num = clean_number(ep.get("number"))
+        if s_num is None or e_num is None:
+            continue
+        eps_by_season.setdefault(s_num, {})
+        if e_num not in eps_by_season[s_num] and len(eps_by_season[s_num]) < MAX_EPISODES_PER_SEASON:
+            eps_by_season[s_num][e_num] = ExternalEpisode(
+                number=e_num,
+                title=clean_title(ep.get("name")),
+                release_date=clean_date(ep.get("airdate")),
+                runtime_minutes=clean_number(ep.get("runtime")),
+                external_id=clean_external_id(ep.get("id")),
+            )
+
+    seasons_by_num: dict[int, ExternalSeason] = {}
+    for s in raw_seasons:
+        if not isinstance(s, dict):
+            continue
+        s_num = clean_number(s.get("number"))
+        if s_num is None or s_num in seasons_by_num:
+            continue
+        ep_map = eps_by_season.get(s_num, {})
+        seasons_by_num[s_num] = ExternalSeason(
+            season_number=s_num,
+            title=clean_title(s.get("name")) or f"Season {s_num}",
+            air_date=clean_date(s.get("premiereDate")),
+            episodes=[ep_map[n] for n in sorted(ep_map)],
+        )
+
+    sorted_nums = sorted(seasons_by_num)[:MAX_SEASONS]
+    return ExternalSeries(
+        seasons=[seasons_by_num[n] for n in sorted_nums],
+        details=details,
     )
