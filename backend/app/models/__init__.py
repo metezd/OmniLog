@@ -10,6 +10,7 @@ from app.models.entities import (
     Season,
     Chapter,
     ChapterKind,
+    Review,
 )
 
 __all__ = [
@@ -24,4 +25,5 @@ __all__ = [
     "Season",
     "Chapter",
     "ChapterKind",
+    "Review",
 ]

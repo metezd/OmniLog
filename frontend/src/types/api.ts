@@ -130,3 +130,50 @@ export interface DiaryEntry {
   details: string | null;
   created_at: string;
 }
+
+// ---- Reviews and AI (Epic 5)
+export interface Review {
+  id: number;
+  library_entry_id: number;
+  text: string;
+  contains_spoiler: boolean | null;
+  spoiler_score: number | null;
+  spoiler_model_version: string | null;
+  created_at: string;
+  updated_at: string | null;
+}
+
+export interface RecommendationItem {
+  id: number;
+  title: string;
+  media_type: MediaType;
+  poster_url: string | null;
+  release_date: string | null;
+  description: string | null;
+  external_api_id?: number | null;
+  genres?: string[];
+}
+
+// ---- Statistics (Epic 6)
+export interface GenreCount {
+  genre: string;
+  count: number;
+}
+
+export interface PlaytimeBucket {
+  bucket: string;
+  count: number;
+}
+
+export interface PlaytimeStats {
+  total_minutes: number;
+  histogram: PlaytimeBucket[];
+}
+
+export interface StatsResponse {
+  total_items: number;
+  media_split: Record<string, number>;
+  rating_distribution: Record<string, number>;
+  genre_breakdown: GenreCount[];
+  playtime: PlaytimeStats;
+}

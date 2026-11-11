@@ -8,7 +8,8 @@ from app.api.deps import get_current_user
 from app.core.database import get_db
 from app.models.entities import User
 from app.schemas.library import UserLibraryCreate, UserLibraryResponse, UserLibraryUpdate
-from app.services import library_service
+from app.schemas.review import ReviewCreate, ReviewResponse
+from app.services import library_service, review_service
 from app.services.library_service import (
     LibraryConflictError,
     LibraryEntryNotFoundError,
@@ -67,5 +68,32 @@ def remove_library_entry(
     recorded in the diary."""
     try:
         library_service.remove_entry(db, current_user, entry_id)
+    except LibraryEntryNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+
+
+@router.post("/{entry_id}/review", response_model=ReviewResponse, status_code=status.HTTP_201_CREATED)
+def submit_review(
+    entry_id: int,
+    payload: ReviewCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Submit or replace the user's review for a library entry with spoiler detection (US-14)."""
+    try:
+        return review_service.upsert_review(db, current_user, entry_id, payload)
+    except LibraryEntryNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+
+
+@router.get("/{entry_id}/review", response_model=ReviewResponse | None)
+def get_review(
+    entry_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get the user's review for a library entry, or null when no review has been posted yet."""
+    try:
+        return review_service.get_review(db, current_user, entry_id)
     except LibraryEntryNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
