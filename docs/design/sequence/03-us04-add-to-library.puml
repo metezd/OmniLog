@@ -1,0 +1,49 @@
+@startuml 03-us04-add-to-library
+title US-04 Add a title to my library (with diary event, US-07)
+skinparam shadowing false
+skinparam defaultFontName Helvetica
+skinparam sequenceMessageAlign left
+autonumber
+actor User
+participant "addToLibraryAction\n(src/lib/actions/library.ts)\n+ addToLibrary (src/lib/server/library.ts)" as ACT
+participant "LibraryRouter\nPOST /library\n(app/api/library.py)" as API
+participant "Deps\nget_current_user\n(app/api/deps.py)" as DEP
+participant "LibraryService\n(app/services/library_service.py)" as SVC
+participant "DiaryService\n(app/services/diary_service.py)" as DIA
+database PostgreSQL as DB
+
+User -> ACT : click "Add to library" (mediaItemId, status)
+ACT -> API : POST /library (UserLibraryCreate)\nAuthorization: Bearer token
+API -> DEP : get_current_user()
+DEP -> DEP : decode_access_token()
+alt token missing / invalid / user gone
+  DEP --> API : 401 Not authenticated
+  API --> ACT : 401
+  ACT --> User : redirect("/session-expired")
+else authenticated
+  DEP --> API : User
+  API -> SVC : add_entry(db, current_user, payload)
+  SVC -> DB : db.get(MediaItem, data.media_item_id)
+  alt media item missing
+    SVC --> API : MediaNotFoundError
+    API --> ACT : 404
+  else exists
+    SVC -> DB : INSERT user_libraries (db.flush())
+    alt duplicate (uq_user_media_entry)
+      DB --> SVC : IntegrityError
+      SVC -> DB : ROLLBACK
+      SVC --> API : LibraryConflictError
+      API --> ACT : 409 Conflict
+    else inserted
+      SVC -> DIA : record_event(LIBRARY_ADDED)
+      opt rating sent
+        SVC -> DIA : record_event(RATED)
+      end
+      SVC -> DB : COMMIT (entry + events together)
+      SVC --> API : UserLibrary
+      API --> ACT : 201 UserLibraryResponse
+      ACT --> User : revalidatePath(/search, /library, /recommendations, /title/{id})
+    end
+  end
+end
+@enduml

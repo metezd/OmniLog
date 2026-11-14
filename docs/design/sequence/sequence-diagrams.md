@@ -1,32 +1,56 @@
 # OmniLog — Runtime Sequence Diagrams
 
-This document defines the runtime interaction sequence diagrams for **OmniLog** across catalog search & caching, granular episodic logging & branching decision recording, and AI cross-media recommendation & NLP spoiler moderation.
+This document summarizes the runtime interaction sequence diagrams for **OmniLog**. Full PlantUML models (`.puml`) and rendered `.png`/`.svg` images for 10 user stories (US-02, US-03, US-04, US-08, US-09, US-10, US-11, US-12, US-14, US-15 — 67% of the 15 user stories) are in this folder:
 
-## 1. Catalog Search with Read-Through Redis Cache (`US-08`, `US-09`, `NFR-01`)
+- `01-us02-register.puml` / `.png` / `.svg`
+- `02-us03-login.puml` / `.png` / `.svg`
+- `03-us04-add-to-library.puml` / `.png` / `.svg`
+- `04-us08-catalog-search.puml` / `.png` / `.svg`
+- `05-us09-title-details.puml` / `.png` / `.svg`
+- `06-us10-rate-chapter.puml` / `.png` / `.svg`
+- `07-us11-log-playtime.puml` / `.png` / `.svg`
+- `08-us12-record-decision.puml` / `.png` / `.svg`
+- `09-us15-stats.puml` / `.png` / `.svg`
+- `10-us14-review.puml` / `.png` / `.svg`
+
+## 1. Catalog Search with Read-Through Redis Cache (`US-08`, `NFR-01`, `NFR-04`)
 
 ```mermaid
 sequenceDiagram
   actor User
-  participant Next as Next.js (/search)
-  participant API as FastAPI (/catalog/search)
-  participant Cache as Redis 7
-  participant Ext as External Catalog API (TMDB / IGDB)
-  participant DB as PostgreSQL 16
+  participant Next as Next.js (src/lib/server/catalog.ts)
+  participant API as FastAPI (app/api/catalog.py: GET /catalog/search)
+  participant SVC as CatalogService (app/services/catalog_service.py)
+  participant Cache as Cache (app/core/cache.py: Redis / _local)
+  participant Ext as IgdbClient / TmdbClient (app/integrations/)
+  participant DB as PostgreSQL 16 (media_items)
 
-  User->>Next: Search title (q, type)
-  Next->>API: GET /catalog/search?q=...&type=...
-  API->>Cache: GET omni:search:{type}:{hash}
+  User->>Next: searchCatalog(query, type)
+  Next->>API: GET /catalog/search?q=...&type=... (Bearer token)
+  API->>SVC: search_catalog(db, media_type, q)
+  SVC->>Cache: get_json("omni:search:{type}:{sha256[:32]}")
   alt Cache Hit
-    Cache-->>API: Cached ExternalTitle list
+    Cache-->>SVC: Cached ExternalTitle list
   else Cache Miss
-    Cache-->>API: None
-    API->>Ext: Fetch titles by query
-    Ext-->>API: Normalized ExternalTitle list
-    API->>Cache: SETEX omni:search:{type}:{hash} (TTL 3600s)
+    Cache-->>SVC: None
+    SVC->>Ext: search_games(query, 10) / search(media_type, query, 10)
+    alt ExternalServiceError
+      Ext-->>SVC: ExternalServiceError
+      SVC->>DB: _search_saved(db, media_type, query)
+      alt Saved rows exist
+        DB-->>SVC: Saved MediaItem list
+      else Empty
+        SVC-->>API: CatalogUnavailableError (503 + Retry-After: 30)
+      end
+    else Upstream 200 OK
+      Ext-->>SVC: ExternalTitle list
+      SVC->>Cache: set_json(key, titles, CACHE_TTL_SECONDS=3600)
+    end
   end
-  API->>DB: Upsert MediaItem rows
-  DB-->>API: Persisted MediaItem entities with IDs
-  API-->>Next: 200 OK List[MediaItemResponse]
+  SVC->>DB: _save(db, media_type, titles)
+  DB-->>SVC: MediaItem rows with IDs
+  SVC-->>API: list[MediaItem]
+  API-->>Next: 200 OK list[MediaItemResponse]
   Next-->>User: Render SearchResultCard grid
 ```
 
@@ -35,18 +59,21 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
   actor User
-  participant Next as Next.js (/title/[id])
-  participant API as FastAPI (/library/{id}/chapters/{cid})
+  participant Next as Next.js (src/lib/actions/chapters.ts)
+  participant API as FastAPI (app/api/chapters.py: /library/{entry_id}/chapters/{chapter_id})
+  participant SVC as ChapterService (app/services/chapter_service.py)
+  participant DIA as DiaryService (app/services/diary_service.py)
   participant DB as PostgreSQL 16
 
-  User->>Next: Select Choice "A" / Rate 5★ / Log 45m
-  Next->>API: PUT /decision (or /rating, POST /playtime)
-  API->>DB: Verify ownership of UserLibrary & Chapter existence
-  API->>DB: Upsert ChapterProgress & UserDecision / PlaytimeLog
-  API->>DB: Insert ActivityEvent (DECISION_RECORDED / CHAPTER_RATED / PLAYTIME_LOGGED)
-  DB-->>API: Commit Transaction
+  User->>Next: Rate 1..5 / Log minutes / Choose option label
+  Next->>API: PUT /rating | POST /playtime | PUT /decision
+  API->>SVC: rate_chapter / log_playtime / record_decision
+  SVC->>DB: get_chapter_context(db, user, entry_id, chapter_id)
+  SVC->>DB: Upsert ChapterProgress / PlaytimeLog / UserDecision
+  SVC->>DIA: record_event(CHAPTER_RATED / PLAYTIME_LOGGED / DECISION_RECORDED)
+  SVC->>DB: Commit transaction (state change + DiaryEntry)
   API-->>Next: 200 OK / 201 Created
-  Next-->>User: Revalidate /title/[id], /diary, /stats
+  Next-->>User: revalidatePath(/diary, /stats, /title/{id})
 ```
 
 ## 3. Review Submission with Automated NLP Spoiler Moderation (`US-14`)
@@ -54,17 +81,19 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
   actor User
-  participant Next as Next.js (ReviewSection)
-  participant API as FastAPI (POST /library/{id}/review)
-  participant NLP as ReviewService (Spoiler Classifier)
+  participant Next as Next.js (src/lib/actions/library.ts: submitReviewAction)
+  participant API as FastAPI (app/api/library.py: POST /library/{entry_id}/review)
+  participant SVC as ReviewService (app/services/review_service.py)
+  participant DIA as DiaryService (app/services/diary_service.py)
   participant DB as PostgreSQL 16
 
   User->>Next: Submit review text
   Next->>API: POST /library/{entry_id}/review { text }
-  API->>NLP: detect_spoilers(text)
-  NLP-->>API: (contains_spoiler, spoiler_score, model_version)
-  API->>DB: Upsert Review + Insert ActivityEvent(REVIEW_POSTED)
-  DB-->>API: Persisted Review entity
+  API->>SVC: upsert_review(db, current_user, entry_id, payload)
+  SVC->>SVC: detect_spoilers(payload.text) -> (contains_spoiler, spoiler_score, "omnilog-nlp-spoiler-v1")
+  SVC->>DB: Upsert Review (reviews table)
+  SVC->>DIA: record_event(DiaryAction.REVIEW_POSTED)
+  SVC->>DB: Commit transaction
   API-->>Next: 201 Created ReviewResponse
-  Next-->>User: Render Spoiler Warning Badge & Blur Toggle
+  Next-->>User: Render Spoiler Warning Badge & Blur Toggle (ReviewSection.tsx)
 ```

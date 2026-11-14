@@ -1,0 +1,41 @@
+@startuml 06-us10-rate-chapter
+title US-10 Rate a chapter or episode
+skinparam shadowing false
+skinparam defaultFontName Helvetica
+skinparam sequenceMessageAlign left
+autonumber
+actor User
+participant "ChaptersRouter\nPUT /library/{entry_id}/chapters/{chapter_id}/rating\n(app/api/chapters.py)" as API
+participant "ChapterService\n(app/services/chapter_service.py)" as SVC
+participant "DiaryService\n(app/services/diary_service.py)" as DIA
+database PostgreSQL as DB
+
+User -> API : rating (1..5), Bearer token
+API -> API : get_current_user(), validate ChapterRatingUpdate, _check_ids()
+alt rating < 1 or > 5
+  API --> User : 422
+else valid
+  API -> SVC : rate_chapter(db, current_user, entry_id, chapter_id, payload.rating)
+  SVC -> DB : get_chapter_context(): SELECT UserLibrary WHERE id AND user_id
+  alt not my entry
+    SVC --> API : LibraryEntryNotFoundError
+    API --> User : 404
+  else mine
+    SVC -> DB : SELECT Chapter WHERE id AND media_item_id = entry.media_item_id
+    alt chapter belongs to another title
+      SVC --> API : ChapterNotFoundError
+      API --> User : 404
+    else ok
+      SVC -> DB : _get_or_create_progress() (savepoint, race-safe)
+      alt same rating as before
+        SVC --> API : progress (no event, no commit)
+      else new or changed
+        SVC -> DIA : record_event(CHAPTER_RATED)
+        SVC -> DB : COMMIT
+        SVC --> API : progress
+      end
+      API --> User : 200 ChapterRatingResponse
+    end
+  end
+end
+@enduml
