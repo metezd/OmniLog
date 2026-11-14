@@ -1,4 +1,4 @@
-"""The login token lasts 90 minutes by default (US-03). The frontend reads the end time from the
+﻿"""The login token lasts 90 minutes by default (US-03). The frontend reads the end time from the
 token (the exp claim) and gives its session cookie the same lifetime, so the two always agree."""
 import os
 import subprocess
@@ -6,7 +6,7 @@ import sys
 import time
 from pathlib import Path
 
-from jose import jwt
+import jwt
 
 from app.core import config
 from helpers import new_credentials
@@ -35,7 +35,7 @@ def test_the_token_expires_after_the_configured_lifetime(client):
     client.post("/auth/register", json=credentials)
 
     response = client.post("/auth/login", json={"username": credentials["username"], "password": credentials["password"]})
-    claims = jwt.get_unverified_claims(response.json()["access_token"])
+    claims = jwt.decode(response.json()["access_token"], options={"verify_signature": False})
 
     remaining_minutes = (claims["exp"] - time.time()) / 60
     assert config.ACCESS_TOKEN_EXPIRE_MINUTES - 1 < remaining_minutes <= config.ACCESS_TOKEN_EXPIRE_MINUTES
@@ -45,7 +45,7 @@ def test_the_token_has_the_two_claims_that_the_frontend_reads():
     """The frontend needs exp (cookie lifetime). The user id is in sub."""
     from app.core.security import create_access_token
 
-    claims = jwt.get_unverified_claims(create_access_token(7))
+    claims = jwt.decode(create_access_token(7), options={"verify_signature": False})
 
     assert set(claims) == {"sub", "exp"}
     assert claims["sub"] == "7"

@@ -1,12 +1,12 @@
-"""Password hashing and JWT access tokens.
+﻿"""Password hashing and JWT access tokens.
 
 Passwords are hashed with bcrypt through passlib. Tokens are signed with
-SECRET_KEY (HS256) using python-jose and carry the user id in the `sub` claim.
+SECRET_KEY (HS256) using PyJWT and carry the user id in the `sub` claim.
 """
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from jose import JWTError, jwt
+import jwt
 from passlib.context import CryptContext
 
 from app.core.config import ACCESS_TOKEN_EXPIRE_MINUTES, SECRET_KEY
@@ -45,8 +45,7 @@ def create_access_token(user_id: int) -> str:
 def decode_access_token(token: str) -> Optional[int]:
     """Return the user id in a valid token, or None if it is invalid or expired."""
     try:
-        # jose also checks the `exp` claim during decode
         payload = jwt.decode(token, SECRET_KEY, algorithms=[JWT_ALGORITHM])
         return int(payload["sub"])
-    except (JWTError, KeyError, ValueError):
+    except (jwt.PyJWTError, KeyError, ValueError):
         return None
