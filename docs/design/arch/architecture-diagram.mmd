@@ -1,35 +1,44 @@
 flowchart LR
   subgraph Client["Browser Client"]
-    UI["Next.js App Router UI\n(React 19 Server + Client Components)"]
+    UI["Next.js App Router UI\n(src/app, src/components)"]
+  end
+
+  subgraph ProxyContainer["Reverse Proxy (caddy:2-alpine)"]
+    CADDY["Caddy (docker/Caddyfile)\nPorts 80 / 443"]
   end
 
   subgraph FrontendContainer["Frontend Container (Node 24 / Next.js 16)"]
-    MW["Edge Auth Proxy\n(proxy.ts)"]
-    SC["Server Data Layer & Server Actions\n(HttpOnly Cookie Session)"]
+    MW["Route Guard (src/proxy.ts)"]
+    ACT["Server Actions (src/lib/actions)\nauth.ts, library.ts, chapters.ts, lists.ts"]
+    SRV["Server Data Layer (src/lib/server)\nauthed.ts, backend.ts, session.ts,\ncatalog.ts, library.ts, journal.ts, chapters.ts, reviews.ts, recommendations.ts, stats.ts, user.ts"]
   end
 
-  subgraph BackendContainer["Backend Container (Python 3.12 / FastAPI)"]
-    API["FastAPI Routers\n(/auth, /catalog, /library, /lists, /diary, /recommendations, /stats, /friends)"]
-    SVC["Domain Services\n(Catalog, Library, Chapters, Diary, Reviews, Stats, Social)"]
-    AI["AI / NLP Engine\n(Cross-Media Similarity & Spoiler Classifier)"]
+  subgraph BackendContainer["Backend Container (Python 3.11 / FastAPI)"]
+    API["FastAPI Routers (backend/app/api)\nauth, media, catalog, library, chapters, journal, recommendations, stats, deps"]
+    SVC["Services Layer (backend/app/services)\nauth_service, media_service, catalog_service, library_service,\nchapter_service, journal_service, diary_service, review_service, stats_service"]
+    INT["Integration Layer (backend/app/integrations)\nigdb, tmdb, common, genres"]
+    CORE["Core Layer (backend/app/core)\nconfig, security, cache, database, errors, usernames"]
   end
 
   subgraph DataLayer["Data & Cache Layer"]
-    PG[("PostgreSQL 16 + pgvector\n(Normalized Relational Schema)")]
-    RD[("Redis 7\n(Catalog Search & Detail Cache)")]
+    PG[("PostgreSQL 16 (pgvector/pgvector:pg16)\nmodels/entities.py & migrations 0001..0011")]
+    RD[("Redis 7 (redis:7-alpine)\n+ in-process fallback")]
   end
 
   subgraph ExternalAPIs["External Catalog Providers"]
-    TMDB["TMDB / TVMaze / iTunes API\n(TV Series & Movies)"]
-    IGDB["IGDB / Steam Store API\n(Video Games)"]
+    TMDB["TMDB API + TVMaze / iTunes Fallback"]
+    IGDB["IGDB API + Steam Store Fallback"]
   end
 
-  UI --> MW --> SC
-  SC -->|"Bearer JWT over HTTP"| API
+  UI --> CADDY --> MW
+  MW --> ACT --> SRV
+  MW --> SRV
+  SRV -->|"Bearer JWT (backendFetch)"| API
   API --> SVC
-  API --> AI
+  API --> CORE
+  SVC --> INT
+  SVC --> CORE
   SVC --> PG
-  AI --> PG
-  SVC --> RD
-  SVC --> TMDB
-  SVC --> IGDB
+  CORE --> RD
+  INT --> TMDB
+  INT --> IGDB

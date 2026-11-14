@@ -1,0 +1,55 @@
+@startuml 05-us09-title-details
+title US-09 View title details with seasons and chapters
+skinparam shadowing false
+skinparam defaultFontName Helvetica
+skinparam sequenceMessageAlign left
+autonumber
+actor User
+participant "CatalogRouter\nGET /catalog/{media_id}\n(app/api/catalog.py)" as API
+participant "CatalogService\n(app/services/catalog_service.py)" as SVC
+participant "Cache\n(app/core/cache.py)" as CACHE
+participant "TmdbClient / IgdbClient\n(app/integrations/tmdb.py, igdb.py)" as EXT
+database PostgreSQL as DB
+
+User -> API : GET /catalog/{media_id} (Bearer token)
+API -> API : get_current_user()
+API -> SVC : get_title_details(db, media_id)
+SVC -> DB : db.get(MediaItem, media_id)
+alt unknown media_id
+  SVC --> API : TitleNotFoundError
+  API --> User : 404 Not Found
+else found with external_api_id
+  alt media_type == SERIES
+    SVC -> CACHE : get_json(omni:catalog:tmdb_tv:{external_api_id})
+    alt miss
+      SVC -> EXT : fetch_series(external_api_id)
+      alt outside API fails
+        EXT --> SVC : ExternalServiceError
+        alt item.last_synced is not None
+          note right: older saved copy is used
+        else never loaded
+          SVC --> API : CatalogUnavailableError
+          API --> User : 503 + Retry-After: 30
+        end
+      else ok
+        SVC -> CACHE : set_json(key, outside, DETAILS_CACHE_TTL_SECONDS=86400)
+      end
+    end
+    opt data fresh and not yet synced
+      SVC -> DB : _save_seasons() + _save_details() (last_synced = now)
+    end
+  else GAME or MOVIE
+    SVC -> CACHE : get_json(omni:catalog:{igdb|tmdb_movie}:{external_api_id})
+    opt miss
+      SVC -> EXT : fetch_game_details() or fetch_movie_details() (failure logged and ignored)
+      SVC -> CACHE : set_json(key, outside, DETAILS_CACHE_TTL_SECONDS=86400)
+    end
+    opt data fresh and not yet synced
+      SVC -> DB : _save_details() (description, genres, last_synced)
+    end
+  end
+end
+SVC -> DB : _load_details(db, media_id)\nselectinload(seasons -> episodes -> decision_points -> options,\nchapters -> decision_points -> options)
+SVC --> API : MediaItem
+API --> User : 200 MediaDetailResponse
+@enduml

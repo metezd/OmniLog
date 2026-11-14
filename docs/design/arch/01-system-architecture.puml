@@ -1,0 +1,36 @@
+@startuml 01-system-architecture
+title OmniLog - System Architecture (Deployment View)
+skinparam shadowing false
+skinparam defaultFontName Helvetica
+skinparam componentStyle rectangle
+skinparam RectangleRoundCorner 10
+left to right direction
+
+actor "Visitor / User" as U
+rectangle "Browser" as B
+
+node "Docker host (docker-compose.prod.yml, network: internal)" {
+  component "proxy (Caddy 2)\nreverse proxy & automatic HTTPS\nports 80, 443 (docker/Caddyfile)" as P
+  component "frontend (Next.js 16 / React 19)\nNode 24, TypeScript, Tailwind CSS, Recharts\nproxy.ts + Server Components + Server Actions" as FE
+  component "backend (FastAPI / Python 3.11)\nREST + PyJWT, SQLAlchemy 2, Pydantic v2\npasslib/bcrypt, review_service (NLP spoiler)" as BE
+  component "migrate (one-shot)\nalembic upgrade head" as MIG
+  database "db: PostgreSQL 16\n(pgvector/pgvector:pg16)" as PG
+  database "redis: Redis 7\ncatalog search & details cache" as R
+}
+
+cloud "External catalog providers" {
+  component "IGDB API (Twitch OAuth)\n+ Steam Store API fallback\n(app/integrations/igdb.py)" as IGDB
+  component "TMDB API\n+ TVMaze / iTunes fallback\n(app/integrations/tmdb.py)" as TMDB
+}
+
+U --> B
+B --> P : HTTPS 443
+P --> FE : APP_DOMAIN -> frontend:3000
+P --> BE : API_DOMAIN -> backend:8000
+FE --> BE : REST/JSON over HTTP (backendFetch)\nAuthorization: Bearer <token>\n(token in omnilog_session httpOnly cookie)
+BE --> PG : SQLAlchemy 2 / psycopg2
+BE --> R : redis-py (0.5 s timeout)\nfallback: in-process _local cache
+BE --> IGDB : HTTPS, request_with_retry
+BE --> TMDB : HTTPS, request_with_retry
+MIG --> PG : Alembic migrations (0001..0011)
+@enduml

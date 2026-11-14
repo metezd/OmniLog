@@ -1,0 +1,152 @@
+@startuml 02-service-layer
+title OmniLog - Application Classes: Routers, Services and Core (backend/app)
+skinparam shadowing false
+skinparam defaultFontName Helvetica
+skinparam classAttributeIconSize 0
+skinparam nodesep 18
+skinparam ranksep 40
+hide empty attributes
+set namespaceSeparator none
+
+package "app.core & app.api.deps" {
+  class Deps <<app/api/deps.py>> {
+    +bearer_scheme : HTTPBearer
+    +get_current_user(credentials, db) : User
+  }
+  class Security <<app/core/security.py>> {
+    +hash_password(password) : str
+    +verify_password(plain_password, hashed_password) : bool
+    +create_access_token(user_id) : str
+    +decode_access_token(token) : int | None
+  }
+  class Usernames <<app/core/usernames.py>> {
+    +canonical_username(value) : str
+  }
+}
+
+package "app.api (routers)" {
+  class AuthRouter <<app/api/auth.py (/auth)>> {
+    +register(data, db) : POST /auth/register
+    +login(data, db) : POST /auth/login
+    +read_current_user(current_user) : GET /auth/me
+  }
+  class MediaRouter <<app/api/media.py (/media)>> {
+    +create_media(payload, db, current_user) : POST /media
+    +get_media(media_id, db) : GET /media/{media_id}
+  }
+  class LibraryRouter <<app/api/library.py (/library)>> {
+    +add_to_library(payload, db, current_user) : POST /library
+    +get_library(db, current_user) : GET /library
+    +update_library_entry(entry_id, payload, db, current_user) : PATCH /library/{entry_id}
+    +remove_library_entry(entry_id, db, current_user) : DELETE /library/{entry_id}
+    +submit_review(entry_id, payload, db, current_user) : POST /library/{entry_id}/review
+    +get_review(entry_id, db, current_user) : GET /library/{entry_id}/review
+  }
+  class ChaptersRouter <<app/api/chapters.py (/library/{entry_id}/chapters)>> {
+    +rate_chapter(entry_id, chapter_id, payload, db, current_user) : PUT /{chapter_id}/rating
+    +log_playtime(entry_id, chapter_id, payload, db, current_user) : POST /{chapter_id}/playtime
+    +record_decision(entry_id, chapter_id, payload, db, current_user) : PUT /{chapter_id}/decision
+    +get_chapter_progress(entry_id, chapter_id, db, current_user) : GET /{chapter_id}
+  }
+  class JournalRouter <<app/api/journal.py (/lists, /diary)>> {
+    +create_custom_list(payload, db, current_user) : POST /lists
+    +get_custom_lists(db, current_user) : GET /lists
+    +get_custom_list(list_id, db, current_user) : GET /lists/{list_id}
+    +add_item_to_list(list_id, payload, response, db, current_user) : POST /lists/{list_id}/items
+    +remove_item_from_list(list_id, media_item_id, db, current_user) : DELETE /lists/{list_id}/items/{media_item_id}
+    +delete_custom_list(list_id, db, current_user) : DELETE /lists/{list_id}
+    +get_activity_diary(db, current_user) : GET /diary
+  }
+  class RecommendationsRouter <<app/api/recommendations.py (/recommendations)>> {
+    +get_recommendations(target, db, current_user) : GET /recommendations
+  }
+  class StatsRouter <<app/api/stats.py (/stats)>> {
+    +get_stats(db, current_user) : GET /stats
+  }
+}
+
+package "app.services" {
+  class AuthService <<auth_service.py>> {
+    +register_user(db, data) : User
+    +authenticate_user(db, identifier, password) : User | None
+  }
+  class MediaService <<media_service.py>> {
+    +create_media_item(db, data) : MediaItem
+  }
+  class LibraryService <<library_service.py>> {
+    +add_entry(db, user, data) : UserLibrary
+    +list_entries(db, user) : list[UserLibrary]
+    +update_entry(db, user, entry_id, data) : UserLibrary
+    +remove_entry(db, user, entry_id) : None
+  }
+  class ReviewService <<review_service.py>> {
+    +detect_spoilers(text) : tuple[bool, float, str]
+    +upsert_review(db, current_user, entry_id, payload) : Review
+    +get_review(db, current_user, entry_id) : Review | None
+  }
+  class ChapterService <<chapter_service.py>> {
+    +get_chapter_context(db, user, entry_id, chapter_id) : tuple[UserLibrary, Chapter]
+    +rate_chapter(db, user, entry_id, chapter_id, rating) : ChapterProgress
+    +log_playtime(db, user, entry_id, chapter_id, minutes) : tuple[PlaytimeLog, ChapterProgress]
+    +record_decision(db, user, entry_id, chapter_id, choice, decision_point_id)
+    +get_chapter_progress(db, user, entry_id, chapter_id) : ChapterProgressView
+  }
+  class JournalService <<journal_service.py>> {
+    +create_list(db, user, name) : CustomList
+    +list_lists(db, user) : list[CustomList]
+    +get_list(db, user, list_id) : CustomList
+    +add_item(db, user, list_id, media_item_id) : tuple[CustomListItem, bool]
+    +remove_item(db, user, list_id, media_item_id) : None
+    +delete_list(db, user, list_id) : None
+    +diary_for_user(db, user) : list[DiaryEntry]
+  }
+  class StatsService <<stats_service.py>> {
+    +get_stats(db, user) : StatsResponse
+  }
+  class DiaryService <<diary_service.py>> {
+    +record_event(db, user_id, action, media_item_id, details) : None
+  }
+  class DiaryAction <<diary_service.py>> {
+    LIBRARY_ADDED
+    STATUS_CHANGED
+    RATED
+    CHAPTER_RATED
+    PLAYTIME_LOGGED
+    DECISION_RECORDED
+    LIST_CREATED
+    LIST_ITEM_ADDED
+    LIBRARY_REMOVED
+    LIST_ITEM_REMOVED
+    LIST_DELETED
+    REVIEW_POSTED
+  }
+}
+
+AuthRouter ..> AuthService
+MediaRouter ..> MediaService
+LibraryRouter ..> LibraryService
+LibraryRouter ..> ReviewService
+ChaptersRouter ..> ChapterService
+JournalRouter ..> JournalService
+StatsRouter ..> StatsService
+
+AuthRouter ..> Security : create_access_token
+AuthService ..> Security : hash / verify
+Deps ..> Security : decode_access_token
+
+AuthRouter ..> Deps : /auth/me
+MediaRouter ..> Deps : POST /media
+LibraryRouter ..> Deps
+ChaptersRouter ..> Deps
+JournalRouter ..> Deps
+RecommendationsRouter ..> Deps
+StatsRouter ..> Deps
+
+LibraryService ..> DiaryService
+ReviewService ..> DiaryService
+ChapterService ..> DiaryService
+JournalService ..> DiaryService
+ChapterService ..> LibraryService : LibraryEntryNotFoundError
+ReviewService ..> LibraryService : LibraryEntryNotFoundError
+DiaryService ..> DiaryAction
+@enduml

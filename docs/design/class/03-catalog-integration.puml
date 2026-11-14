@@ -1,0 +1,135 @@
+@startuml 03-catalog-integration
+title OmniLog - Catalog Service and Outside API Integration
+skinparam shadowing false
+skinparam defaultFontName Helvetica
+skinparam classAttributeIconSize 0
+skinparam nodesep 18
+skinparam ranksep 40
+hide empty attributes
+set namespaceSeparator none
+
+class CatalogRouter <<app/api/catalog.py (/catalog)>> {
+  +search_catalog(q, media_type, db, current_user) : GET /catalog/search
+  +get_title_details(media_id, db, current_user) : GET /catalog/{media_id}
+}
+
+class CatalogService <<app/services/catalog_service.py>> {
+  +normalize_query(text) : str
+  +search_catalog(db, media_type, text) : list[MediaItem]
+  +get_title_details(db, media_id) : MediaItem
+  -_load_details(db, media_id) : MediaItem
+  -_refresh_series(db, item) : None
+  -_refresh_details(db, item) : None
+  -_save(db, media_type, titles) : list[MediaItem]
+  -_search_saved(db, media_type, query) : list[MediaItem]
+  -_save_seasons(db, media_id, seasons) : None
+  -_save_details(db, media_id, details) : None
+}
+
+class Cache <<app/core/cache.py>> {
+  +get_json(key) : Any | None
+  +set_json(key, value, ttl_seconds) : None
+  +clear_prefix(prefix) : None
+  +reset_connection() : None
+  -_redis() : Redis | None
+  -_local : dict[str, tuple[float, str]]
+}
+
+class IgdbClient <<app/integrations/igdb.py>> {
+  +is_configured() : bool
+  +reset_access_token() : None
+  +search_games(query, limit) : list[ExternalTitle]
+  +fetch_game_details(external_id) : ExternalDetails | None
+  -_search_steam_games(query, limit) : list[ExternalTitle]
+  -_fetch_steam_game_details(external_id) : ExternalDetails | None
+}
+
+class TmdbClient <<app/integrations/tmdb.py>> {
+  +is_configured() : bool
+  +search(media_type, query, limit) : list[ExternalTitle]
+  +fetch_movie_details(external_id) : ExternalDetails | None
+  +fetch_series_seasons(external_id) : list[ExternalSeason] | None
+  +fetch_series(external_id) : ExternalSeries | None
+  -_search_public(media_type, query, limit) : list[ExternalTitle]
+  -_fetch_public_movie_details(external_id) : ExternalDetails | None
+  -_fetch_public_series(external_id) : ExternalSeries | None
+}
+
+class Genres <<app/integrations/genres.py>> {
+  +normalize_genres(names) : tuple[str, ...]
+  +genres_from_entries(entries) : tuple[str, ...]
+}
+
+class HttpCommon <<app/integrations/common.py>> {
+  +request_with_retry(session, method, url, source, **kwargs) : Response
+  +json_body(response, source) : Any
+  +clean_external_id(value) : int | None
+  +clean_number(value) : int | None
+  +clean_title(value) : str | None
+  +clean_text(value, max_length) : str | None
+  +clean_url(value) : str | None
+  +clean_date(value) : str | None
+  +date_from_unix(value) : str | None
+  +is_safe_image_id(value) : bool
+  +is_safe_image_path(value) : bool
+  +dedupe(titles) : list[ExternalTitle]
+}
+
+class ExternalTitle <<dataclass (common.py)>> {
+  +external_id : int
+  +title : str
+  +poster_url : str | None
+  +release_date : str | None
+}
+class ExternalDetails <<dataclass (common.py)>> {
+  +description : str | None
+  +genres : tuple[str, ...]
+}
+class ExternalEpisode <<dataclass (common.py)>> {
+  +number : int
+  +title : str | None
+  +release_date : str | None
+  +runtime_minutes : int | None
+  +external_id : int | None
+}
+class ExternalSeason <<dataclass (common.py)>> {
+  +season_number : int
+  +title : str | None
+  +air_date : str | None
+  +episodes : list[ExternalEpisode]
+}
+class ExternalSeries <<dataclass (common.py)>> {
+  +seasons : list[ExternalSeason]
+  +details : ExternalDetails
+}
+
+class ExternalServiceError <<exception (common.py)>>
+class CatalogUnavailableError <<exception (catalog_service.py)>>
+class TitleNotFoundError <<exception (catalog_service.py)>>
+class InvalidQueryError <<exception (catalog_service.py)>>
+
+CatalogRouter ..> CatalogService
+CatalogService ..> Cache : omni:search / omni:catalog
+CatalogService ..> IgdbClient : GAME
+CatalogService ..> TmdbClient : SERIES, MOVIE
+CatalogService ..> Genres
+IgdbClient ..> HttpCommon
+IgdbClient ..> Genres
+TmdbClient ..> HttpCommon
+TmdbClient ..> Genres
+IgdbClient ..> ExternalTitle
+IgdbClient ..> ExternalDetails
+TmdbClient ..> ExternalTitle
+TmdbClient ..> ExternalDetails
+TmdbClient ..> ExternalSeries
+ExternalSeries "1" *-- "0..*" ExternalSeason
+ExternalSeason "1" *-- "0..*" ExternalEpisode
+ExternalSeries "1" *-- "1" ExternalDetails
+HttpCommon ..> ExternalServiceError : raises
+CatalogService ..> CatalogUnavailableError : raises
+CatalogService ..> TitleNotFoundError : raises
+CatalogService ..> InvalidQueryError : raises
+CatalogRouter ..> CatalogUnavailableError : HTTP 503
+CatalogRouter ..> TitleNotFoundError : HTTP 404
+CatalogRouter ..> InvalidQueryError : HTTP 422
+@enduml
