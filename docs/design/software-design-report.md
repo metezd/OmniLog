@@ -104,7 +104,13 @@ The Next.js 16 frontend (`frontend/src/`) separates client interactivity from se
 
 ![Domain model](class/01-domain-model.png)
 
-The persistence layer in [entities.py](../../backend/app/models/entities.py) defines **3 enums**, **1 association table (`media_item_genres`)**, and **14 SQLAlchemy entity classes** managed across 11 Alembic revisions (`0001_create_users_media_items_and_library.py` through `0011_reviews.py`):
+The persistence layer in [entities.py](../../backend/app/models/entities.py) defines **3 enums** (`MediaType`, `WatchStatus`, `ChapterKind`), **1 association table (`media_item_genres`)**, and **14 SQLAlchemy entity classes** managed across 11 Alembic revisions (`0001_create_users_media_items_and_library.py` through `0011_reviews.py`). Key design decisions in the domain model:
+
+- **One `MediaItem` for games, series, and movies:** The `media_type` enum distinguishes them, and `(media_type, external_api_id)` is unique (`uq_media_type_external_id`) because IGDB and TMDB use separate ID spaces.
+- **`Chapter` serves both episodes and game chapters:** A TV episode belongs to a `Season` (`kind='episode' AND season_id IS NOT NULL`), whereas a game chapter has no season (`kind='chapter' AND season_id IS NULL`), enforced by `chk_chapter_kind_season` and partial unique index `uq_chapter_game_number`.
+- **Personal data separated from shared catalog data:** `UserLibrary`, `Review`, `ChapterProgress`, `PlaytimeLog`, `UserDecision`, `CustomList`, `CustomListItem`, and `DiaryEntry` are user-owned, while `MediaItem`, `Genre`, `Season`, `Chapter`, `DecisionPoint`, and `DecisionOption` are shared catalog tables.
+- **Database-enforced same-title guarantee (`BR-11`):** `ChapterProgress`, `DecisionPoint`, and `UserDecision` carry `media_item_id` and use composite foreign keys (`fk_progress_entry_title`, `fk_progress_chapter_title`, `fk_decision_entry_title`, `fk_decision_point_title`, `fk_decision_option_point`), so PostgreSQL itself rejects any rating or decision that pairs a library entry and a chapter from different titles.
+- **Append-only diary:** `DiaryEntry` rows are never updated or deleted; removals record new events (`LIBRARY_REMOVED`, `LIST_ITEM_REMOVED`, `LIST_DELETED`).
 
 | Class | Table Name | Columns (Exact Names & Types in `entities.py`) | Key Constraints |
 |---|---|---|---|
@@ -177,41 +183,61 @@ Ten of the fifteen user stories are modeled with sequence diagrams (**67% covera
 
 ![US-02](sequence/01-us02-register.png)
 
+`registerAction` (`frontend/src/lib/actions/auth.ts`) calls `registerUser` (`frontend/src/lib/server/user.ts`) -> `POST /auth/register` (`backend/app/api/auth.py`) -> `auth_service.register_user` (`backend/app/services/auth_service.py`). After Pydantic validates `UserCreate` (`422` on invalid email, `@` in username, or password > 72 UTF-8 bytes) and `register_user` verifies uniqueness (`409` on duplicate username/email or `IntegrityError`), the password is hashed with `hash_password` (`passlib[bcrypt]`), the `User` row is committed, and `registerAction` automatically calls `logIn` to create the `omnilog_session` cookie and redirect to `/library`.
+
 ### 4.2 US-03 Log in
 
 ![US-03](sequence/02-us03-login.png)
+
+`loginAction` (`frontend/src/lib/actions/auth.ts`) posts `{ username, password }` to `POST /auth/login` (`backend/app/api/auth.py`). `auth_service.authenticate_user` canonicalizes usernames without `@`, queries `User` by username or case-insensitive email, always executes `verify_password` (using `DUMMY_HASH` when no user row exists to prevent timing enumeration), and signs an `HS256` JWT via `create_access_token` (`PyJWT`, 90-minute expiry), which `createSession` (`frontend/src/lib/server/session.ts`) stores in the `httpOnly` cookie `omnilog_session`.
 
 ### 4.3 US-04 Add a title to the library
 
 ![US-04](sequence/03-us04-add-to-library.png)
 
+`addToLibraryAction` (`frontend/src/lib/actions/library.ts`) sends `POST /library` through `authedFetch` (`frontend/src/lib/server/authed.ts`). After `get_current_user` (`backend/app/api/deps.py`) verifies the Bearer token (`401`), `library_service.add_entry` (`backend/app/services/library_service.py`) verifies the `MediaItem` exists (`404`), checks for an existing `(user_id, media_item_id)` pair (`409`), inserts `UserLibrary`, and records `DiaryAction.LIBRARY_ADDED` (plus `DiaryAction.RATED` if an initial rating is given) via `diary_service.record_event` in the same database commit.
+
 ### 4.4 US-08 Search the catalog
 
 ![US-08](sequence/04-us08-catalog-search.png)
+
+`searchCatalog` (`frontend/src/lib/server/catalog.ts`) calls `GET /catalog/search` (`backend/app/api/catalog.py`) -> `catalog_service.search_catalog`. The service normalizes the query (`normalize_query`), checks Redis (`cache.get_json("omni:search:{type}:{sha256[:32]}")`, `NFR-01`), calls `igdb.search_games` or `tmdb.search` with `request_with_retry` on cache miss, falls back to PostgreSQL `_search_saved` or HTTP `503` (`Retry-After: 30`) on `ExternalServiceError` (`NFR-04`), upserts `MediaItem` and `Genre` rows, and seeds episodic game chapters from `game_chapters.json`.
 
 ### 4.5 US-09 View title details
 
 ![US-09](sequence/05-us09-title-details.png)
 
+`getTitleDetails` (`frontend/src/lib/server/catalog.ts`) calls `GET /catalog/{media_id}` -> `catalog_service.get_title_details`. For TV series with `external_api_id`, `_refresh_series` reads or populates the 24-hour cache (`omni:catalog:tmdb_tv:{ext_id}`), syncs `Season` and `Chapter` (`kind=EPISODE`) rows, or serves previously synced rows if TMDB fails and `last_synced` is set; `_load_details` then loads the complete hierarchy (`seasons`, `episodes`, `chapters`, `decision_points`, `options`) in a fixed 8 SQL queries via `selectinload`.
+
 ### 4.6 US-10 Rate a chapter or episode
 
 ![US-10](sequence/06-us10-rate-chapter.png)
+
+`rateChapterAction` (`frontend/src/lib/actions/chapters.ts`) calls `PUT /library/{entry_id}/chapters/{chapter_id}/rating` (`backend/app/api/chapters.py`) -> `chapter_service.rate_chapter`. `get_chapter_context` verifies library entry ownership (`404`) and enforces the same-title rule (`chapter.media_item_id == entry.media_item_id`, `BR-11`), `_get_or_create_progress` creates or fetches `ChapterProgress` inside a savepoint (`db.begin_nested()`), and `diary_service.record_event(CHAPTER_RATED)` is called only when `previous_rating != rating`.
 
 ### 4.7 US-11 Log playtime
 
 ![US-11](sequence/07-us11-log-playtime.png)
 
+`logPlaytimeAction` (`frontend/src/lib/actions/chapters.ts`) calls `POST /library/{entry_id}/chapters/{chapter_id}/playtime` -> `chapter_service.log_playtime`. After verifying `minutes >= 1` (`PlaytimeCreate`) and checking `_MAX_TOTAL_PLAYTIME_MINUTES = 1_000_000`, the service inserts a `PlaytimeLog` row, increments `ChapterProgress.playtime_minutes` atomically in SQL (`SET playtime_minutes = playtime_minutes + :minutes`), and commits `DiaryAction.PLAYTIME_LOGGED` in the same transaction.
+
 ### 4.8 US-12 Record a branching decision
 
 ![US-12](sequence/08-us12-record-decision.png)
+
+`recordDecisionAction` (`frontend/src/lib/actions/chapters.ts`) calls `PUT /library/{entry_id}/chapters/{chapter_id}/decision` -> `chapter_service.record_decision`. `_resolve_decision_point` selects the target `DecisionPoint` (`404` if none, `422` if `decision_point_id` is omitted when multiple points exist), matches `choice_label` against `DecisionOption.label` (`422` `DecisionNotAllowedError` if invalid), executes PostgreSQL `INSERT INTO user_decisions ... ON CONFLICT (library_entry_id, decision_point_id) DO UPDATE`, and logs `DiaryAction.DECISION_RECORDED` (`-> label` when changed).
 
 ### 4.9 US-15 View personal statistics
 
 ![US-15](sequence/09-us15-stats.png)
 
+`getUserStats` (`frontend/src/lib/server/stats.ts`) calls `GET /stats` (`backend/app/api/stats.py`) -> `stats_service.get_stats` (`backend/app/services/stats_service.py`). The service executes three targeted queries (library entries with `MediaItem.media_type`, genre counts via `media_item_genres`, and total `ChapterProgress.playtime_minutes`), computes integer media-split percentages summing to `100%` via the largest-remainder method (`_media_split`), builds the `1..10` rating distribution and 5-hour playtime histogram (`_playtime_stats`), and renders them with Recharts on `/stats`.
+
 ### 4.10 US-14 Submit review with automated NLP spoiler moderation
 
 ![US-14](sequence/10-us14-review.png)
+
+`submitReviewAction` (`frontend/src/lib/actions/library.ts`) calls `POST /library/{entry_id}/review` (`backend/app/api/library.py`) -> `review_service.upsert_review` (`backend/app/services/review_service.py`). After verifying entry ownership (`UserLibrary.id == entry_id AND user_id == current_user.id`), `detect_spoilers(payload.text)` evaluates spoiler pattern weights (`_SPOILER_PATTERNS`) and structural markers (`>! ... !<`, `[spoiler]`) to produce `(contains_spoiler, spoiler_score, "omnilog-nlp-spoiler-v1")`, upserts the `Review` row (`reviews` table), and records `DiaryAction.REVIEW_POSTED` in the same transaction.
 
 ---
 
@@ -285,7 +311,20 @@ This section explains how every non-functional requirement (`NFR-01` to `NFR-05`
    - `_get_or_create_progress` uses a savepoint (`with db.begin_nested():`) to handle concurrent first-time progress creation without aborting the outer transaction.
    - `log_playtime` increments `ChapterProgress.playtime_minutes` atomically in SQL (`ChapterProgress.playtime_minutes + minutes`), and `record_decision` uses PostgreSQL `pg_insert(UserDecision)...on_conflict_do_update(constraint="uq_user_decision_entry_point")`.
 
-### 5.5 Maintainability (`NFR-05`)
+### 5.5 Data integrity and consistency
+
+These decisions support all functional and non-functional requirements and are enforced inside PostgreSQL (`backend/app/models/entities.py` and `backend/migrations/versions/0001..0011`) so no application code path can bypass them:
+
+1. **Schema-level check and uniqueness constraints (`backend/app/models/entities.py`):**
+   - Rating ranges (`chk_rating_range`: `1..10` on `user_libraries`; `chk_progress_rating`: `1..5` on `chapter_progress`), minimum playtime (`chk_playtime_minutes`: `minutes >= 1` on `playtime_logs`; `chk_progress_playtime`: `playtime_minutes >= 0`), positive decision position (`chk_decision_point_position`: `position >= 1`), unique `(user_id, media_item_id)` library entries (`uq_user_media_entry`), unique `(user_id, name)` custom lists (`uq_user_list_name`), and `ON DELETE CASCADE` on all user-owned child tables.
+2. **Composite foreign keys for the same-title invariant (`BR-11`, `0010_add_same_title_composite_fks.py`):**
+   - `ChapterProgress`, `DecisionPoint`, and `UserDecision` include `media_item_id` and composite foreign keys (`fk_progress_entry_title`, `fk_progress_chapter_title`, `fk_decision_entry_title`, `fk_decision_point_title`, `fk_decision_option_point`) referencing `(id, media_item_id)` on `user_libraries` and `chapters`, and `(decision_point_id, id)` on `decision_options`.
+3. **Atomic counters & race-safe upserts (`backend/app/services/chapter_service.py`):**
+   - `_get_or_create_progress` runs inside a nested savepoint (`with db.begin_nested():`), `log_playtime` increments `ChapterProgress.playtime_minutes` atomically in SQL (`ChapterProgress.playtime_minutes + minutes`), and `record_decision` uses PostgreSQL `pg_insert(UserDecision)...on_conflict_do_update(constraint="uq_user_decision_entry_point")`.
+4. **One transaction per use case (`backend/app/services/diary_service.py`):**
+   - `diary_service.record_event` adds the `DiaryEntry` to the active SQLAlchemy session without committing; the calling service (`library_service`, `chapter_service`, `journal_service`, `review_service`) commits the domain state mutation and its diary event together in a single transaction.
+
+### 5.6 Maintainability (`NFR-05`)
 
 *Requirement: backend line coverage of at least 70% with `pytest-cov`.*
 
@@ -297,6 +336,26 @@ This section explains how every non-functional requirement (`NFR-01` to `NFR-05`
    - External IGDB and TMDB calls are replaced in functional and NFR tests by `fake_external_apis.py`, making the test suite fast, offline, and repeatable, while `test_epic3_catalog_live.py` runs against live APIs on manual `workflow_dispatch`.
 4. **Frontend quality gates (`.github/workflows/ci.yml`, `frontend/tests/`):**
    - The `frontend` CI job enforces `npm audit --omit=dev --audit-level=high`, `npm run lint` (ESLint), `npx tsc --noEmit` (TypeScript typecheck), `npm run test` (Vitest + MSW + Testing Library across 22 test files in `frontend/tests/`), and `npm run build`.
+5. **Team & repository governance (`.github/`):**
+   - `.github/CODEOWNERS`, `.github/pull_request_template.md`, `.github/ISSUE_TEMPLATE/`, and `.github/dependabot.yml` enforce code review ownership and automated dependency updates across `pip`, `npm`, `docker`, and `github-actions`.
+
+### 5.7 Deployability and portability
+
+1. **Twelve-factor configuration (`backend/app/core/config.py`, `backend/.env.example`, `env.prod.example`):**
+   - All secrets and environment settings (`DATABASE_URL`, `REDIS_URL`, `SECRET_KEY`, `CORS_ORIGINS`, `IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET`, `TMDB_API_KEY`) are read from environment variables; no secrets are stored in the repository.
+2. **Health-checked startup orchestration (`docker-compose.prod.yml`, `docker/Caddyfile`):**
+   - `docker-compose.prod.yml` starts `db` (`pg_isready` health check) and `redis` (`redis-cli ping` health check), runs the one-shot `migrate` container (`alembic upgrade head`), starts `backend` (waiting for `migrate: service_completed_successfully` and `redis: service_healthy`) and `frontend`, and exposes only `proxy` (`caddy:2-alpine` on ports `80`/`443`) on the isolated bridge network `internal`.
+3. **Hardened multi-stage images (`backend/Dockerfile`, `frontend/Dockerfile`, `.github/workflows/docker-build.yml`):**
+   - Both Dockerfiles install dependencies before copying source layers for fast rebuilds, run as non-root UID `10001`, and are linted in CI with Hadolint (`hadolint/hadolint-action`).
+
+### 5.8 Current status, known limits, and planned work
+
+| Topic | Implemented in `main` Today | Planned Next Step |
+|---|---|---|
+| **Spoiler detection (`US-14`)** | Implemented in `backend/app/services/review_service.py` (`detect_spoilers`, `upsert_review`, `get_review`), `Review` entity (`0011_reviews.py`), `POST/GET /library/{entry_id}/review`, and `frontend/src/components/title/ReviewSection.tsx` (warning badge + blur toggle) | Upgrade from weighted NLP pattern/structural classifier (`omnilog-nlp-spoiler-v1`) to a fine-tuned transformer model if higher recall on subtle plot spoilers is needed |
+| **Recommendations (`US-13`)** | Implemented in `backend/app/api/recommendations.py` (`GET /recommendations`) using genre-preference weights derived from the user's rated library entries, excluding owned titles | Persist `VECTOR(1536)` embeddings in `media_embeddings` and `user_taste_vectors` (`pgvector/pgvector:pg16`) using OpenAI `text-embedding-3-small` (`openai>=3.48.0` in `backend/requirements.txt`, selected in PR #186) |
+| **Statistics (`US-15`)** | Computed on each `GET /stats` call (`backend/app/services/stats_service.py`) via three SQL queries over the user's library, genres, and chapter progress | Optional Redis caching (`omni:stats:{user_id}`) with invalidation hooks on library/chapter mutations if user libraries grow large |
+| **Horizontal scalability** | Stateless `PyJWT` authentication and shared Redis cache (`backend/app/core/cache.py`) allow multiple `backend` and `frontend` replicas behind Caddy | Add replica scaling and PgBouncer connection pooling when concurrent load requires it |
 
 ---
 

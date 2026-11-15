@@ -18,9 +18,10 @@ node "Docker host (docker-compose.prod.yml, network: internal)" {
   database "redis: Redis 7\ncatalog search & details cache" as R
 }
 
-cloud "External catalog providers" {
+cloud "External catalog & AI providers" {
   component "IGDB API (Twitch OAuth)\n+ Steam Store API fallback\n(app/integrations/igdb.py)" as IGDB
   component "TMDB API\n+ TVMaze / iTunes fallback\n(app/integrations/tmdb.py)" as TMDB
+  component "OpenAI Embeddings API [planned]\ntext-embedding-3-small (1536d)\n(openai >= 3.48.0)" as AI #F5F5F5
 }
 
 U --> B
@@ -32,5 +33,6 @@ BE --> PG : SQLAlchemy 2 / psycopg2
 BE --> R : redis-py (0.5 s timeout)\nfallback: in-process _local cache
 BE --> IGDB : HTTPS, request_with_retry
 BE --> TMDB : HTTPS, request_with_retry
+BE ..> AI : HTTPS (planned pgvector embeddings)
 MIG --> PG : Alembic migrations (0001..0011)
 @enduml
