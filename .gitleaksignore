@@ -1,0 +1,2 @@
+# Dummy SECRET_KEY used only in a test (tests/test_security_static.py). Not a real secret.
+1e96a16fca89e76b163707f5fea23744932062da:tests/test_security_static.py:generic-api-key:296
