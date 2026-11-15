@@ -1,0 +1,34 @@
+@startuml 07-us11-log-playtime
+title US-11 Log playtime per chapter
+skinparam shadowing false
+skinparam defaultFontName Helvetica
+skinparam sequenceMessageAlign left
+autonumber
+actor User
+participant "ChaptersRouter\nPOST /library/{entry_id}/chapters/{chapter_id}/playtime\n(app/api/chapters.py)" as API
+participant "ChapterService\n(app/services/chapter_service.py)" as SVC
+participant "DiaryService\n(app/services/diary_service.py)" as DIA
+database PostgreSQL as DB
+
+User -> API : minutes, Bearer token
+API -> API : get_current_user(), validate PlaytimeCreate, _check_ids()
+alt minutes < 1 or > 100000
+  API --> User : 422
+else valid
+  API -> SVC : log_playtime(db, current_user, entry_id, chapter_id, payload.minutes)
+  SVC -> SVC : get_chapter_context() (own entry + same title)
+  SVC -> DB : _get_or_create_progress()
+  alt total would exceed MAX_TOTAL_PLAYTIME_MINUTES
+    SVC --> API : PlaytimeLimitError
+    API --> User : 422
+  else within limit
+    SVC -> DB : INSERT PlaytimeLog(chapter_progress_id, minutes)
+    SVC -> DB : UPDATE chapter_progress\nSET playtime_minutes = playtime_minutes + minutes
+    note right: atomic database increment,\nso parallel requests are all counted
+    SVC -> DIA : record_event(PLAYTIME_LOGGED)
+    SVC -> DB : COMMIT (log + total + event)
+    SVC --> API : log, progress
+    API --> User : 201 PlaytimeLogResponse
+  end
+end
+@enduml
