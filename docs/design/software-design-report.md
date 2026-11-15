@@ -11,54 +11,45 @@
 | Kağan Konuk | Backend Engineer |
 | Sidar Ürey | ML Engineer |
 | Musab Alperen Başol | API Integration and Backend Engineer |
+| Mohammad Edris | Backend/QA Engineer |
 
 ---
 
-## 1. Architectural Overview
+## 1. Introduction
 
-OmniLog follows a layered, containerized 3-tier architecture composed of a **Next.js 16 (React 19, TypeScript) BFF/Frontend**, a **FastAPI (Python 3.12, SQLAlchemy 2.0) REST Backend**, a **PostgreSQL 16 Relational Database**, and a **Redis 7 Caching Layer**.
+This report describes the software architecture and detailed design of **OmniLog**, a cross-media tracking, episodic narrative journaling, and recommendation platform that brings video games, TV series, and movies into one place. It builds directly on the [Requirement Specification Report](../requirements/requirements-specification.md) and the [Requirement Analysis Report](../analysis/requirement-analysis-report.md), using the same user stories (`US-01` to `US-15`), business rules (`BR-01` to `BR-18`), and non-functional requirements (`NFR-01` to `NFR-05`).
 
-```mermaid
-flowchart LR
-  subgraph Client["Browser Client"]
-    UI["Next.js App Router UI\n(React 19 Server + Client Components)"]
-  end
+Every diagram and table in this report has been verified against the current repository codebase across all six epics:
+- **Epic 1 (Infrastructure):** FastAPI application (`backend/app/main.py`), PostgreSQL 16 + `pgvector` and Redis 7 (`docker-compose.yml`, `docker-compose.prod.yml`), Alembic migrations (`0001` to `0011`), and health check (`GET /health`).
+- **Epic 2 (User Management & Social Journal):** Registration, login, JWT authentication, personal library CRUD, custom lists, and append-only activity diary (`backend/app/api/auth.py`, `library.py`, `journal.py`).
+- **Epic 3 (Multi-Media Aggregation & Cataloging):** Read-through Redis caching (`backend/app/core/cache.py`), IGDB and TMDB integration clients with keyless public fallbacks (`backend/app/integrations/igdb.py`, `tmdb.py`), genre normalization (`genres.py`), and catalog search/details (`backend/app/api/catalog.py`).
+- **Epic 4 (Granular Episodic & Decision Logging):** Per-chapter/episode star ratings (`1..5`), atomic playtime logging, branching narrative decision points/options (`backend/app/api/chapters.py`, `backend/app/services/chapter_service.py`), and deterministic game chapter seeding (`backend/app/seed/`).
+- **Epic 5 (Cross-Media Recommendations & Spoiler Moderation):** Genre-weighted cross-media recommendations (`backend/app/api/recommendations.py`) and automated NLP spoiler detection on user reviews (`backend/app/services/review_service.py`, `POST /library/{entry_id}/review`).
+- **Epic 6 (Analytics Dashboard):** Personal media split, rating distribution, genre breakdown, and 5-hour playtime histogram (`backend/app/api/stats.py`, `backend/app/services/stats_service.py`).
 
-  subgraph FrontendContainer["Frontend Container (Node 22)"]
-    MW["Edge Auth Middleware"]
-    SC["Server Data Layer & Server Actions\n(HttpOnly Cookie Session)"]
-  end
+### 1.1 Design artifacts
 
-  subgraph BackendContainer["Backend Container (FastAPI)"]
-    API["FastAPI Routers\n(/auth, /catalog, /library, /lists, /diary, /recommendations, /stats)"]
-    SVC["Domain Services\n(Catalog, Library, Chapters, Diary, Reviews, Stats)"]
-    AI["AI / NLP Engine\n(Cross-Media Similarity & Spoiler Classifier)"]
-  end
+All models are stored in `docs/design/` as PlantUML source files (`.puml`) alongside rendered `.png` and `.svg` images and Markdown/Mermaid companions (`.md` / `.mmd`). The PDF version of this report ([software-design-report.pdf](software-design-report.pdf)) embeds the rendered PNG images.
 
-  subgraph DataLayer["Data & Cache Layer"]
-    PG[("PostgreSQL 16\n(14 Normalized Tables)")]
-    RD[("Redis 7\n(Search & Detail Cache)")]
-  end
+| Artifact | Folder | Files |
+|---|---|---|
+| Architecture diagrams | `docs/design/arch` | `01-system-architecture`, `02-backend-layers`, `03-frontend-structure` (`architecture-diagram.md`) |
+| Class diagrams | `docs/design/class` | `01-domain-model`, `02-service-layer`, `03-catalog-integration`, `04-schemas` (`class-diagram.md`) |
+| Sequence diagrams | `docs/design/sequence` | `01-us02-register` to `10-us14-review` (10 diagrams, `sequence-diagrams.md`) |
 
-  subgraph ExternalAPIs["External Providers"]
-    TMDB["TMDB API (TV Series)"]
-    IGDB["IGDB API (Video Games)"]
-  end
+To regenerate all PNG and SVG diagrams from PlantUML sources: `./docs/design/render.sh`.
 
-  UI --> MW --> SC
-  SC -->|"Bearer JWT over Internal Network"| API
-  API --> SVC
-  API --> AI
-  SVC --> PG
-  SVC --> RD
-  SVC --> TMDB
-  SVC --> IGDB
-```
+### 1.2 Design overview
 
-### Key Architectural Decisions
-1. **HttpOnly Cookie Session via Next.js Server Actions**: Access tokens are stored exclusively in `HttpOnly`, `SameSite=Lax` cookies managed by the Next.js server layer (`frontend/src/lib/auth/session.ts`), eliminating XSS token exfiltration (`NFR-03`).
-2. **Read-Through Redis Caching for External Catalogs**: `GET /catalog/search` and `GET /catalog/{id}` check Redis first (`NFR-01`), falling back to TMDB/IGDB adapters and persisting normalized metadata into PostgreSQL (`US-08`, `US-09`).
-3. **Append-Only Activity Diary**: Every user mutation (`LIBRARY_ADDED`, `STATUS_CHANGED`, `RATED`, `CHAPTER_RATED`, `PLAYTIME_LOGGED`, `DECISION_RECORDED`, `REVIEW_POSTED`, `LIST_CREATED`, `LIST_ITEM_ADDED`) writes a structured event to `activity_events` within the same database transaction (`US-07`).
+| Topic | Decision | Implementation in Repo |
+|---|---|---|
+| Architectural style | Client-server with Next.js Server Components/Actions (BFF) and a layered FastAPI monolith | `frontend/src/`, `backend/app/` |
+| Frontend | Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS v4, Recharts | `frontend/package.json`, `frontend/src/app/` |
+| Backend | FastAPI, SQLAlchemy 2, Pydantic v2, Alembic | `backend/requirements.txt`, `backend/app/main.py` |
+| Persistence & cache | PostgreSQL 16 (`pgvector/pgvector:pg16`), Redis 7 (`redis:7-alpine`) + in-process fallback | `backend/app/core/database.py`, `backend/app/core/cache.py` |
+| Authentication | Stateless JWT (`HS256`, 90 min expiry via `PyJWT`), `passlib[bcrypt]` password hashing, `httpOnly` cookie (`omnilog_session`) | `backend/app/core/security.py`, `frontend/src/lib/server/session.ts` |
+| External catalog | IGDB (games, Twitch OAuth + Steam Store fallback) and TMDB (series/movies + TVMaze/iTunes fallback) | `backend/app/integrations/igdb.py`, `backend/app/integrations/tmdb.py` |
+| Deployment | Docker Compose (`docker-compose.prod.yml`), Caddy 2 reverse proxy (`docker/Caddyfile`) with automatic HTTPS on private network `internal` | `docker-compose.prod.yml`, `backend/Dockerfile`, `frontend/Dockerfile` |
 
 ---
 
