@@ -2,7 +2,7 @@
 # Build context: the backend/ folder.  docker build -t omnilog-backend ./backend
 # The Python version is the one of the CI (3.11). The Debian release is named, so a new Debian
 # release does not change the image unless this file changes.
-FROM python:3.11-slim-bookworm
+FROM python:3.15-slim-bookworm
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
