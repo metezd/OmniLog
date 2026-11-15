@@ -1,0 +1,13 @@
+# Ruff is used here only as a security linter: the flake8-bandit ("S") rule set.
+# It runs on every pull request in the "Security lint (Ruff)" job of .github/workflows/ci.yml:
+#   ruff check backend
+target-version = "py311"
+extend-exclude = ["frontend", "**/__pycache__"]
+
+[lint]
+select = ["S"]
+
+[lint.per-file-ignores]
+# pytest uses plain assert statements, so S101 would flag every test
+"tests/**" = ["S101"]
+"**/tests/**" = ["S101"]
