@@ -53,7 +53,7 @@ flowchart LR
 ```
 
 ### Key Architectural Decisions
-1. **HttpOnly Cookie Session via Next.js Server Actions**: Access tokens are stored exclusively in `HttpOnly`, `SameSite=Lax` cookies managed by the Next.js server layer (`frontend/src/lib/auth/session.ts`), eliminating XSS token exfiltration (`NFR-03` & Semgrep rules).
+1. **HttpOnly Cookie Session via Next.js Server Actions**: Access tokens are stored exclusively in `HttpOnly`, `SameSite=Lax` cookies managed by the Next.js server layer (`frontend/src/lib/auth/session.ts`), eliminating XSS token exfiltration (`NFR-03`).
 2. **Read-Through Redis Caching for External Catalogs**: `GET /catalog/search` and `GET /catalog/{id}` check Redis first (`NFR-01`), falling back to TMDB/IGDB adapters and persisting normalized metadata into PostgreSQL (`US-08`, `US-09`).
 3. **Append-Only Activity Diary**: Every user mutation (`LIBRARY_ADDED`, `STATUS_CHANGED`, `RATED`, `CHAPTER_RATED`, `PLAYTIME_LOGGED`, `DECISION_RECORDED`, `REVIEW_POSTED`, `LIST_CREATED`, `LIST_ITEM_ADDED`) writes a structured event to `activity_events` within the same database transaction (`US-07`).
 

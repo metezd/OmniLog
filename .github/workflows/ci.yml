@@ -17,6 +17,29 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Python static security analysis: Ruff's "S" rules (flake8-bandit). The rule selection and the
+  # per-file ignores live in ruff.toml. Runs on every pull request, without a database or services.
+  security-lint:
+    name: Security lint (Ruff)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      # Pinned so that a new release cannot change results without a PR
+      - name: Install Ruff
+        run: python -m pip install ruff==0.17.5
+
+      - name: Ruff security rules (S / Bandit)
+        run: ruff check backend
+
   backend:
     name: Backend tests
     runs-on: ubuntu-latest
