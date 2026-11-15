@@ -1,0 +1,39 @@
+@startuml 03-frontend-structure
+title OmniLog - Frontend Structure (Next.js 16 App Router)
+skinparam shadowing false
+skinparam defaultFontName Helvetica
+skinparam componentStyle rectangle
+skinparam packageStyle rectangle
+
+package "Browser (Client + Server-rendered UI)" {
+  component "Pages & Components\nsrc/app (/, /login, /register, /library, /search, /title/[id],\n/lists, /lists/[id], /diary, /recommendations, /stats, /friends)\nsrc/components (auth, layout, library, lists, search, social, states, title)" as UI
+}
+
+package "Next.js Server (frontend/src)" {
+  component "proxy.ts\noptimistic route guard\n(lib/auth/routes.ts + lib/auth/token.ts)" as PROXY
+  component "Server Actions (lib/actions)\nauth.ts | library.ts | chapters.ts | lists.ts" as ACT
+  component "Server Data Layer (lib/server)\ncatalog.ts | library.ts | journal.ts | chapters.ts |\nreviews.ts | recommendations.ts | stats.ts | user.ts | error-state.ts" as DATA
+  component "lib/server/authed.ts\nauthedFetch (401 -> /session-expired)" as AUTHED
+  component "lib/server/session.ts\nomnilog_session httpOnly cookie\n(createSession, getSessionToken, destroySession)" as SESS
+  component "lib/server/backend.ts\nbackendFetch + BackendError\n(10 s timeout, Bearer token)" as BF
+}
+
+node "FastAPI Backend" as BE
+
+UI --> PROXY : navigation request
+UI --> ACT : form action submit
+UI --> DATA : Server Component render
+ACT --> SESS : createSession / destroySession
+ACT --> DATA : mutations (library, chapters, lists, reviews)
+ACT --> BF : /auth/login, /auth/register
+DATA --> AUTHED : protected requests
+DATA --> BF : /auth/me (user.ts)
+AUTHED --> SESS : getSessionToken()
+AUTHED --> BF : backendFetch with token
+BF --> BE : REST/JSON + Authorization: Bearer
+
+note bottom of UI
+  The browser never calls the backend directly in Server Component flows
+  and never reads the JWT (stored in omnilog_session httpOnly cookie).
+end note
+@enduml
