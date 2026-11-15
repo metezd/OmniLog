@@ -6,6 +6,7 @@ from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from app.integrations.common import ExternalServiceError
 
 
 def _replace_non_finite(value: Any) -> Any:
@@ -26,5 +27,15 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     return JSONResponse(status_code=422, content=content)
 
 
+async def external_service_exception_handler(
+    request: Request, exc: ExternalServiceError
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=503,
+        content={"detail": "External service is unavailable"},
+    )
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
+    app.add_exception_handler(ExternalServiceError, external_service_exception_handler)

@@ -186,9 +186,9 @@ All analysis documents were compared with each other, with the user stories, wit
 | 1 | Database: PostgreSQL (Charter, JSONB, pgvector) or SQLite (code now). Decide in the design phase. | Product Owner |
 | 2 | Rating scales: 1 to 10 for the library and 1 to 5 for chapters. One scale should be confirmed. | Product Owner |
 | 3 | Source of chapters, decision points and options for episodic games. IGDB has no standard chapter list. | Product Owner, API Integration |
-| 4 | Embedding model and its dimension. The vector column needs a fixed size. | ML Engineer |
-| 5 | Is collaborative filtering part of version 1? This report assumes content-based only. | ML Engineer |
-| 6 | Spoiler model and threshold. | ML Engineer |
+| 4 | Embedding model and its dimension. Decided: OpenAI `text-embedding-3-small`, 1536 dimensions. | ML Engineer |
+| 5 | Collaborative filtering is excluded from version 1. Recommendations use content-based filtering only. | ML Engineer |
+| 6 | Spoiler detection uses OpenAI `gpt-4o-mini` with a threshold of `0.5`. | ML Engineer |
 | 7 | One or many decision points for each chapter in the API. | Backend |
 | 8 | Add a user story for user profiles, or remove profiles from the Epic 2 scope. | Product Owner |
 

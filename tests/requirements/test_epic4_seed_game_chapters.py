@@ -300,14 +300,16 @@ def test_an_empty_list_of_games_is_a_valid_file(tmp_path):
 
 
 # ---------------------------------------------------------------- the file that ships
-def test_the_shipped_file_is_refused_until_the_igdb_id_is_filled_in():
-    """The id could not be checked when the file was written. A wrong id would save the game
-    under the wrong key, so the placeholder is refused instead of loaded."""
-    with pytest.raises(SeedError, match="external_api_id must be the IGDB id"):
-        read_seed_file()
+def test_the_shipped_file_is_valid_and_has_a_real_igdb_id():
+    """The id of every game in the file is a real IGDB id (a positive number), so the file passes
+    the check of the schema as it is."""
+    seed = read_seed_file()
+
+    assert seed.games, "the shipped file has no game"
+    assert all(game.external_api_id >= 1 for game in seed.games)
 
 
-def test_the_shipped_file_loads_once_the_id_is_filled_in(db):
+def test_the_shipped_file_loads(db):
     raw = json.loads(loader.DEFAULT_SEED_PATH.read_text(encoding="utf-8"))
     assert raw["games"], "the shipped file has no game"
     for game in raw["games"]:
@@ -368,6 +370,22 @@ def test_the_command_refuses_too_many_arguments(capsys):
     assert "Usage:" in capsys.readouterr().err
 
 
-def test_the_command_uses_the_shipped_file_by_default_and_refuses_its_placeholder(capsys):
-    assert run_cli([]) == 1
-    assert "external_api_id must be the IGDB id" in capsys.readouterr().err
+def test_the_command_uses_the_shipped_file_by_default(capsys, monkeypatch):
+    """No path means the file next to the code. The database is replaced here, so the shipped
+    game does not stay in the test database."""
+    loaded = []
+
+    class _Session:
+        def close(self):
+            pass
+
+    def fake_apply(db, seed):
+        loaded.append(seed)
+        return loader.SeedReport(games_created=len(seed.games))
+
+    monkeypatch.setattr(seed_cli, "SessionLocal", _Session)
+    monkeypatch.setattr(seed_cli, "apply_seed", fake_apply)
+
+    assert run_cli([]) == 0
+    assert loaded and loaded[0].games[0].external_api_id >= 1
+    assert "Games created: 1" in capsys.readouterr().out
