@@ -1,7 +1,8 @@
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
 import Link from "next/link";
 
 import AddToLibraryButton from "@/components/search/AddToLibraryButton";
+import EmptyState from "@/components/states/EmptyState";
 import ErrorState from "@/components/states/ErrorState";
 import ChapterProgressCard from "@/components/title/ChapterProgressCard";
 import LibraryControls from "@/components/title/LibraryControls";
@@ -121,7 +122,9 @@ export default async function TitleDetailPage({ params }: TitlePageProps) {
               >
                 {MEDIA_TYPE_LABELS[detail.media_type]}
               </span>
-              {year && <span className="text-xs text-slate-400">{year}</span>}
+              <span className="text-xs text-slate-400">
+                {year ?? "Release date unknown"}
+              </span>
             </div>
 
             <h1
@@ -130,7 +133,7 @@ export default async function TitleDetailPage({ params }: TitlePageProps) {
               {detail.title}
             </h1>
 
-            {detail.genres.length > 0 && (
+            {detail.genres.length > 0 ? (
               <div className="flex flex-wrap gap-1.5">
                 {detail.genres.map((genre) => (
                   <span
@@ -141,10 +144,14 @@ export default async function TitleDetailPage({ params }: TitlePageProps) {
                   </span>
                 ))}
               </div>
+            ) : (
+              <p className="text-xs text-slate-500">No genres listed</p>
             )}
 
-            {detail.description && (
+            {detail.description ? (
               <p className="text-sm leading-relaxed text-slate-300">{detail.description}</p>
+            ) : (
+              <p className="text-sm italic text-slate-500">No description available.</p>
             )}
           </div>
 
@@ -211,6 +218,16 @@ export default async function TitleDetailPage({ params }: TitlePageProps) {
           </div>
         </div>
       )}
+
+      {/* Empty state when title has neither seasons nor chapters */}
+      {detail.seasons.length === 0 && detail.chapters.length === 0 && (
+        <EmptyState
+          title="No chapters or episodes"
+          message="This title does not have episodic chapters or narrative decision points."
+        />
+      )}
     </div>
   );
 }
+
+
