@@ -9,6 +9,7 @@ from app.models.entities import Review, User, UserLibrary
 from app.schemas.review import ReviewCreate
 from app.services.diary_service import DiaryAction, record_event
 from app.services.library_service import LibraryEntryNotFoundError
+from app.integrations.openai_client import classify_spoiler
 
 SPOILER_MODEL_VERSION = "omnilog-nlp-spoiler-v1"
 SPOILER_THRESHOLD = 0.5
@@ -24,8 +25,15 @@ _SPOILER_PATTERNS: list[Tuple[re.Pattern[str], float]] = [
 ]
 
 
+
 def detect_spoilers(text: str) -> Tuple[bool, float, str]:
-    """Classify review text and return (contains_spoiler, spoiler_score, model_version)."""
+    """Classify review text using OpenAI when configured, otherwise use local patterns."""
+    from app.core import config
+
+    if config.OPENAI_API_KEY:
+        contains_spoiler, score = classify_spoiler(text)
+        return contains_spoiler, score, config.SPOILER_MODEL
+
     score = 0.0
     for pattern, weight in _SPOILER_PATTERNS:
         if pattern.search(text):
@@ -33,6 +41,7 @@ def detect_spoilers(text: str) -> Tuple[bool, float, str]:
 
     clamped_score = round(min(score, 1.0), 4)
     return clamped_score >= SPOILER_THRESHOLD, clamped_score, SPOILER_MODEL_VERSION
+
 
 
 def upsert_review(
