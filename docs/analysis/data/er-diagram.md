@@ -387,7 +387,7 @@ Unique on (`decision_options.decision_point_id`, `decision_options.label`). Uniq
 |---|---|---|---|
 | `media_item_id` | INTEGER | PK, FK, cascade | The title |
 | `model_name` | VARCHAR(100) | PK | Embedding model that made the vector |
-| `embedding` | VECTOR(n) | NN | The vector. `n` is the model dimension |
+| `embedding` | VECTOR(1536) | NN | The vector from OpenAI `text-embedding-3-small` |
 | `dimension` | INTEGER | NN | Size of the vector |
 | `source_text_hash` | CHAR(64) | NN | Hash of the text that was embedded |
 | `created_at` | DATETIME | default now | First creation |
@@ -398,7 +398,7 @@ Unique on (`decision_options.decision_point_id`, `decision_options.label`). Uniq
 |---|---|---|---|
 | `user_id` | INTEGER | PK, FK, cascade | The user |
 | `model_name` | VARCHAR(100) | NN | Model of the vectors that were averaged |
-| `embedding` | VECTOR(n) | NN | Average vector of the liked titles |
+| `embedding` | VECTOR(1536) | NN | Average vector of the liked titles using `text-embedding-3-small` |
 | `based_on_count` | INTEGER | NN | Number of titles used |
 | `updated_at` | DATETIME | NN | Last refresh |
 
@@ -454,7 +454,7 @@ This section reviews the Epic 5 data design.
 
 1. **One model for all media types.** Vectors from different models cannot be compared. The model name is stored in each row.
 2. **One embedding text template.** The text is the title, the genres and the description. Every media type uses the same template.
-3. **Fixed dimension.** A pgvector column has a fixed size. The dimension depends on the model. For example, a small open model gives 384 values and a large hosted model gives 1536 values. The team must choose one model before the table is created.
+3. **Fixed dimension.** Use OpenAI `text-embedding-3-small` with its default dimension of 1536 (no shortening).
 4. **Cosine distance.** Vectors are normalized to length 1. The index uses cosine distance. A HNSW index is the proposed index type.
 5. **Vector store.** The Charter allows pgvector or Pinecone. The proposal is pgvector. PostgreSQL is already in the stack, and no extra service is needed. This depends on the move from SQLite to PostgreSQL (open point 1 in the domain model).
 6. **Recommendation query.** The query takes the taste vector of the user and finds the nearest vectors of the target type. It removes titles that are already in the library.
@@ -463,6 +463,6 @@ This section reviews the Epic 5 data design.
 
 | # | Question |
 |---|---|
-| 1 | Which embedding model is used (hosted or open source), and what is its dimension? |
+| 1 | Which embedding model is used (hosted or open source), and what is its dimension? Decided: OpenAI `text-embedding-3-small`, 1536 dimensions. |
 | 2 | Is the Charter's collaborative filtering part of version 1? This document assumes version 1 is content-based. No extra table is needed for the collaborative part because it uses the ratings in `user_libraries`. |
 | 3 | Which model detects spoilers? It needs no table, but `spoiler_model_version` must be filled. |
