@@ -1,0 +1,46 @@
+@startuml 01-us02-register
+title US-02 Register an account
+skinparam shadowing false
+skinparam defaultFontName Helvetica
+skinparam sequenceMessageAlign left
+autonumber
+actor Visitor
+participant "RegisterForm\n(src/components/auth/RegisterForm.tsx)" as UI
+participant "registerAction\n(src/lib/actions/auth.ts)" as ACT
+participant "AuthRouter\nPOST /auth/register\n(app/api/auth.py)" as API
+participant "AuthService\n(app/services/auth_service.py)" as SVC
+participant "Security\n(app/core/security.py)" as SEC
+database PostgreSQL as DB
+
+Visitor -> UI : username, email, password
+UI -> ACT : submit form
+ACT -> API : POST /auth/register (JSON)
+API -> API : validate UserCreate (Pydantic, canonical_username)
+alt invalid email / empty username / '@' in username / password > 72 bytes
+  API --> ACT : 422 + field errors
+  ACT --> UI : return failureState(fieldErrors)
+else valid
+  API -> SVC : register_user(db, data)
+  SVC -> DB : SELECT user WHERE username OR email
+  alt already taken
+    SVC --> API : AccountConflictError
+    API --> ACT : 409 Conflict
+    ACT --> UI : return failureState(message)
+  else free
+    SVC -> SEC : hash_password(password)
+    SEC --> SVC : bcrypt hash
+    SVC -> DB : INSERT users (hashed_password)
+    alt race: unique violation
+      DB --> SVC : IntegrityError
+      SVC -> DB : ROLLBACK
+      SVC --> API : AccountConflictError
+      API --> ACT : 409 Conflict
+    else committed
+      SVC --> API : User
+      API --> ACT : 201 UserResponse (no password / hash)
+      ACT -> API : POST /auth/login -> createSession(token)
+      ACT --> UI : redirect("/library")
+    end
+  end
+end
+@enduml

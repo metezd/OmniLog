@@ -1,0 +1,47 @@
+@startuml 04-us08-catalog-search
+title US-08 Search the catalog (cache first, outside API, saved fallback)
+skinparam shadowing false
+skinparam defaultFontName Helvetica
+skinparam sequenceMessageAlign left
+autonumber
+actor User
+participant "CatalogRouter\nGET /catalog/search\n(app/api/catalog.py)" as API
+participant "CatalogService\n(app/services/catalog_service.py)" as SVC
+participant "Cache\n(app/core/cache.py)" as CACHE
+participant "IgdbClient / TmdbClient\n(app/integrations/igdb.py, tmdb.py)" as EXT
+database PostgreSQL as DB
+
+User -> API : q, type (Bearer token)
+API -> API : get_current_user()
+API -> SVC : search_catalog(db, media_type, q)
+SVC -> SVC : normalize_query(q)
+alt query empty
+  SVC --> API : InvalidQueryError
+  API --> User : 422 RequestValidationError
+else non-empty
+  SVC -> CACHE : get_json(omni:search:{type}:{sha256[:32]})
+  alt cache hit
+    CACHE --> SVC : ExternalTitle list
+    note right: no outside call\n(NFR-01, p95 < 500 ms)
+  else cache miss
+    SVC -> EXT : search_games(q, 10) or search(media_type, q, 10)\n(request_with_retry: 8 s timeout, 3 retries, backoff)
+    alt outside API fails
+      EXT --> SVC : ExternalServiceError
+      SVC -> DB : _search_saved(db, media_type, query)
+      alt saved titles found
+        SVC --> API : saved MediaItem list (degraded)
+      else none
+        SVC --> API : CatalogUnavailableError
+        API --> User : 503 + Retry-After: 30 (NFR-04)
+      end
+    else ok
+      EXT --> SVC : ExternalTitle list
+      SVC -> CACHE : set_json(key, titles, CACHE_TTL_SECONDS=3600)
+    end
+  end
+  SVC -> DB : _save(db, media_type, titles) (upsert by media_type + external_api_id)
+  DB --> SVC : MediaItem rows with ids
+  SVC --> API : list[MediaItem]
+  API --> User : 200 list[MediaItemResponse]
+end
+@enduml
