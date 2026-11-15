@@ -1,0 +1,39 @@
+@startuml 08-us12-record-decision
+title US-12 Record a branching decision
+skinparam shadowing false
+skinparam defaultFontName Helvetica
+skinparam sequenceMessageAlign left
+autonumber
+actor User
+participant "ChaptersRouter\nPUT /library/{entry_id}/chapters/{chapter_id}/decision\n(app/api/chapters.py)" as API
+participant "ChapterService\n(app/services/chapter_service.py)" as SVC
+participant "DiaryService\n(app/services/diary_service.py)" as DIA
+database PostgreSQL as DB
+
+User -> API : choice (A/B), decision_point_id?
+API -> SVC : record_decision(db, current_user, entry_id, chapter_id, payload.choice, payload.decision_point_id)
+SVC -> SVC : get_chapter_context()
+SVC -> SVC : _resolve_decision_point(chapter, decision_point_id)
+alt point missing
+  SVC --> API : DecisionPointNotFoundError
+  API --> User : 404
+else no usable point or choice not in options
+  SVC --> API : DecisionNotAllowedError (lists allowed options)
+  API --> User : 422
+else valid choice
+  SVC -> DB : _find_decision(db, entry.id, point.id)
+  alt same option already stored
+    SVC --> API : unchanged (no event, no commit)
+  else first choice
+    SVC -> DB : INSERT INTO user_decisions ... ON CONFLICT DO UPDATE
+    SVC -> DIA : record_event(DECISION_RECORDED)
+    SVC -> DB : COMMIT
+  else changed mind
+    SVC -> DB : UPDATE user_decisions SET option_id = option.id
+    SVC -> DIA : record_event(DECISION_RECORDED)
+    SVC -> DB : COMMIT
+  end
+  SVC --> API : point, option, decision
+  API --> User : 200 DecisionResponse
+end
+@enduml

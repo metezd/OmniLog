@@ -1,0 +1,44 @@
+flowchart LR
+  subgraph Client["Browser Client"]
+    UI["Next.js App Router UI\n(src/app, src/components)"]
+  end
+
+  subgraph ProxyContainer["Reverse Proxy (caddy:2-alpine)"]
+    CADDY["Caddy (docker/Caddyfile)\nPorts 80 / 443"]
+  end
+
+  subgraph FrontendContainer["Frontend Container (Node 24 / Next.js 16)"]
+    MW["Route Guard (src/proxy.ts)"]
+    ACT["Server Actions (src/lib/actions)\nauth.ts, library.ts, chapters.ts, lists.ts"]
+    SRV["Server Data Layer (src/lib/server)\nauthed.ts, backend.ts, session.ts,\ncatalog.ts, library.ts, journal.ts, chapters.ts, reviews.ts, recommendations.ts, stats.ts, user.ts"]
+  end
+
+  subgraph BackendContainer["Backend Container (Python 3.11 / FastAPI)"]
+    API["FastAPI Routers (backend/app/api)\nauth, media, catalog, library, chapters, journal, recommendations, stats, deps"]
+    SVC["Services Layer (backend/app/services)\nauth_service, media_service, catalog_service, library_service,\nchapter_service, journal_service, diary_service, review_service, stats_service"]
+    INT["Integration Layer (backend/app/integrations)\nigdb, tmdb, common, genres"]
+    CORE["Core Layer (backend/app/core)\nconfig, security, cache, database, errors, usernames"]
+  end
+
+  subgraph DataLayer["Data & Cache Layer"]
+    PG[("PostgreSQL 16 (pgvector/pgvector:pg16)\nmodels/entities.py & migrations 0001..0011")]
+    RD[("Redis 7 (redis:7-alpine)\n+ in-process fallback")]
+  end
+
+  subgraph ExternalAPIs["External Catalog Providers"]
+    TMDB["TMDB API + TVMaze / iTunes Fallback"]
+    IGDB["IGDB API + Steam Store Fallback"]
+  end
+
+  UI --> CADDY --> MW
+  MW --> ACT --> SRV
+  MW --> SRV
+  SRV -->|"Bearer JWT (backendFetch)"| API
+  API --> SVC
+  API --> CORE
+  SVC --> INT
+  SVC --> CORE
+  SVC --> PG
+  CORE --> RD
+  INT --> TMDB
+  INT --> IGDB
