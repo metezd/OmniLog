@@ -1,0 +1,216 @@
+@startuml 04-schemas
+title OmniLog - API Contracts (backend/app/schemas/*.py)
+skinparam shadowing false
+skinparam defaultFontName Helvetica
+skinparam classAttributeIconSize 0
+hide empty methods
+
+package "Request schemas (app/schemas)" {
+  class UserCreate <<user.py>> {
+    +username : str
+    +email : EmailStr
+    +password : str
+  }
+  class UserLogin <<user.py>> {
+    +username : str
+    +password : str
+  }
+  class MediaItemBase <<media.py>> {
+    +title : str
+    +media_type : MediaType
+    +poster_url : str | None
+    +release_date : str | None
+    +external_api_id : int | None
+  }
+  class MediaItemCreate <<media.py>>
+  class MediaItemUpdate <<media.py>> {
+    +title : str | None
+    +media_type : MediaType | None
+    +poster_url : str | None
+    +release_date : str | None
+    +external_api_id : int | None
+  }
+  class UserLibraryCreate <<library.py>> {
+    +media_item_id : int
+    +status : WatchStatus
+    +rating : int | None <<1..10>>
+  }
+  class UserLibraryUpdate <<library.py>> {
+    +status : WatchStatus | None
+    +rating : int | None <<1..10>>
+  }
+  class ReviewCreate <<review.py>> {
+    +text : str <<1..5000>>
+  }
+  class ChapterRatingUpdate <<chapter.py>> {
+    +rating : int <<1..5>>
+  }
+  class PlaytimeCreate <<chapter.py>> {
+    +minutes : int <<1..100000>>
+  }
+  class DecisionCreate <<chapter.py>> {
+    +choice : str <<1..10>>
+    +decision_point_id : int | None
+  }
+  class CustomListCreate <<journal.py>> {
+    +name : str <<1..200>>
+  }
+  class CustomListItemCreate <<journal.py>> {
+    +media_item_id : int
+  }
+}
+
+package "Response schemas (app/schemas)" {
+  class UserResponse <<user.py>> {
+    +id : int
+    +email : EmailStr
+    +username : str
+    +created_at : datetime
+  }
+  class Token <<user.py>> {
+    +access_token : str
+    +token_type : str = "bearer"
+  }
+  class MediaItemResponse <<media.py>> {
+    +id : int
+    +genres : list[str]
+  }
+  class MediaDetailResponse <<media.py>> {
+    +description : str | None
+    +seasons : list[SeasonResponse]
+    +chapters : list[ChapterResponse]
+  }
+  class SeasonResponse <<media.py>> {
+    +id : int
+    +season_number : int
+    +title : str | None
+    +air_date : str | None
+    +episodes : list[ChapterResponse]
+  }
+  class ChapterResponse <<media.py>> {
+    +id : int
+    +number : int
+    +kind : ChapterKind
+    +title : str | None
+    +release_date : str | None
+    +runtime_minutes : int | None
+    +decision_points : list[DecisionPointResponse]
+  }
+  class DecisionPointResponse <<media.py>> {
+    +id : int
+    +position : int
+    +prompt : str
+    +options : list[DecisionOptionResponse]
+  }
+  class DecisionOptionResponse <<media.py>> {
+    +id : int
+    +label : str
+    +text : str | None
+  }
+  class UserLibraryResponse <<library.py>> {
+    +id : int
+    +user_id : int
+    +media_item_id : int
+    +status : WatchStatus
+    +rating : int | None
+    +updated_at : datetime | None
+    +media_item : MediaItemResponse
+  }
+  class ReviewResponse <<review.py>> {
+    +id : int
+    +library_entry_id : int
+    +text : str
+    +contains_spoiler : bool | None
+    +spoiler_score : float | None
+    +spoiler_model_version : str | None
+    +created_at : datetime
+    +updated_at : datetime | None
+  }
+  class ChapterRatingResponse <<chapter.py>> {
+    +library_entry_id : int
+    +chapter_id : int
+    +rating : int
+    +updated_at : datetime
+  }
+  class PlaytimeLogResponse <<chapter.py>> {
+    +id : int
+    +chapter_id : int
+    +minutes : int
+    +logged_at : datetime
+    +playtime_minutes : int
+  }
+  class DecisionItem <<chapter.py>> {
+    +decision_point_id : int
+    +choice : str
+    +decided_at : datetime
+  }
+  class DecisionResponse <<chapter.py>> {
+    +library_entry_id : int
+    +chapter_id : int
+  }
+  class ChapterProgressResponse <<chapter.py>> {
+    +library_entry_id : int
+    +chapter_id : int
+    +rating : int | None
+    +playtime_minutes : int
+    +updated_at : datetime | None
+    +choice : str | None
+    +decided_at : datetime | None
+    +decisions : list[DecisionItem]
+  }
+  class CustomListItemResponse <<journal.py>> {
+    +id : int
+    +list_id : int
+    +media_item_id : int
+    +added_at : datetime
+  }
+  class CustomListResponse <<journal.py>> {
+    +id : int
+    +name : str
+    +created_at : datetime
+    +items : list[CustomListItemResponse]
+  }
+  class DiaryEntryResponse <<journal.py>> {
+    +id : int
+    +action : str
+    +media_item_id : int | None
+    +details : str | None
+    +created_at : datetime
+  }
+  class GenreCount <<stats.py>> {
+    +genre : str
+    +count : int
+  }
+  class PlaytimeBucket <<stats.py>> {
+    +bucket : str
+    +count : int
+  }
+  class PlaytimeStats <<stats.py>> {
+    +total_minutes : int
+    +histogram : list[PlaytimeBucket]
+  }
+  class StatsResponse <<stats.py>> {
+    +total_items : int
+    +media_split : dict[str, int]
+    +rating_distribution : dict[str, int]
+    +genre_breakdown : list[GenreCount]
+    +playtime : PlaytimeStats
+  }
+}
+
+MediaItemCreate --|> MediaItemBase
+MediaItemResponse --|> MediaItemBase
+MediaDetailResponse --|> MediaItemResponse
+DecisionResponse --|> DecisionItem
+MediaDetailResponse "1" *-- "0..*" SeasonResponse
+MediaDetailResponse "1" *-- "0..*" ChapterResponse
+SeasonResponse "1" *-- "0..*" ChapterResponse : episodes
+ChapterResponse "1" *-- "0..*" DecisionPointResponse
+DecisionPointResponse "1" *-- "0..*" DecisionOptionResponse
+UserLibraryResponse "1" o-- "1" MediaItemResponse
+ChapterProgressResponse "1" *-- "0..*" DecisionItem
+CustomListResponse "1" *-- "0..*" CustomListItemResponse
+StatsResponse "1" *-- "0..*" GenreCount
+StatsResponse "1" *-- "1" PlaytimeStats
+PlaytimeStats "1" *-- "0..*" PlaytimeBucket
+@enduml

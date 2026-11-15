@@ -1,0 +1,34 @@
+@startuml 02-backend-layers
+title OmniLog - Backend Layered Architecture (FastAPI)
+skinparam shadowing false
+skinparam defaultFontName Helvetica
+skinparam RectangleRoundCorner 8
+skinparam rectangle {
+  BackgroundColor #F5F5F5
+}
+top to bottom direction
+
+rectangle "**Presentation layer** (backend/app/api)\nHTTP routing, Pydantic validation, status codes, authentication dependency\n\nauth (/auth) | media (/media) | catalog (/catalog) | library (/library, /library/{entry_id}/review)\nchapters (/library/{entry_id}/chapters) | journal (/lists, /diary) | recommendations (/recommendations) | stats (/stats) | deps (get_current_user)" as API #E3F2FD
+
+rectangle "**Business layer** (backend/app/services)\nUse-case logic, transactions, ownership checks, NLP spoiler moderation, diary events\n\nauth_service | media_service | catalog_service | library_service | chapter_service\njournal_service | diary_service | review_service | stats_service" as SVC #E8F5E9
+
+rectangle "**Integration layer** (backend/app/integrations)\nExternal catalog clients, retry with exponential backoff, input sanitization & genre normalization\n\nigdb | tmdb | common | genres" as INT #FFF3E0
+
+rectangle "**Core / infrastructure** (backend/app/core)\nconfig (env settings) | security (passlib/bcrypt, PyJWT) | cache (Redis + in-process fallback)\ndatabase (engine, SessionLocal, Base, get_db) | errors (register_exception_handlers) | usernames (canonical_username)" as CORE #F3E5F5
+
+rectangle "**Persistence** (backend/app/models, backend/migrations, backend/app/seed)\nmodels/entities.py (14 entities + media_item_genres) | migrations/versions (0001..0011) | seed (loader, schema, game_chapters.json)" as MOD #FCE4EC
+
+database "PostgreSQL 16" as PG
+database "Redis 7" as R
+cloud "IGDB / TMDB\n(+ Steam / TVMaze / iTunes)" as EXT
+
+API --> SVC : calls
+SVC --> INT : fetch outside data
+SVC --> MOD : read / write
+SVC --> CORE : cache, hashing, config
+API ..> CORE : JWT check, DB session
+INT --> EXT : HTTPS
+MOD --> PG
+CORE --> PG
+CORE --> R
+@enduml

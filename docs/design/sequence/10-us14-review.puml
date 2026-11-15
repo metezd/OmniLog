@@ -1,0 +1,39 @@
+@startuml 10-us14-review
+title US-14 Submit review with automated NLP spoiler moderation
+skinparam shadowing false
+skinparam defaultFontName Helvetica
+skinparam sequenceMessageAlign left
+autonumber
+actor User
+participant "ReviewSection\n(src/components/title/ReviewSection.tsx)" as UI
+participant "submitReviewAction\n(src/lib/actions/library.ts)\n+ submitReview (src/lib/server/reviews.ts)" as ACT
+participant "LibraryRouter\nPOST /library/{entry_id}/review\n(app/api/library.py)" as API
+participant "ReviewService\n(app/services/review_service.py)" as SVC
+participant "DiaryService\n(app/services/diary_service.py)" as DIA
+database PostgreSQL as DB
+
+User -> UI : write review text & submit
+UI -> ACT : submitReviewAction(formData)
+ACT -> API : POST /library/{entry_id}/review (ReviewCreate)\nAuthorization: Bearer token
+API -> API : get_current_user(), validate ReviewCreate (1..5000 chars)
+API -> SVC : upsert_review(db, current_user, entry_id, payload)
+SVC -> DB : SELECT UserLibrary WHERE id = entry_id AND user_id = current_user.id
+alt entry not found or belongs to another user
+  SVC --> API : LibraryEntryNotFoundError
+  API --> ACT : 404 Not Found
+else owned by user
+  SVC -> SVC : detect_spoilers(payload.text)
+  note right: returns (contains_spoiler,\nspoiler_score, "omnilog-nlp-spoiler-v1")
+  SVC -> DB : SELECT Review WHERE library_entry_id = entry.id
+  alt no existing review
+    SVC -> DB : INSERT reviews (library_entry_id, text, contains_spoiler, spoiler_score, spoiler_model_version)
+  else existing review
+    SVC -> DB : UPDATE reviews SET text, contains_spoiler, spoiler_score, spoiler_model_version, updated_at
+  end
+  SVC -> DIA : record_event(REVIEW_POSTED)
+  SVC -> DB : COMMIT (review + diary event)
+  SVC --> API : Review
+  API --> ACT : 201 ReviewResponse
+  ACT --> UI : revalidatePath(/diary, /title/{mediaItemId}) & render spoiler badge/blur
+end
+@enduml

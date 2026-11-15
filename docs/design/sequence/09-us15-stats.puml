@@ -1,0 +1,26 @@
+@startuml 09-us15-stats
+title US-15 View personal statistics
+skinparam shadowing false
+skinparam defaultFontName Helvetica
+skinparam sequenceMessageAlign left
+autonumber
+actor User
+participant "StatsPage\n(src/app/stats/page.tsx)\n+ getStats (src/lib/server/stats.ts)" as FE
+participant "StatsRouter\nGET /stats\n(app/api/stats.py)" as API
+participant "StatsService\n(app/services/stats_service.py)" as SVC
+database PostgreSQL as DB
+
+User -> FE : open /stats
+FE -> API : GET /stats (Bearer token)
+API -> API : get_current_user()
+API -> SVC : get_stats(db, current_user)
+SVC -> DB : SELECT user_libraries JOIN media_items WHERE user_id
+SVC -> DB : _playtime_by_entry(): SUM(playtime_minutes) GROUP BY library_entry_id
+SVC -> DB : SELECT genres.name, COUNT(user_libraries.id) via media_item_genres
+SVC -> SVC : _media_split() (largest remainder, sums to 100)
+SVC -> SVC : _rating_distribution() (keys "1".."10")
+SVC -> SVC : _genre_breakdown(), _playtime_stats() (5 h buckets)
+SVC --> API : StatsResponse
+API --> FE : 200 StatsResponse (all zeros for an empty library)
+FE --> User : render analytics charts
+@enduml
