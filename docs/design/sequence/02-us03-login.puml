@@ -1,0 +1,40 @@
+@startuml 02-us03-login
+title US-03 Log in (JWT stored in omnilog_session httpOnly cookie)
+skinparam shadowing false
+skinparam defaultFontName Helvetica
+skinparam sequenceMessageAlign left
+autonumber
+actor User
+participant "LoginForm\n(src/components/auth/LoginForm.tsx)" as UI
+participant "loginAction\n(src/lib/actions/auth.ts)" as ACT
+participant "session.ts\n(src/lib/server/session.ts)" as SES
+participant "AuthRouter\nPOST /auth/login\n(app/api/auth.py)" as API
+participant "AuthService\n(app/services/auth_service.py)" as SVC
+participant "Security\n(app/core/security.py)" as SEC
+database PostgreSQL as DB
+
+User -> UI : username or email, password
+UI -> ACT : submit form
+ACT -> API : POST /auth/login (UserLogin)
+API -> SVC : authenticate_user(db, data.username, data.password)
+SVC -> DB : SELECT user by email (if '@') or username
+alt user not found
+  SVC -> SEC : verify_password(password, DUMMY_HASH)
+  note right: same timing as a real check,\nso accounts cannot be probed
+  SVC --> API : None
+else user found
+  SVC -> SEC : verify_password(password, user.hashed_password)
+  SEC --> SVC : true / false
+  SVC --> API : User or None
+end
+alt credentials wrong
+  API --> ACT : 401 "Invalid credentials" (no token)
+  ACT --> UI : return failureState(message)
+else credentials correct
+  API -> SEC : create_access_token(user.id)
+  SEC --> API : signed JWT (PyJWT HS256, exp 90 min)
+  API --> ACT : 200 Token
+  ACT -> SES : createSession(token.access_token)\n(omnilog_session: httpOnly, sameSite=lax, secure in prod)
+  ACT --> UI : redirect("/library")
+end
+@enduml
