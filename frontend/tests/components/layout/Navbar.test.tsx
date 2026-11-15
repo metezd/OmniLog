@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+﻿import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -7,7 +7,6 @@ import { SearchProvider } from "@/context/SearchContext";
 import { logoutAction } from "@/lib/actions/auth";
 import type { CurrentUser } from "@/types/api";
 
-// The real action talks to the backend. The navbar test only needs to see that it is called.
 vi.mock("@/lib/actions/auth", () => ({ logoutAction: vi.fn() }));
 
 const USER: CurrentUser = { id: 7, email: "ali@example.com", username: "ali", created_at: "2026-10-01T10:00:00Z" };
@@ -29,14 +28,23 @@ describe("Navbar for a visitor", () => {
     expect(screen.queryByRole("button", { name: "Log out" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Library" })).not.toBeInTheDocument();
   });
+
+  it("includes a search form that submits to /search with query parameter q", () => {
+    renderNavbar(null);
+
+    const input = screen.getByPlaceholderText("Search games, series or titles...");
+    expect(input).toHaveAttribute("name", "q");
+    expect(input.closest("form")).toHaveAttribute("action", "/search");
+  });
 });
 
 describe("Navbar for a logged-in user", () => {
-  it("shows the username and the Library link instead of Sign In", () => {
+  it("shows the username, Library and Search links instead of Sign In", () => {
     renderNavbar(USER);
 
     expect(screen.getByText("@ali")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Library" })).toHaveAttribute("href", "/library");
+    expect(screen.getByRole("link", { name: "Search" })).toHaveAttribute("href", "/search");
     expect(screen.queryByRole("link", { name: "Sign In" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Get Started" })).not.toBeInTheDocument();
   });
