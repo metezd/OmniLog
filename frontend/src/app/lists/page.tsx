@@ -1,3 +1,4 @@
+﻿import DeleteListButton from "@/components/lists/DeleteListButton";
 import type { Metadata } from "next";
 import Link from "next/link";
 
@@ -66,7 +67,7 @@ export default async function ListsPage() {
                   href={`/lists/${list.id}`}
                   className="text-xs font-medium text-cyan-300 hover:underline"
                 >
-                  Open List →
+                  Open List â†’
                 </Link>
                 <form action={deleteListAction}>
                   <input type="hidden" name="listId" value={list.id} />
@@ -99,3 +100,5 @@ function Shell({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
+
+
