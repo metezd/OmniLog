@@ -144,6 +144,6 @@ flowchart TB
 
 The E-R model was reviewed for this epic. The result is in [../data/er-diagram.md](../data/er-diagram.md), section 8. The main points are:
 - The table `media_embeddings` was added. The earlier E-R had no vector table.
-- The vector column has a fixed size, so one embedding model must be chosen first.
+- The vector column uses `VECTOR(1536)` with OpenAI `text-embedding-3-small` (default dimension, no shortening).
 - All media types use one model and one text template. This is what makes the vector space shared.
 - `reviews` has the spoiler fields. A review needs no vector.
