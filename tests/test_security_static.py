@@ -6,7 +6,9 @@ check is a small function over the syntax tree of a file. The "bad code" tests r
 on a few lines of unsafe code, so a broken check cannot pass without anyone noticing.
 """
 import ast
+import os
 import re
+import subprocess
 import sys
 from functools import cache
 from pathlib import Path
@@ -283,3 +285,38 @@ def test_cors_does_not_answer_an_unknown_origin(running_app):
 
     assert "access-control-allow-origin" not in preflight.headers
     assert "access-control-allow-origin" not in normal.headers
+
+
+def _import_config(cors_origins: str | None) -> subprocess.CompletedProcess:
+    """Import the settings in a fresh process, because they are read once at import time."""
+    env = {
+        **os.environ,
+        "DATABASE_URL": "postgresql+psycopg2://u:p@localhost/x",
+        # This exact value keeps a local backend/.env file from overriding the variables below
+        "SECRET_KEY": "test-secret-key-at-least-32-characters-long",
+    }
+    env.pop("CORS_ORIGINS", None)
+    if cors_origins is not None:
+        env["CORS_ORIGINS"] = cors_origins
+    return subprocess.run(
+        [sys.executable, "-c", "import app.core.config"],
+        cwd=BACKEND_DIR,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+
+
+@pytest.mark.parametrize("value", ["*", "http://localhost:3000, *", " * "])
+def test_settings_refuse_a_wildcard_cors_origin(value):
+    result = _import_config(value)
+
+    assert result.returncode != 0
+    assert "CORS_ORIGINS" in result.stderr
+
+
+@pytest.mark.parametrize("value", [None, "https://app.example.com", "http://a.test,http://b.test"])
+def test_settings_accept_explicit_cors_origins(value):
+    assert _import_config(value).returncode == 0
