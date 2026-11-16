@@ -1,0 +1,3 @@
+# Ruff for the "Security lint (Ruff)" job in ci.yml. Dependabot (pip, directory /.github)
+# opens a pull request when a new version is released.
+ruff==0.17.5
