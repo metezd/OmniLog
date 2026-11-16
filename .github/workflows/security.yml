@@ -138,7 +138,7 @@ jobs:
           for pack in ${PACKS}; do
             out="semgrep-${pack//\//-}.json"
             echo "::group::Semgrep ${pack}"
-            if semgrep scan --config "${pack}" --metrics=off --disable-version-check --text --json-output "${out}" .; then
+            if semgrep scan --config "${pack}" --metrics=off --disable-version-check --text --json-output "${out}" --sarif-output "${out%.json}.sarif" .; then
               count=$(python3 -c "import json,sys; print(len(json.load(open(sys.argv[1]))['results']))" "${out}")
               if [ "${count}" != "0" ]; then
                 echo "::warning title=Semgrep ${pack}::${count} finding(s), see the log of this step"
@@ -148,3 +148,12 @@ jobs:
             fi
             echo "::endgroup::"
           done
+
+      # The full report of every pack (all severities) as SARIF, to open in an editor or a viewer
+      - name: Upload the SARIF reports as artifact
+        if: always() && hashFiles('semgrep-*.sarif') != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: semgrep-results
+          path: semgrep-*.sarif
+          if-no-files-found: error
