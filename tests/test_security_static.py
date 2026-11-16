@@ -38,6 +38,32 @@ def _dotted(node: ast.AST) -> str:
     return ".".join(reversed(parts))
 
 
+def _import_aliases(tree: ast.AST) -> dict[str, str]:
+    """Map a name made by an import to the full name it stands for.
+
+    `import jwt as j` gives {"j": "jwt"} and `from jwt import decode as d` gives
+    {"d": "jwt.decode"}, so `j.decode(...)` and `d(...)` are seen as `jwt.decode(...)`.
+    """
+    aliases = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for item in node.names:
+                if item.asname:
+                    aliases[item.asname] = item.name
+        elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+            for item in node.names:
+                aliases[item.asname or item.name] = f"{node.module}.{item.name}"
+    return aliases
+
+
+def _resolve(node: ast.AST, aliases: dict[str, str]) -> str:
+    """Like _dotted, but with the first part replaced by what the import says it is."""
+    first, _, rest = _dotted(node).partition(".")
+    if first in aliases:
+        return aliases[first] + (f".{rest}" if rest else "")
+    return _dotted(node)
+
+
 def _is_constant(node: ast.AST, value: object) -> bool:
     return isinstance(node, ast.Constant) and node.value is value
 
@@ -51,9 +77,10 @@ def _keyword(call: ast.Call, name: str) -> ast.keyword | None:
 def check_jwt(tree: ast.AST) -> list[int]:
     """jwt.decode needs a fixed algorithms list, and the signature check must stay on."""
     lines = []
+    aliases = _import_aliases(tree)
     for node in ast.walk(tree):
         if isinstance(node, ast.Call):
-            if _dotted(node.func) == "jwt.decode":
+            if _resolve(node.func, aliases) == "jwt.decode":
                 algorithms = _keyword(node, "algorithms")
                 allows_none = algorithms is not None and any(
                     isinstance(part, ast.Constant) and str(part.value).lower() == "none"
@@ -78,8 +105,12 @@ def check_jwt(tree: ast.AST) -> list[int]:
 def check_debug_mode(tree: ast.AST) -> list[int]:
     """FastAPI and Starlette must not be created with debug=True."""
     lines = []
+    aliases = _import_aliases(tree)
     for node in ast.walk(tree):
-        if isinstance(node, ast.Call) and _dotted(node.func).split(".")[-1] in {"FastAPI", "Starlette"}:
+        if isinstance(node, ast.Call) and _resolve(node.func, aliases).split(".")[-1] in {
+            "FastAPI",
+            "Starlette",
+        }:
             debug = _keyword(node, "debug")
             if debug is not None and _is_constant(debug.value, True):
                 lines.append(node.lineno)
@@ -107,13 +138,16 @@ def check_cors_wildcard(tree: ast.AST) -> list[int]:
 def check_sensitive_logging(tree: ast.AST) -> list[int]:
     """A log call must not mention a password, secret, token or API key."""
     lines = []
+    aliases = _import_aliases(tree)
     for node in ast.walk(tree):
-        if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)):
+        if not isinstance(node, ast.Call):
             continue
-        if node.func.attr not in LOG_METHODS:
+        name = _resolve(node.func, aliases)
+        if name.split(".")[-1] not in LOG_METHODS:
             continue
-        owner = _dotted(node.func.value).split(".")[-1].lower()
-        if not (owner == "logging" or owner.endswith("log") or owner.endswith("logger")):
+        # logging.error(...) as a module function, or logger.error(...) / self.log.error(...)
+        owner = name.rpartition(".")[0].split(".")[-1].lower()
+        if not (name.startswith("logging.") or owner.endswith("log") or owner.endswith("logger")):
             continue
         arguments = [*node.args, *(item.value for item in node.keywords if item.arg != "exc_info")]
         for argument in arguments:
@@ -164,9 +198,12 @@ def _is_built_string(node: ast.AST) -> bool:
 def check_sql_strings(tree: ast.AST) -> list[int]:
     """SQL text must be a plain string with bound parameters, never an f-string or a sum."""
     lines = []
+    aliases = _import_aliases(tree)
     for node in ast.walk(tree):
         if isinstance(node, ast.Call) and node.args:
-            if _dotted(node.func).split(".")[-1] in SQL_CALLS and _is_built_string(node.args[0]):
+            if _resolve(node.func, aliases).split(".")[-1] in SQL_CALLS and _is_built_string(
+                node.args[0]
+            ):
                 lines.append(node.lineno)
     return lines
 
@@ -228,7 +265,11 @@ BAD_CODE = [
     ("jwt", 'jwt.decode(token, key, algorithms=["HS256", "none"])'),
     ("jwt", 'jwt.decode(token, key, algorithms=["HS256"], options={"verify_signature": False})'),
     ("jwt", 'jwt.decode(token, key, algorithms=["HS256"], verify=False)'),
+    ("jwt", "from jwt import decode\ndecode(token, key)"),
+    ("jwt", "import jwt as j\nj.decode(token, key)"),
+    ("jwt", 'from jwt import decode as d\nd(token, key, algorithms=["none"])'),
     ("debug", "app = FastAPI(title='x', debug=True)"),
+    ("debug", "from fastapi import FastAPI as App\napp = App(debug=True)"),
     ("cors", 'app.add_middleware(CORSMiddleware, allow_origins=["*"])'),
     ("cors", 'app.add_middleware(CORSMiddleware, allow_origin_regex=".*")'),
     ("logging", 'logger.info("login for %s", password)'),
@@ -236,6 +277,10 @@ BAD_CODE = [
     ("logging", 'logging.error("api_key missing")'),
     ("logging", 'self.logger.debug("sent", user.access_token)'),
     ("logging", 'logger.error(\n    "login failed",\n    token,\n)'),
+    ("logging", 'import logging as lg\nlg.error("token")'),
+    ("logging", 'from logging import error\nerror("password")'),
+    ("logging", 'from app.core.logging import logger as lg\nlg.info("sent", token)'),
+    ("sql", "from sqlalchemy import text as sql\nsql(f\"{value}\")"),
     ("sql", 'db.execute(f"DELETE FROM t WHERE a = {value}")'),
     ("sql", 'text(f"{value}")'),
     ("sql", 'text("SELECT * FROM t WHERE a = " + value)'),
@@ -245,12 +290,18 @@ BAD_CODE = [
 GOOD_CODE = [
     ("jwt", 'jwt.decode(token, key, algorithms=["HS256"])'),
     ("jwt", "jwt.decode(token, key, algorithms=[ALGORITHM])"),
+    ("jwt", 'from jwt import decode\ndecode(token, key, algorithms=["HS256"])'),
+    ("jwt", 'import jwt as j\nj.decode(token, key, algorithms=["HS256"])'),
+    ("jwt", "from mylib import decode\ndecode(token, key)"),
+    ("debug", "from fastapi import FastAPI as App\napp = App(debug=False)"),
     ("debug", "app = FastAPI(title='x')"),
     ("debug", "app = FastAPI(debug=False)"),
     ("cors", "app.add_middleware(CORSMiddleware, allow_origins=CORS_ORIGINS)"),
     ("cors", 'app.add_middleware(CORSMiddleware, allow_origins=["https://example.com"])'),
     ("logging", 'logger.warning("TMDB sent no details for series %s", series_id)'),
     ("logging", 'print("token")'),
+    ("logging", 'from somewhere import error\nerror("token")'),
+    ("sql", 'from sqlalchemy import text as sql\nsql("SELECT 1")'),
     ("sql", 'text("SELECT * FROM t WHERE a = :a")'),
     ("sql", 'db.execute(text("SELECT 1"), {"a": 1})'),
     ("sql", 'text("part one " "part two")'),
