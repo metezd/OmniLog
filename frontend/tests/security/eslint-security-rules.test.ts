@@ -15,6 +15,7 @@ const SECURITY_RULES = new Set([
   "react/jsx-no-target-blank",
   "no-restricted-syntax",
   "no-restricted-properties",
+  "omnilog-security/web-storage-set-item",
 ]);
 
 const WARNING = 1;
@@ -82,8 +83,17 @@ const WARNING_CODE: Array<[string, string]> = [
   ],
 ];
 
+const WINDOW_WARNING_CODE: Array<[string, string]> = [
+  ["window.localStorage", `export const a = () => { window.localStorage.setItem("theme", "dark"); };`],
+  [
+    "globalThis.sessionStorage",
+    `export const a = (tab: string) => { globalThis.sessionStorage.setItem("lastTab", tab); };`,
+  ],
+];
+
 const GOOD_CODE: Array<[string, string]> = [
   ["reading from localStorage", `export const a = () => localStorage.getItem("theme");`],
+  ["reading from window.localStorage", `export const a = () => window.localStorage.getItem("theme");`],
   ["a public API URL", `export const a = process.env.NEXT_PUBLIC_API_URL;`],
   [
     "target=_blank with rel",
@@ -100,6 +110,13 @@ describe("the ESLint security rules", () => {
   }, 60_000);
 
   it.each(WARNING_CODE)("report %s as a warning only", async (_name, code) => {
+    const findings = await securityFindings(code);
+
+    expect(findings.length).toBeGreaterThan(0);
+    expect(findings.every((finding) => finding.severity === WARNING)).toBe(true);
+  }, 60_000);
+
+  it.each(WINDOW_WARNING_CODE)("report setItem on %s as a warning only", async (_name, code) => {
     const findings = await securityFindings(code);
 
     expect(findings.length).toBeGreaterThan(0);

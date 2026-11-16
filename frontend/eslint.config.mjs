@@ -18,9 +18,33 @@ const STORAGE_SET_ITEM =
 const STORAGE_WARNING =
   "Do not keep an auth token in web storage: any injected script can read it. Check that this value is not a token or secret.";
 
+// A small local rule for window.localStorage.setItem(...) and the same call on globalThis or self.
+// The built-in no-restricted-properties rule below only sees a bare localStorage object.
+const BROWSER_GLOBALS = new Set(["window", "globalThis", "self"]);
+const STORAGE_OBJECTS = new Set(["localStorage", "sessionStorage"]);
+const webStorageSetItem = {
+  meta: { type: "problem", schema: [], messages: { warning: STORAGE_WARNING } },
+  create(context) {
+    return {
+      CallExpression(node) {
+        const method = node.callee;
+        if (method.type !== "MemberExpression" || method.computed) return;
+        if (method.property.name !== "setItem") return;
+        const storage = method.object;
+        if (storage.type !== "MemberExpression" || storage.computed) return;
+        if (storage.object.type !== "Identifier" || !BROWSER_GLOBALS.has(storage.object.name)) return;
+        if (!STORAGE_OBJECTS.has(storage.property.name)) return;
+        context.report({ node, messageId: "warning" });
+      },
+    };
+  },
+};
+
 const securityRules = {
   files: ["**/*.{js,jsx,mjs,ts,tsx}"],
+  plugins: { "omnilog-security": { rules: { "web-storage-set-item": webStorageSetItem } } },
   rules: {
+    "omnilog-security/web-storage-set-item": "warn",
     "no-eval": "error",
     "no-implied-eval": "error",
     "no-new-func": "error",
