@@ -1,0 +1,3 @@
+# Semgrep (open source edition) for the "semgrep-registry" job in security.yml. Dependabot
+# (pip, directory /.github) opens a pull request when a new version is released.
+semgrep==1.185.0
