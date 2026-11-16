@@ -23,6 +23,13 @@ from sqlalchemy.orm import relationship
 from app.core.database import Base
 
 
+_CASCADE_DELETE_ORPHAN = "all, delete-orphan"
+_FK_MEDIA_ITEMS_ID = "media_items.id"
+_FK_USERS_ID = "users.id"
+_FK_USER_LIBRARIES_ID = "user_libraries.id"
+_UTC_NOW_SQL = "timezone('utc', now())"
+
+
 # Media types and tracking statuses
 class MediaType(str, enum.Enum):
     GAME = "GAME"
@@ -59,17 +66,17 @@ class User(Base):
 
     # Relationship: One user can have many library entries
     library_entries = relationship(
-        "UserLibrary", back_populates="user", cascade="all, delete-orphan"
+        "UserLibrary", back_populates="user", cascade=_CASCADE_DELETE_ORPHAN
     )
 
     # Relationship: Custom lists created by the user (US-06)
     custom_lists = relationship(
-        "CustomList", back_populates="user", cascade="all, delete-orphan"
+        "CustomList", back_populates="user", cascade=_CASCADE_DELETE_ORPHAN
     )
 
     # Relationship: User's activity diary events (US-07)
     diary_entries = relationship(
-        "DiaryEntry", back_populates="user", cascade="all, delete-orphan"
+        "DiaryEntry", back_populates="user", cascade=_CASCADE_DELETE_ORPHAN
     )
 
 
@@ -87,7 +94,7 @@ class Genre(Base):
 media_item_genres = Table(
     "media_item_genres",
     Base.metadata,
-    Column("media_item_id", Integer, ForeignKey("media_items.id", ondelete="CASCADE"), primary_key=True),
+    Column("media_item_id", Integer, ForeignKey(_FK_MEDIA_ITEMS_ID, ondelete="CASCADE"), primary_key=True),
     Column("genre_id", Integer, ForeignKey("genres.id", ondelete="CASCADE"), primary_key=True),
     Index("ix_media_item_genres_genre_id", "genre_id"),
 )
@@ -142,7 +149,7 @@ class MediaItem(Base):
     seasons = relationship(
         "Season",
         back_populates="media_item",
-        cascade="all, delete-orphan",
+        cascade=_CASCADE_DELETE_ORPHAN,
         passive_deletes=True,
         order_by="Season.season_number",
     )
@@ -163,10 +170,10 @@ class UserLibrary(Base):
 
     id = Column(Integer, primary_key=True)
     user_id = Column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        Integer, ForeignKey(_FK_USERS_ID, ondelete="CASCADE"), nullable=False
     )
     media_item_id = Column(
-        Integer, ForeignKey("media_items.id", ondelete="CASCADE"), nullable=False
+        Integer, ForeignKey(_FK_MEDIA_ITEMS_ID, ondelete="CASCADE"), nullable=False
     )
 
     status = Column(
@@ -186,14 +193,14 @@ class UserLibrary(Base):
         back_populates="library_entry",
         primaryjoin="UserLibrary.id == ChapterProgress.library_entry_id",
         foreign_keys="ChapterProgress.library_entry_id",
-        cascade="all, delete-orphan",
+        cascade=_CASCADE_DELETE_ORPHAN,
         passive_deletes=True,
     )
     review = relationship(
         "Review",
         back_populates="library_entry",
         uselist=False,
-        cascade="all, delete-orphan",
+        cascade=_CASCADE_DELETE_ORPHAN,
         passive_deletes=True,
     )
 
@@ -218,7 +225,7 @@ class CustomList(Base):
 
     id = Column(Integer, primary_key=True)
     user_id = Column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        Integer, ForeignKey(_FK_USERS_ID, ondelete="CASCADE"), nullable=False
     )
     name = Column(String(200), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -230,7 +237,7 @@ class CustomList(Base):
     # Relationships
     user = relationship("User", back_populates="custom_lists")
     items = relationship(
-        "CustomListItem", back_populates="custom_list", cascade="all, delete-orphan"
+        "CustomListItem", back_populates="custom_list", cascade=_CASCADE_DELETE_ORPHAN
     )
 
 
@@ -243,7 +250,7 @@ class CustomListItem(Base):
         Integer, ForeignKey("custom_lists.id", ondelete="CASCADE"), nullable=False
     )
     media_item_id = Column(
-        Integer, ForeignKey("media_items.id", ondelete="CASCADE"), nullable=False
+        Integer, ForeignKey(_FK_MEDIA_ITEMS_ID, ondelete="CASCADE"), nullable=False
     )
     added_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
@@ -262,11 +269,11 @@ class DiaryEntry(Base):
 
     id = Column(Integer, primary_key=True)
     user_id = Column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        Integer, ForeignKey(_FK_USERS_ID, ondelete="CASCADE"), nullable=False
     )
     # Empty for events that are not about one title, such as LIST_CREATED
     media_item_id = Column(
-        Integer, ForeignKey("media_items.id", ondelete="CASCADE"), nullable=True
+        Integer, ForeignKey(_FK_MEDIA_ITEMS_ID, ondelete="CASCADE"), nullable=True
     )
     # One of the DiaryAction values in app/services/diary_service.py
     action = Column(String(50), nullable=False)
@@ -284,7 +291,7 @@ class Season(Base):
 
     id = Column(Integer, primary_key=True)
     media_item_id = Column(
-        Integer, ForeignKey("media_items.id", ondelete="CASCADE"), nullable=False, index=True
+        Integer, ForeignKey(_FK_MEDIA_ITEMS_ID, ondelete="CASCADE"), nullable=False, index=True
     )
     # Season 0 is used by TMDB for specials
     season_number = Column(Integer, nullable=False)
@@ -300,7 +307,7 @@ class Season(Base):
     episodes = relationship(
         "Chapter",
         back_populates="season",
-        cascade="all, delete-orphan",
+        cascade=_CASCADE_DELETE_ORPHAN,
         passive_deletes=True,
         order_by="Chapter.number",
     )
@@ -313,7 +320,7 @@ class Chapter(Base):
     id = Column(Integer, primary_key=True)
     # The series or the game. Episodes keep it too, so a chapter always points to its title.
     media_item_id = Column(
-        Integer, ForeignKey("media_items.id", ondelete="CASCADE"), nullable=False, index=True
+        Integer, ForeignKey(_FK_MEDIA_ITEMS_ID, ondelete="CASCADE"), nullable=False, index=True
     )
     # Empty for the chapters of a game
     season_id = Column(
@@ -363,7 +370,7 @@ class Chapter(Base):
         primaryjoin="Chapter.id == DecisionPoint.chapter_id",
         foreign_keys="DecisionPoint.chapter_id",
         order_by="DecisionPoint.position, DecisionPoint.id",
-        cascade="all, delete-orphan",
+        cascade=_CASCADE_DELETE_ORPHAN,
         passive_deletes=True,
     )
     # The progress rows of all users for this chapter (US-10). The database cascades the delete.
@@ -372,7 +379,7 @@ class Chapter(Base):
         back_populates="chapter",
         primaryjoin="Chapter.id == ChapterProgress.chapter_id",
         foreign_keys="ChapterProgress.chapter_id",
-        cascade="all, delete-orphan",
+        cascade=_CASCADE_DELETE_ORPHAN,
         passive_deletes=True,
     )
 
@@ -396,7 +403,7 @@ class ChapterProgress(Base):
         DateTime,
         nullable=False,
         default=datetime.utcnow,
-        server_default=text("timezone('utc', now())"),
+        server_default=text(_UTC_NOW_SQL),
         onupdate=datetime.utcnow,
     )
 
@@ -420,7 +427,7 @@ class ChapterProgress(Base):
         "PlaytimeLog",
         back_populates="progress",
         order_by="PlaytimeLog.id",
-        cascade="all, delete-orphan",
+        cascade=_CASCADE_DELETE_ORPHAN,
         passive_deletes=True,
     )
 
@@ -429,7 +436,7 @@ class ChapterProgress(Base):
         # Deleting the entry or the chapter deletes the progress, as before.
         ForeignKeyConstraint(
             ["library_entry_id", "media_item_id"],
-            ["user_libraries.id", "user_libraries.media_item_id"],
+            [_FK_USER_LIBRARIES_ID, "user_libraries.media_item_id"],
             name="fk_progress_entry_title",
             ondelete="CASCADE",
         ),
@@ -468,7 +475,7 @@ class PlaytimeLog(Base):
         DateTime,
         nullable=False,
         default=datetime.utcnow,
-        server_default=text("timezone('utc', now())"),
+        server_default=text(_UTC_NOW_SQL),
     )
 
     progress = relationship("ChapterProgress", back_populates="playtime_logs")
@@ -498,7 +505,7 @@ class DecisionPoint(Base):
         "DecisionOption",
         back_populates="decision_point",
         order_by="DecisionOption.label",
-        cascade="all, delete-orphan",
+        cascade=_CASCADE_DELETE_ORPHAN,
         passive_deletes=True,
     )
 
@@ -550,7 +557,7 @@ class UserDecision(Base):
         DateTime,
         nullable=False,
         default=datetime.utcnow,
-        server_default=text("timezone('utc', now())"),
+        server_default=text(_UTC_NOW_SQL),
         onupdate=datetime.utcnow,
     )
 
@@ -558,7 +565,7 @@ class UserDecision(Base):
         # The library entry and the decision point must belong to the same title (BR-11)
         ForeignKeyConstraint(
             ["library_entry_id", "media_item_id"],
-            ["user_libraries.id", "user_libraries.media_item_id"],
+            [_FK_USER_LIBRARIES_ID, "user_libraries.media_item_id"],
             name="fk_decision_entry_title",
             ondelete="CASCADE",
         ),
@@ -587,7 +594,7 @@ class Review(Base):
 
     id = Column(Integer, primary_key=True)
     library_entry_id = Column(
-        Integer, ForeignKey("user_libraries.id", ondelete="CASCADE"), nullable=False
+        Integer, ForeignKey(_FK_USER_LIBRARIES_ID, ondelete="CASCADE"), nullable=False
     )
     text = Column(Text, nullable=False)
     contains_spoiler = Column(Boolean, nullable=True)
@@ -597,7 +604,7 @@ class Review(Base):
         DateTime,
         nullable=False,
         default=datetime.utcnow,
-        server_default=sql_text("timezone('utc', now())"),
+        server_default=sql_text(_UTC_NOW_SQL),
     )
     updated_at = Column(
         DateTime,
