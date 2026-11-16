@@ -1,0 +1,58 @@
+databases:
+  - name: omnilog-db
+    databaseName: omnilog
+    user: omnilog
+    plan: free # İhtiyaca göre starter seçilebilir
+
+services:
+  # 1. Redis Önbellek Servisi
+  - type: redis
+    name: omnilog-redis
+    plan: free
+    ipAllowList: [] # Sadece Render iç ağından erişime izin verir
+
+  # 2. Backend (FastAPI)
+  - type: web
+    name: omnilog-api
+    runtime: python
+    rootDir: backend
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: DATABASE_URL
+        fromDatabase:
+          name: omnilog-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: omnilog-redis
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: CORS_ORIGINS
+        sync: false # Render panelinde frontend URL'sini (ör. https://omnilog-web.onrender.com) gireceksin
+      - key: IGDB_CLIENT_ID
+        sync: false
+      - key: IGDB_CLIENT_SECRET
+        sync: false
+      - key: TMDB_API_KEY
+        sync: false
+
+  # 3. Frontend (Next.js)
+  - type: web
+    name: omnilog-web
+    runtime: node
+    rootDir: frontend
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start -- -p $PORT
+    envVars:
+      - key: NODE_VERSION
+        value: 20.18.0
+      - key: NEXT_PUBLIC_API_URL
+        sync: false # Render panelinde backend URL'sini (ör. https://omnilog-api.onrender.com) gireceksin
