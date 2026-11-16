@@ -135,6 +135,22 @@ def check_sensitive_logging(tree: ast.AST) -> list[int]:
     return lines
 
 
+# The rule python-log-sensitive-value of the old Semgrep setup, unchanged: a log call that has one
+# of these words anywhere later on the same line. It runs next to check_sensitive_logging, which
+# looks at the syntax tree, ignores case and also sees calls that are split over several lines.
+OLD_SEMGREP_LOG_RULE = re.compile(
+    r"log(ger)?\.(debug|info|warning|error|exception|critical)\(.*(password|secret|token)"
+)
+
+
+def check_sensitive_log_lines(source: str) -> list[int]:
+    return [
+        number
+        for number, line in enumerate(source.splitlines(), start=1)
+        if OLD_SEMGREP_LOG_RULE.search(line)
+    ]
+
+
 def _is_built_string(node: ast.AST) -> bool:
     if isinstance(node, ast.JoinedStr):
         return any(isinstance(part, ast.FormattedValue) for part in node.values)
@@ -174,15 +190,19 @@ HOW_TO_FIX = {
 
 # ------------------------------------------------------------------ the backend code
 @cache
-def _backend_trees() -> dict[str, ast.AST]:
-    trees = {}
+def _backend_sources() -> dict[str, str]:
+    sources = {}
     for path in sorted(BACKEND_DIR.rglob("*.py")):
         if SKIPPED_FOLDERS & set(path.relative_to(BACKEND_DIR).parts):
             continue
         # utf-8-sig, because some files start with a byte order mark
-        source = path.read_text(encoding="utf-8-sig")
-        trees[str(path.relative_to(BACKEND_DIR.parent))] = ast.parse(source, filename=str(path))
-    return trees
+        sources[str(path.relative_to(BACKEND_DIR.parent))] = path.read_text(encoding="utf-8-sig")
+    return sources
+
+
+@cache
+def _backend_trees() -> dict[str, ast.AST]:
+    return {name: ast.parse(source, filename=name) for name, source in _backend_sources().items()}
 
 
 def test_backend_files_were_found():
@@ -215,6 +235,7 @@ BAD_CODE = [
     ("logging", 'logger.warning(f"token is {value}")'),
     ("logging", 'logging.error("api_key missing")'),
     ("logging", 'self.logger.debug("sent", user.access_token)'),
+    ("logging", 'logger.error(\n    "login failed",\n    token,\n)'),
     ("sql", 'db.execute(f"DELETE FROM t WHERE a = {value}")'),
     ("sql", 'text(f"{value}")'),
     ("sql", 'text("SELECT * FROM t WHERE a = " + value)'),
@@ -244,6 +265,38 @@ def test_check_finds_bad_code(check_name, code):
 @pytest.mark.parametrize(("check_name", "code"), GOOD_CODE)
 def test_check_accepts_safe_code(check_name, code):
     assert CHECKS[check_name](ast.parse(code)) == [], f"{check_name} wrongly flagged: {code}"
+
+
+def test_backend_code_has_no_sensitive_log_line():
+    problems = [
+        f"{name}:{line}"
+        for name, source in _backend_sources().items()
+        for line in check_sensitive_log_lines(source)
+    ]
+    assert not problems, f"{HOW_TO_FIX['logging']}\n" + "\n".join(problems)
+
+
+BAD_LOG_LINES = [
+    'logger.info("login for %s", password)',
+    'log.debug("x"); secret = 1',
+    'app.logger.error(f"bad token {value}")',
+    'logger.exception("api secret")',
+]
+GOOD_LOG_LINES = [
+    'logger.warning("TMDB sent no details for series %s", series_id)',
+    "token = make_token()",
+    'print("password")',
+]
+
+
+@pytest.mark.parametrize("line", BAD_LOG_LINES)
+def test_log_line_check_finds_bad_code(line):
+    assert check_sensitive_log_lines(line), f"not found: {line}"
+
+
+@pytest.mark.parametrize("line", GOOD_LOG_LINES)
+def test_log_line_check_accepts_safe_code(line):
+    assert check_sensitive_log_lines(line) == [], f"wrongly flagged: {line}"
 
 
 # ------------------------------------------------------------------ the running app
