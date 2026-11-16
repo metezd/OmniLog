@@ -15,6 +15,9 @@ const STORAGE_SET_ITEM =
 // react/jsx-no-target-blank off and does not enable the eval rules, so they are set here.
 // A rule can be turned off for one line with a comment that gives the reason, for example:
 //   // eslint-disable-next-line no-restricted-syntax -- the HTML is sanitized above
+const STORAGE_WARNING =
+  "Do not keep an auth token in web storage: any injected script can read it. Check that this value is not a token or secret.";
+
 const securityRules = {
   files: ["**/*.{js,jsx,mjs,ts,tsx}"],
   rules: {
@@ -22,6 +25,13 @@ const securityRules = {
     "no-implied-eval": "error",
     "no-new-func": "error",
     "react/jsx-no-target-blank": "error",
+    // The old Semgrep rule javascript-token-in-local-storage reported every setItem call as a
+    // warning. This keeps that. A value that is named like a credential is an error, see below.
+    "no-restricted-properties": [
+      "warn",
+      { object: "localStorage", property: "setItem", message: STORAGE_WARNING },
+      { object: "sessionStorage", property: "setItem", message: STORAGE_WARNING },
+    ],
     "no-restricted-syntax": [
       "error",
       {

@@ -14,7 +14,11 @@ const SECURITY_RULES = new Set([
   "no-new-func",
   "react/jsx-no-target-blank",
   "no-restricted-syntax",
+  "no-restricted-properties",
 ]);
+
+const WARNING = 1;
+const ERROR = 2;
 
 let eslint: ESLint;
 
@@ -22,12 +26,14 @@ beforeAll(() => {
   eslint = new ESLint({ cwd: process.cwd() });
 });
 
-async function securityMessages(code: string): Promise<string[]> {
+type Finding = { severity: number; message: string };
+
+async function securityFindings(code: string): Promise<Finding[]> {
   const filePath = path.join(process.cwd(), "src", "security-fixture.tsx");
   const [result] = await eslint.lintText(code, { filePath });
   return result.messages
     .filter((message) => message.ruleId !== null && SECURITY_RULES.has(message.ruleId))
-    .map((message) => message.message);
+    .map((message) => ({ severity: message.severity, message: message.message }));
 }
 
 const BAD_CODE: Array<[string, string, RegExp]> = [
@@ -66,8 +72,18 @@ const BAD_CODE: Array<[string, string, RegExp]> = [
   ],
 ];
 
-const GOOD_CODE: Array<[string, string]> = [
+// The old Semgrep rule reported every setItem call on web storage as a warning. A warning does
+// not fail `npm run lint`, but it must stay visible.
+const WARNING_CODE: Array<[string, string]> = [
   ["a theme in localStorage", `export const a = () => { localStorage.setItem("theme", "dark"); };`],
+  [
+    "a tab name in sessionStorage",
+    `export const a = (tab: string) => { sessionStorage.setItem("lastTab", tab); };`,
+  ],
+];
+
+const GOOD_CODE: Array<[string, string]> = [
+  ["reading from localStorage", `export const a = () => localStorage.getItem("theme");`],
   ["a public API URL", `export const a = process.env.NEXT_PUBLIC_API_URL;`],
   [
     "target=_blank with rel",
@@ -76,14 +92,21 @@ const GOOD_CODE: Array<[string, string]> = [
 ];
 
 describe("the ESLint security rules", () => {
-  it.each(BAD_CODE)("report %s", async (_name, code, expected) => {
-    const messages = await securityMessages(code);
+  it.each(BAD_CODE)("report %s as an error", async (_name, code, expected) => {
+    const findings = await securityFindings(code);
 
-    expect(messages.length).toBeGreaterThan(0);
-    expect(messages.some((message) => expected.test(message))).toBe(true);
+    expect(findings.some((finding) => finding.severity === ERROR)).toBe(true);
+    expect(findings.some((finding) => expected.test(finding.message))).toBe(true);
+  }, 60_000);
+
+  it.each(WARNING_CODE)("report %s as a warning only", async (_name, code) => {
+    const findings = await securityFindings(code);
+
+    expect(findings.length).toBeGreaterThan(0);
+    expect(findings.every((finding) => finding.severity === WARNING)).toBe(true);
   }, 60_000);
 
   it.each(GOOD_CODE)("accept %s", async (_name, code) => {
-    expect(await securityMessages(code)).toEqual([]);
+    expect(await securityFindings(code)).toEqual([]);
   }, 60_000);
 });
