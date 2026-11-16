@@ -34,6 +34,10 @@ CORS_ORIGINS = [
     ).split(",")
     if origin.strip()
 ]
+# The API sends cookies and credentials, so a wildcard origin would let any website call it as
+# the logged-in user. Fail at start-up instead of running with an open CORS policy.
+if "*" in CORS_ORIGINS:
+    raise RuntimeError("CORS_ORIGINS must list explicit origins. A wildcard (*) is not allowed.")
 
 # How long a login token stays valid, in minutes
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "90"))
