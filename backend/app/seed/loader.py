@@ -88,10 +88,13 @@ def _format_location(location: Sequence) -> str:
     """('games', 0, 'chapters', 2, 'number') becomes games[0].chapters[2].number"""
     text = ""
     for part in location:
-        text += f"[{part}]" if isinstance(part, int) else (f".{part}" if text else str(part))
+        if isinstance(part, int):
+            text += f"[{part}]"
+        elif text:
+            text += f".{part}"
+        else:
+            text = str(part)
     return text or "file"
-
-
 def apply_seed(db: Session, seed: SeedFile) -> SeedReport:
     """Write the seed. Commits when everything worked and rolls back when anything failed."""
     report = SeedReport()
