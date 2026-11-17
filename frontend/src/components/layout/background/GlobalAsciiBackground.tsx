@@ -17,15 +17,21 @@ export const PRESETS: Record<PresetKey, PresetConfig> = {
   butterfly: {
     label: "Butterfly",
     dotColor: "#38bdf8",
-    speed: 1.05,
-    palette: { "#": "#0284c7", "@": "#38bdf8", "*": "#7dd3fc", "+": "#bae6fd", ".": "#e0f2fe" },
+    speed: 1.1,
+    palette: {
+      "#": "#0284c7",
+      "@": "#38bdf8",
+      "*": "#7dd3fc",
+      "+": "#e0f2fe",
+      ":": "#f472b6",
+    },
     frames: [
       [
         "  .###.      .###.  ",
         " .#@@@#.    .#@@@#. ",
         ".#@@**@#.  .#@**@@#.",
         "#@**++*@#.+#@*++**@#",
-        "#@*++++*@##@*++++*@#",
+        "#@*+::+*@##@*+::+*@#",
         ".#@@**@######@**@@#.",
         " .#@@@#.+##+.#@@@#. ",
         "  .###..#@@#..###.  ",
@@ -34,16 +40,16 @@ export const PRESETS: Record<PresetKey, PresetConfig> = {
         "     .###..###.     ",
       ],
       [
-        "     .##.  .##.     ",
-        "    .#@@#.+#@@#.    ",
-        "    .#@@*##*@@#.    ",
+        "    .##.    .##.    ",
+        "   .#@@#.  .#@@#.   ",
+        "   .#@*@#.+#@*@#.   ",
+        "    .#@*#::#*@#.    ",
+        "    .#@@#::#@@#.    ",
+        "     .###::###.     ",
         "     .#@@##@@#.     ",
-        "     .#@@##@@#.     ",
-        "      .######.      ",
-        "      .#@@@@#.      ",
-        "       .####.       ",
-        "       .####.       ",
-        "        ....        ",
+        "      .##..##.      ",
+        "      .#.  .#.      ",
+        "                    ",
         "                    ",
       ],
     ],
@@ -52,7 +58,13 @@ export const PRESETS: Record<PresetKey, PresetConfig> = {
     label: "Jellyfish",
     dotColor: "#c084fc",
     speed: 0.75,
-    palette: { "#": "#9333ea", "@": "#c084fc", "*": "#e9d5ff", "~": "#a855f7", ":": "#d8b4fe" },
+    palette: {
+      "#": "#9333ea",
+      "@": "#c084fc",
+      "*": "#f3e8ff",
+      "~": "#e879f9",
+      ":": "#818cf8",
+    },
     frames: [
       [
         "     .########.     ",
@@ -83,8 +95,13 @@ export const PRESETS: Record<PresetKey, PresetConfig> = {
   dragonfly: {
     label: "Dragonfly",
     dotColor: "#2dd4bf",
-    speed: 1.4,
-    palette: { "#": "#0d9488", "@": "#2dd4bf", "*": "#99f6e4", "+": "#5eead4" },
+    speed: 1.45,
+    palette: {
+      "#": "#0d9488",
+      "@": "#2dd4bf",
+      "*": "#99f6e4",
+      "+": "#f0fdfa",
+    },
     frames: [
       [
         "       .@@@@.       ",
@@ -100,8 +117,8 @@ export const PRESETS: Record<PresetKey, PresetConfig> = {
       [
         "       .@@@@.       ",
         " .*****######*****. ",
-        "*******######*******",
-        " .+++++######+++++. ",
+        "+++++++######+++++++",
+        " .*****######*****. ",
         "       .####.       ",
         "       .####.       ",
         "        .##.        ",
@@ -113,8 +130,13 @@ export const PRESETS: Record<PresetKey, PresetConfig> = {
   koi: {
     label: "Koi",
     dotColor: "#fb923c",
-    speed: 0.9,
-    palette: { "#": "#ea580c", "@": "#fb923c", "*": "#fed7aa", "+": "#f97316" },
+    speed: 0.95,
+    palette: {
+      "#": "#ea580c",
+      "@": "#fb923c",
+      "*": "#fed7aa",
+      "+": "#fff7ed",
+    },
     frames: [
       [
         "       .#####.      ",
@@ -144,7 +166,12 @@ export const PRESETS: Record<PresetKey, PresetConfig> = {
     label: "Frog",
     dotColor: "#4ade80",
     speed: 0.85,
-    palette: { "#": "#16a34a", "@": "#4ade80", "*": "#bbf7d0", "+": "#22c55e" },
+    palette: {
+      "#": "#16a34a",
+      "@": "#4ade80",
+      "*": "#bbf7d0",
+      "+": "#f0fdf4",
+    },
     frames: [
       [
         "  .@@@.      .@@@.  ",
@@ -174,7 +201,12 @@ export const PRESETS: Record<PresetKey, PresetConfig> = {
     label: "Bird",
     dotColor: "#fbbf24",
     speed: 1.25,
-    palette: { "#": "#d97706", "@": "#fbbf24", "*": "#fef3c7", "+": "#f59e0b" },
+    palette: {
+      "#": "#d97706",
+      "@": "#fbbf24",
+      "*": "#fef3c7",
+      "+": "#fffbeb",
+    },
     frames: [
       [
         ".###.          .###.",
@@ -201,8 +233,13 @@ export const PRESETS: Record<PresetKey, PresetConfig> = {
   crab: {
     label: "Crab",
     dotColor: "#f43f5e",
-    speed: 0.8,
-    palette: { "#": "#e11d48", "@": "#f43f5e", "*": "#fecdd3", "+": "#fb7185" },
+    speed: 0.85,
+    palette: {
+      "#": "#e11d48",
+      "@": "#f43f5e",
+      "*": "#fecdd3",
+      "+": "#fff1f2",
+    },
     frames: [
       [
         " .###.        .###. ",
@@ -293,30 +330,28 @@ export default function GlobalAsciiBackground() {
     const creatures: Creature[] = [];
     const bursts: BurstParticle[] = [];
     const pointer = { x: -9999, y: -9999 };
+    const paletteColors = Object.values(cfg.palette);
 
+    // 7 well-spaced creatures (fast 60 FPS & clear visual layout like the demo)
     const spawnPositions = [
-      { rx: 0.16, ry: 0.45, scale: 1.55 },
-      { rx: 0.84, ry: 0.45, scale: 1.55 },
-      { rx: 0.50, ry: 0.22, scale: 1.4 },
-      { rx: 0.14, ry: 0.22, scale: 1.1 },
-      { rx: 0.86, ry: 0.22, scale: 1.1 },
-      { rx: 0.18, ry: 0.78, scale: 1.2 },
-      { rx: 0.82, ry: 0.78, scale: 1.2 },
-      { rx: 0.34, ry: 0.82, scale: 1.05 },
-      { rx: 0.66, ry: 0.82, scale: 1.05 },
-      { rx: 0.50, ry: 0.85, scale: 1.25 },
+      { rx: 0.17, ry: 0.46, scale: 1.35 },
+      { rx: 0.83, ry: 0.46, scale: 1.35 },
+      { rx: 0.50, ry: 0.22, scale: 1.25 },
+      { rx: 0.16, ry: 0.24, scale: 1.05 },
+      { rx: 0.84, ry: 0.24, scale: 1.05 },
+      { rx: 0.22, ry: 0.78, scale: 1.15 },
+      { rx: 0.78, ry: 0.78, scale: 1.15 },
     ];
 
     spawnPositions.forEach((sp, i) => {
       const angle = (Math.PI * 2 * i) / spawnPositions.length + (Math.random() - 0.5) * 0.4;
-      const baseScale = sp.scale * (zoomed ? 1.45 : 1.0);
       creatures.push({
         x: width * sp.rx,
         y: height * sp.ry,
         vx: Math.cos(angle) * cfg.speed,
         vy: Math.sin(angle) * cfg.speed * 0.8,
-        frameOffset: i * 9,
-        scale: baseScale,
+        frameOffset: i * 8,
+        scale: sp.scale * (zoomed ? 1.4 : 1.0),
         scatterCells: {},
       });
     });
@@ -332,12 +367,11 @@ export default function GlobalAsciiBackground() {
     };
 
     const triggerScatter = (clickX: number, clickY: number) => {
-      const asciiPool = ["#", "@", "*", "+", "~", ":", "=", "%"];
-      const paletteColors = Object.values(cfg.palette);
+      const asciiPool = ["#", "@", "*", "+", "~", ":"];
 
-      for (let i = 0; i < 36; i++) {
+      for (let i = 0; i < 24; i++) {
         const a = Math.random() * Math.PI * 2;
-        const sp = 2.5 + Math.random() * 7;
+        const sp = 2 + Math.random() * 6;
         bursts.push({
           x: clickX,
           y: clickY,
@@ -353,8 +387,8 @@ export default function GlobalAsciiBackground() {
         const dx = c.x - clickX;
         const dy = c.y - clickY;
         const dist = Math.hypot(dx, dy) || 1;
-        if (dist < 440) {
-          const push = ((440 - dist) / 440) * 11;
+        if (dist < 420) {
+          const push = ((420 - dist) / 420) * 10;
           c.vx += (dx / dist) * push;
           c.vy += (dy / dist) * push;
 
@@ -366,8 +400,8 @@ export default function GlobalAsciiBackground() {
                 c.scatterCells[key] = {
                   dx: 0,
                   dy: 0,
-                  vx: (Math.random() - 0.5) * 20,
-                  vy: (Math.random() - 0.5) * 20,
+                  vx: (Math.random() - 0.5) * 18,
+                  vy: (Math.random() - 0.5) * 18,
                 };
               }
             }
@@ -393,15 +427,17 @@ export default function GlobalAsciiBackground() {
       tick++;
       ctx.clearRect(0, 0, width, height);
 
-      const gridStep = 26;
-      for (let gx = 14; gx < width; gx += gridStep) {
-        for (let gy = 14; gy < height; gy += gridStep) {
-          const d = Math.hypot(gx - pointer.x, gy - pointer.y);
-          if (d < 150) {
+      // Lightweight background dot grid (step 34 for fast rendering)
+      const gridStep = 34;
+      for (let gx = 18; gx < width; gx += gridStep) {
+        for (let gy = 18; gy < height; gy += gridStep) {
+          const dx = gx - pointer.x;
+          const dy = gy - pointer.y;
+          if (dx * dx + dy * dy < 19600) {
             ctx.fillStyle = cfg.dotColor + "66";
             ctx.fillRect(gx - 1, gy - 1, 2.5, 2.5);
           } else {
-            ctx.fillStyle = "rgba(148, 163, 184, 0.09)";
+            ctx.fillStyle = "rgba(148, 163, 184, 0.08)";
             ctx.fillRect(gx, gy, 1.5, 1.5);
           }
         }
@@ -412,12 +448,12 @@ export default function GlobalAsciiBackground() {
         c.y += c.vy;
 
         const speed = Math.hypot(c.vx, c.vy) || 1;
-        if (speed > cfg.speed * 1.25) {
+        if (speed > cfg.speed * 1.2) {
           c.vx *= 0.94;
           c.vy *= 0.94;
         }
 
-        const topPad = 80;
+        const topPad = 85;
         const sidePad = 75;
         const bottomPad = 75;
         if (c.x < sidePad) c.vx = Math.abs(c.vx);
@@ -425,7 +461,7 @@ export default function GlobalAsciiBackground() {
         if (c.y < topPad) c.vy = Math.abs(c.vy);
         if (c.y > height - bottomPad) c.vy = -Math.abs(c.vy);
 
-        const frameIdx = Math.floor((tick + c.frameOffset) / 15) % cfg.frames.length;
+        const frameIdx = Math.floor((tick + c.frameOffset) / 14) % cfg.frames.length;
         const matrix = cfg.frames[frameIdx];
         const cellSize = Math.round(11 * c.scale);
         ctx.font = `bold ${cellSize}px monospace`;
@@ -461,7 +497,8 @@ export default function GlobalAsciiBackground() {
             const cy = startY + r * cellSize + oy;
             const color = cfg.palette[ch] || cfg.dotColor;
 
-            ctx.fillStyle = color + "40";
+            // Fast flat pixel backing + crisp text (zero shadowBlur overhead)
+            ctx.fillStyle = color + "38";
             ctx.fillRect(cx - cellSize / 2, cy - cellSize / 2, cellSize - 1, cellSize - 1);
 
             ctx.fillStyle = color;
@@ -476,14 +513,14 @@ export default function GlobalAsciiBackground() {
         b.y += b.vy;
         b.vx *= 0.92;
         b.vy *= 0.92;
-        b.alpha -= 0.024;
+        b.alpha -= 0.025;
         if (b.alpha <= 0) {
           bursts.splice(i, 1);
           continue;
         }
         ctx.globalAlpha = b.alpha;
         ctx.fillStyle = b.color;
-        ctx.font = "bold 13px monospace";
+        ctx.font = "bold 12px monospace";
         ctx.fillText(b.char, b.x, b.y);
         ctx.globalAlpha = 1;
       }
@@ -503,7 +540,6 @@ export default function GlobalAsciiBackground() {
 
   return (
     <>
-      {/* Fixed full-screen canvas with screen blend mode so dark containers never block it */}
       <canvas
         ref={canvasRef}
         style={{
@@ -512,14 +548,12 @@ export default function GlobalAsciiBackground() {
           left: 0,
           width: "100vw",
           height: "100vh",
-          zIndex: 35,
+          zIndex: 25,
           pointerEvents: "none",
-          mixBlendMode: "screen",
         }}
         aria-hidden="true"
       />
 
-      {/* Liquid Glass Top Creature Switcher Bar */}
       <div className="liquid-glass relative z-40 flex flex-wrap items-center justify-center gap-1.5 border-b border-white/10 bg-white/[0.02] px-4 py-2.5 backdrop-blur-md">
         {(Object.keys(PRESETS) as PresetKey[]).map((key) => {
           const item = PRESETS[key];
