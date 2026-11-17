@@ -3,7 +3,6 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import DeleteListButton from "@/components/lists/DeleteListButton";
-import { deleteListAction } from "@/lib/actions/lists";
 
 vi.mock("@/lib/actions/lists", () => ({
   deleteListAction: vi.fn(),
