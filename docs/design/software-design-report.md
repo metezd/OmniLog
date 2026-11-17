@@ -11,6 +11,7 @@
 | Kağan Konuk | Backend Engineer |
 | Sidar Ürey | ML Engineer |
 | Musab Alperen Başol | API Integration and Backend Engineer |
+| Mohammad Edris | Backend/QA Engineer |
 
 ---
 

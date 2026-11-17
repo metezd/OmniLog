@@ -4,11 +4,40 @@ updates:
     directory: "/backend"
     schedule:
       interval: "cron"
-      cronjob: "0 9 * * 1,5"
+      cronjob: "0 9 * * 1"
       timezone: "Europe/Istanbul"
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 5
     labels:
       - "dependencies"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    assignees:
+      - "metezd"
+    reviewers:
+      - "metezd"
+
+  # The security tools (Ruff, zizmor) that the workflows install from .github/requirements-*.txt
+  - package-ecosystem: "pip"
+    directory: "/.github"
+    schedule:
+      interval: "cron"
+      cronjob: "0 9 * * 1"
+      timezone: "Europe/Istanbul"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 2
+    labels:
+      - "dependencies"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    assignees:
+      - "metezd"
+    reviewers:
+      - "metezd"
 
   # The packages of the frontend (Next.js, React, the test tools). Next.js and its ESLint config
   # are pinned to the same exact version, so they are updated together in one pull request.
@@ -16,11 +45,22 @@ updates:
     directory: "/frontend"
     schedule:
       interval: "cron"
-      cronjob: "0 9 * * 1,5"
+      cronjob: "0 9 * * 1"
       timezone: "Europe/Istanbul"
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 5
     labels:
       - "dependencies"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    assignees:
+      - "metezd"
+      - "KeremKenet"
+    reviewers:
+      - "metezd"
+      - "KeremKenet"
     groups:
       next:
         patterns:
@@ -47,8 +87,40 @@ updates:
     directory: "/"
     schedule:
       interval: "cron"
-      cronjob: "0 9 * * 1,5"
+      cronjob: "0 9 * * 1"
       timezone: "Europe/Istanbul"
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 5
     labels:
       - "dependencies"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    assignees:
+      - "metezd"
+    reviewers:
+      - "metezd"
+
+  # Docker base images in Dockerfiles and docker-compose files
+  - package-ecosystem: "docker"
+    directories:
+      - "/"
+      - "/backend"
+      - "/frontend"
+    schedule:
+      interval: "cron"
+      cronjob: "0 9 * * 1"
+      timezone: "Europe/Istanbul"
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    assignees:
+      - "metezd"
+    reviewers:
+      - "metezd"

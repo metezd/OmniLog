@@ -1,7 +1,7 @@
 {
   "games": [
     {
-      "external_api_id": 0,
+      "external_api_id": 7599,
       "title": "Life is Strange",
       "release_date": "2015-01-30",
       "chapters": [
@@ -15,12 +15,55 @@
                 { "label": "A", "text": "Make fun of Victoria" },
                 { "label": "B", "text": "Help Victoria" }
               ]
+            },
+            {
+              "prompt": "Does Max report Nathan to Principal Wells or hide the truth?",
+              "options": [
+                { "label": "A", "text": "Report Nathan" },
+                { "label": "B", "text": "Hide the truth" }
+              ]
             }
           ]
         },
-        { "number": 2, "title": "Out of Time" },
-        { "number": 3, "title": "Chaos Theory" },
-        { "number": 4, "title": "Dark Room" },
+        {
+          "number": 2,
+          "title": "Out of Time",
+          "decision_points": [
+            {
+              "prompt": "Does Max answer Kate's phone call?",
+              "options": [
+                { "label": "A", "text": "Answer the call" },
+                { "label": "B", "text": "Don't answer" }
+              ]
+            }
+          ]
+        },
+        {
+          "number": 3,
+          "title": "Chaos Theory",
+          "decision_points": [
+            {
+              "prompt": "Does Max steal the money from the principal's office?",
+              "options": [
+                { "label": "A", "text": "Steal the money" },
+                { "label": "B", "text": "Leave the money" }
+              ]
+            }
+          ]
+        },
+        {
+          "number": 4,
+          "title": "Dark Room",
+          "decision_points": [
+            {
+              "prompt": "Chloe asks Max to help her end her life. What does Max do?",
+              "options": [
+                { "label": "A", "text": "Accept Chloe's request" },
+                { "label": "B", "text": "Refuse Chloe's request" }
+              ]
+            }
+          ]
+        },
         {
           "number": 5,
           "title": "Polarized",

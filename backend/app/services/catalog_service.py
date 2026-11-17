@@ -47,6 +47,7 @@ from app.models.entities import Chapter, ChapterKind, DecisionPoint, Genre, Medi
 logger = logging.getLogger(__name__)
 
 SEARCH_RESULT_LIMIT = 10
+_TMDB_NOT_CONFIGURED_MSG = "TMDB is not set up"
 
 
 class InvalidQueryError(Exception):
@@ -112,7 +113,7 @@ def _fetch_external(media_type: MediaType, query: str) -> list[ExternalTitle]:
         return igdb.search_games(query, SEARCH_RESULT_LIMIT)
 
     if not tmdb.is_configured():
-        raise ExternalServiceError("TMDB is not set up")
+        raise ExternalServiceError(_TMDB_NOT_CONFIGURED_MSG)
     return tmdb.search(media_type, query, SEARCH_RESULT_LIMIT)
 
 
@@ -311,7 +312,7 @@ def _refresh_series(db: Session, item: MediaItem) -> None:
 
 def _fetch_series_seasons(external_id: int) -> _OutsideSeasons:
     if not tmdb.is_configured():
-        raise ExternalServiceError("TMDB is not set up")
+        raise ExternalServiceError(_TMDB_NOT_CONFIGURED_MSG)
     series = tmdb.fetch_series(external_id)
     if series is None:
         return _OutsideSeasons(found=False, seasons=[], details=_NO_DETAILS)
@@ -443,7 +444,7 @@ def _fetch_details(item: MediaItem) -> _OutsideDetails:
         details = igdb.fetch_game_details(item.external_api_id)
     else:
         if not tmdb.is_configured():
-            raise ExternalServiceError("TMDB is not set up")
+            raise ExternalServiceError(_TMDB_NOT_CONFIGURED_MSG)
         details = tmdb.fetch_movie_details(item.external_api_id)
     if details is None:
         return _OutsideDetails(found=False, details=_NO_DETAILS)

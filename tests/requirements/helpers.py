@@ -5,24 +5,6 @@ test fails with a clear message when a prerequisite endpoint is missing.
 """
 import uuid
 
-import pytest
-
-
-def not_built(story: str):
-    """Mark a requirement test of a story that is not built yet as an expected failure.
-
-    The test stays in the suite and still runs, so the suite is green while the story is open.
-    The mark is strict. When the story is built the test passes, and pytest reports that as a
-    failure (XPASS strict). That is the sign to remove the mark.
-
-    Only an AssertionError counts as the expected failure, which is what a missing endpoint gives
-    (404 instead of 200). Any other error, such as a broken fixture or an import error, is still
-    reported as a real failure.
-    """
-    return pytest.mark.xfail(
-        strict=True, raises=AssertionError, reason=f"{story} is not implemented yet"
-    )
-
 
 def unique(prefix: str = "user") -> str:
     """Return a unique name so repeated test runs never collide (409)."""

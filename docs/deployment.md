@@ -72,6 +72,8 @@ All settings are in `.env.prod`. The file holds secrets and is ignored by Git. C
 | `API_URL` | yes | The address that the browser calls, for example `https://api.example.com`. Built into the frontend image |
 | `CORS_ORIGINS` | yes | The address of the frontend, for example `https://app.example.com`. The backend accepts browser calls only from here |
 | `IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET`, `TMDB_API_KEY` | no | Keys of the catalog services. Without them the catalog search cannot reach the outside services |
+| `OPENAI_API_KEY` | no | OpenAI API key. Without it, OpenAI-backed features are disabled |
+| `EMBEDDING_MODEL`, `EMBEDDING_DIMENSIONS`, `SPOILER_MODEL`, `SPOILER_THRESHOLD`, `OPENAI_TIMEOUT_SECONDS`, `OPENAI_MAX_RETRIES` | no | Models, spoiler confidence threshold, request timeout in seconds and retry count |
 | `POSTGRES_USER`, `POSTGRES_DB` | no | Defaults are `omnilog` |
 | `TAG` | no | Tag of the built images. Default is `latest` |
 
@@ -144,7 +146,7 @@ Open `https://localhost` in the browser and accept the certificate warning, beca
 - There are no automatic backups, no monitoring and no alerts.
 - The stack runs one copy of each service. Running more copies of the backend is not set up and not tested.
 - The frontend does not call the API yet, because the login and register screens still use a mock service. `API_URL` has an effect when the frontend starts to use the API client.
-- The AI features (US-13 and US-14) are not built, so nothing of them is deployed.
+- OpenAI-backed embeddings and spoiler detection (US-13 and US-14) require an `OPENAI_API_KEY`. Without the key, OpenAI-backed features are disabled.
 
 ## 11. Problems
 
