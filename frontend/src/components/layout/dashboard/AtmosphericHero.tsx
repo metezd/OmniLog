@@ -1,103 +1,168 @@
-"use client";
+﻿"use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 
-interface AtmosphericHeroProps {
-  glowOpacity: number;
-  setGlowOpacity: (val: number) => void;
-  onToast: (msg: string) => void;
+type MediaFilter = "ALL" | "GAME" | "SERIES" | "MOVIE";
+
+export interface AtmosphericHeroProps {
+  glowOpacity?: number;
+  setGlowOpacity?: React.Dispatch<React.SetStateAction<number>>;
+  onToast?: (msg: string) => void;
+  children?: React.ReactNode;
 }
 
-export default function AtmosphericHero({
-  glowOpacity,
-  setGlowOpacity,
-  onToast,
-}: AtmosphericHeroProps) {
-  const [frost, setFrostState] = useState(20);
+export default function AtmosphericHero({ children }: AtmosphericHeroProps) {
+  const router = useRouter();
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const [pureCanvas, setPureCanvas] = useState(false);
+  const [query, setQuery] = useState("");
+  const [mediaFilter, setMediaFilter] = useState<MediaFilter>("ALL");
 
-  const handleFrostChange = (level: number) => {
-    setFrostState(level);
-    document.documentElement.style.setProperty("--glass-blur", `${level}px`);
-    onToast(`Frost blur tuned to ${level}px`);
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      const inInput = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+
+      if (e.key === "/" && !inInput) {
+        e.preventDefault();
+        setPureCanvas(false);
+        setTimeout(() => searchInputRef.current?.focus(), 20);
+      } else if ((e.key === "h" || e.key === "H") && !inInput) {
+        setPureCanvas((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = query.trim();
+    const params = new URLSearchParams();
+    if (trimmed) params.set("q", trimmed);
+    if (mediaFilter !== "ALL") {
+      params.set("type", mediaFilter);
+    }
+    const qs = params.toString();
+    router.push(qs ? `/search?${qs}` : "/search");
   };
 
   return (
-    <section className="liquid-glass rounded-3xl p-6 sm:p-8 relative overflow-hidden border border-white/10">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
-        {/* Sol Metin & Rozet */}
-        <div className="space-y-3 max-w-2xl">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium bg-horizon-burgundy/40 text-rose-300 border border-rose-500/20">
-            <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-pulse" />
-            Cinematic Horizon • Liquid Glass v2.4
-          </div>
-          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white leading-tight">
-            Centralized Media Logs &{" "}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-amber-400 to-rose-400">
-              Atmospheric Tracking
-            </span>
-          </h1>
-          <p className="text-sm text-slate-300 leading-relaxed">
-            Monitor real-time progress across games and television with frosted
-            refraction optics and twilight horizon color dynamics.
-          </p>
-        </div>
+    <section className="relative min-h-[calc(100vh-8rem)] w-full select-none flex flex-col items-center justify-center px-4 bg-transparent">
+      <div
+        className={`pointer-events-none relative z-40 flex flex-col items-center justify-center text-center transition-opacity duration-300 ${
+          pureCanvas ? "opacity-0" : "opacity-100"
+        }`}
+      >
+        {children ?? (
+          <div className="liquid-glass pointer-events-auto w-full max-w-xl space-y-5 rounded-3xl border border-white/15 bg-white/[0.03] p-6 shadow-2xl backdrop-blur-md sm:p-8">
+            <div className="space-y-2">
+              <span className="inline-block rounded-full border border-white/15 bg-white/[0.05] px-3 py-0.5 font-mono text-[10px] tracking-widest text-slate-300 uppercase">
+                OMNILOG // MEDIA ARCHIVE
+              </span>
+              <h1 className="text-2xl font-semibold tracking-tight text-white sm:text-4xl">
+                Every story, choice &amp; chapter.
+              </h1>
+              <p className="text-xs text-slate-300">
+                Click anywhere on empty space to scatter the ASCII swarm, or search the catalog below.
+              </p>
+            </div>
 
-        {/* Canlı Işık & Cam Kontrol Paneli */}
-        <div className="bg-black/40 backdrop-blur-md p-4 rounded-2xl border border-white/10 flex flex-col gap-3 min-w-[280px]">
-          <div className="flex items-center justify-between text-xs">
-            <span className="font-medium text-slate-300">Atmosphere Flare Glow</span>
-            <span className="font-mono text-cyan-400 font-semibold">
-              {Math.round(glowOpacity * 100)}%
-            </span>
-          </div>
-          <input
-            type="range"
-            min="0"
-            max="80"
-            value={Math.round(glowOpacity * 100)}
-            onChange={(e) => setGlowOpacity(Number(e.target.value) / 100)}
-            className="w-full accent-cyan-400 cursor-pointer h-1.5 bg-white/10 rounded-lg appearance-none"
-          />
+            <form
+              onSubmit={handleSearchSubmit}
+              className="liquid-glass flex items-center gap-2 rounded-2xl border border-white/15 bg-white/[0.04] px-3.5 py-2 focus-within:border-cyan-400/50"
+            >
+              <span className="font-mono text-xs text-slate-400">/</span>
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search games, series, movies..."
+                aria-label="Search catalog"
+                className="w-full bg-transparent text-xs text-white placeholder-slate-400 focus:outline-none sm:text-sm"
+              />
+              <button
+                type="submit"
+                className="rounded-xl border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium text-white transition-colors hover:border-cyan-400/40 hover:bg-cyan-500/20"
+              >
+                Search
+              </button>
+            </form>
 
-          <div className="flex items-center justify-between text-xs pt-2 border-t border-white/5">
-            <span className="text-slate-400">Glass Refraction Frost</span>
-            <div className="flex gap-1.5">
-              <button
-                type="button"
-                onClick={() => handleFrostChange(10)}
-                className={`px-2 py-0.5 rounded text-[10px] transition-colors ${
-                  frost === 10
-                    ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30"
-                    : "bg-white/5 hover:bg-white/15 text-slate-300"
-                }`}
+            <div className="flex flex-wrap items-center justify-center gap-1.5 pt-1">
+              {(
+                [
+                  { key: "ALL", label: "All Media" },
+                  { key: "GAME", label: "Video Games" },
+                  { key: "SERIES", label: "TV Series" },
+                  { key: "MOVIE", label: "Movies" },
+                ] as const
+              ).map((f) => (
+                <button
+                  key={f.key}
+                  type="button"
+                  onClick={() => setMediaFilter(f.key)}
+                  className={`rounded-full border px-3 py-1 text-[11px] font-medium transition-all ${
+                    mediaFilter === f.key
+                      ? "border-cyan-400/40 bg-cyan-500/20 text-cyan-200"
+                      : "border-white/10 bg-white/[0.04] text-slate-300 hover:text-white"
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+
+              <span className="mx-1 h-3 w-px bg-white/15" />
+
+              <Link
+                href="/library"
+                className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] font-medium text-slate-200 transition-colors hover:border-white/25 hover:text-white"
               >
-                Subtle
-              </button>
-              <button
-                type="button"
-                onClick={() => handleFrostChange(20)}
-                className={`px-2 py-0.5 rounded text-[10px] transition-colors ${
-                  frost === 20
-                    ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30"
-                    : "bg-white/5 hover:bg-white/15 text-slate-300"
-                }`}
+                Library
+              </Link>
+              <Link
+                href="/lists"
+                className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] font-medium text-slate-200 transition-colors hover:border-white/25 hover:text-white"
               >
-                Deep
-              </button>
-              <button
-                type="button"
-                onClick={() => handleFrostChange(36)}
-                className={`px-2 py-0.5 rounded text-[10px] transition-colors ${
-                  frost === 36
-                    ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30"
-                    : "bg-white/5 hover:bg-white/15 text-slate-300"
-                }`}
+                Lists
+              </Link>
+              <Link
+                href="/diary"
+                className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] font-medium text-slate-200 transition-colors hover:border-white/25 hover:text-white"
               >
-                Max
-              </button>
+                Diary
+              </Link>
+              <Link
+                href="/recommendations"
+                className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] font-medium text-slate-200 transition-colors hover:border-white/25 hover:text-white"
+              >
+                Recommendations
+              </Link>
+              <Link
+                href="/stats"
+                className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] font-medium text-slate-200 transition-colors hover:border-white/25 hover:text-white"
+              >
+                Stats
+              </Link>
             </div>
           </div>
-        </div>
+        )}
+      </div>
+
+      <div className="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex items-center justify-between px-6">
+        <span className="hidden sm:inline font-mono text-[11px] text-slate-400">
+          CLICK EMPTY SPACE TO SCATTER • PRESS &apos;/&apos; TO SEARCH • &apos;H&apos; FOR PURE CANVAS
+        </span>
+        <button
+          type="button"
+          onClick={() => setPureCanvas((p) => !p)}
+          className="liquid-glass pointer-events-auto ml-auto rounded-xl border border-white/15 bg-white/[0.05] px-3 py-1.5 font-mono text-xs text-slate-200 backdrop-blur-md transition-colors hover:border-white/25 hover:text-white"
+        >
+          UI: {pureCanvas ? "Pure Canvas" : "Minimal"}
+        </button>
       </div>
     </section>
   );
