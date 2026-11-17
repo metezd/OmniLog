@@ -15,6 +15,7 @@ Perhaps more importantly, contemporary narrative and episodic games (for example
   * Member 3: Kağan Konuk : Backend Engineer (kagan.konuk@bilgiedu.net)
   * Member 4: Sidar Ürey : ML Engineer (sidar.urey@bilgiedu.net)
   * Member 5: Musab Alperen Başol : API Integration & Backend Engineer (alperen.basol@bilgiedu.net)
+  * Member 6: Mohammed Edris : Backend QA / Test Engineer
 * **Possible Customers:** Gamers, Film & TV series enthusiasts, Tech Curious People, Players of episodic narrative games.
 * **GH Repo/Project URL:** [(OmniLog)](https://github.com/metezd/OmniLog)
 

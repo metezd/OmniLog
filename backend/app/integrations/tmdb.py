@@ -37,6 +37,7 @@ logger = logging.getLogger(__name__)
 SOURCE = "TMDB"
 BASE_URL = "https://api.themoviedb.org/3"
 POSTER_URL = "https://image.tmdb.org/t/p/w500{path}"
+_UNEXPECTED_ANSWER_MSG = "TMDB sent an unexpected answer"
 
 # TMDB answers at most 20 appended sub-requests in one call
 SEASONS_PER_REQUEST = 20
@@ -88,7 +89,7 @@ def search(media_type: MediaType, query: str, limit: int) -> list[ExternalTitle]
     body = json_body(response, SOURCE)
     results = body.get("results") if isinstance(body, dict) else None
     if not isinstance(results, list):
-        raise ExternalServiceError("TMDB sent an unexpected answer")
+        raise ExternalServiceError(_UNEXPECTED_ANSWER_MSG)
 
     titles = (_normalize(item, title_field, date_field) for item in results)
     return dedupe([t for t in titles if t])[:limit]
@@ -131,7 +132,7 @@ def fetch_movie_details(external_id: int) -> Optional[ExternalDetails]:
 
     body = json_body(response, SOURCE)
     if not isinstance(body, dict):
-        raise ExternalServiceError("TMDB sent an unexpected answer")
+        raise ExternalServiceError(_UNEXPECTED_ANSWER_MSG)
     return _details_of(body)
 
 
@@ -204,7 +205,7 @@ def _get_series(external_id: int, append: Optional[list[str]] = None) -> Optiona
 
     body = json_body(response, SOURCE)
     if not isinstance(body, dict):
-        raise ExternalServiceError("TMDB sent an unexpected answer")
+        raise ExternalServiceError(_UNEXPECTED_ANSWER_MSG)
     return body
 
 
@@ -212,7 +213,7 @@ def _listed_seasons(show: dict) -> dict[int, dict]:
     """The seasons named in the series answer: season number -> the entry."""
     seasons = show.get("seasons")
     if not isinstance(seasons, list):
-        raise ExternalServiceError("TMDB sent an unexpected answer")
+        raise ExternalServiceError(_UNEXPECTED_ANSWER_MSG)
 
     listed: dict[int, dict] = {}
     for entry in seasons:
@@ -270,39 +271,51 @@ def _strip_html(text: Any) -> Optional[str]:
 def _search_public(media_type: MediaType, query: str, limit: int) -> list[ExternalTitle]:
     """Keyless public search via TVMaze (SERIES) and iTunes (MOVIE) when TMDB_API_KEY='public'."""
     if media_type == MediaType.SERIES:
-        response = request_with_retry(
-            _session,
-            "GET",
-            "https://api.tvmaze.com/search/shows",
-            source=SOURCE,
-            params={"q": query},
-        )
-        if response.status_code != 200:
-            raise ExternalServiceError(f"TVMaze answered {response.status_code}")
-        body = json_body(response, SOURCE)
-        if not isinstance(body, list):
-            return []
-        results: list[ExternalTitle] = []
-        for entry in body[: int(limit)]:
-            show = entry.get("show") if isinstance(entry, dict) else None
-            if not isinstance(show, dict):
-                continue
-            ext_id = clean_external_id(show.get("id"))
-            title = clean_title(show.get("name"))
-            if ext_id is None or title is None:
-                continue
-            img = show.get("image") if isinstance(show.get("image"), dict) else {}
-            poster = clean_url(img.get("original") or img.get("medium"))
-            results.append(
-                ExternalTitle(
-                    external_id=ext_id,
-                    title=title,
-                    poster_url=poster,
-                    release_date=clean_date(show.get("premiered")),
-                )
-            )
-        return dedupe(results)
+        return _search_public_series(query, limit)
+    return _search_public_movies(query, limit)
 
+
+def _search_public_series(query: str, limit: int) -> list[ExternalTitle]:
+    response = request_with_retry(
+        _session,
+        "GET",
+        "https://api.tvmaze.com/search/shows",
+        source=SOURCE,
+        params={"q": query},
+    )
+    if response.status_code != 200:
+        raise ExternalServiceError(f"TVMaze answered {response.status_code}")
+    body = json_body(response, SOURCE)
+    if not isinstance(body, list):
+        return []
+
+    results: list[ExternalTitle] = []
+    for entry in body[: int(limit)]:
+        title = _parse_tvmaze_entry(entry)
+        if title is not None:
+            results.append(title)
+    return dedupe(results)
+
+
+def _parse_tvmaze_entry(entry: Any) -> Optional[ExternalTitle]:
+    show = entry.get("show") if isinstance(entry, dict) else None
+    if not isinstance(show, dict):
+        return None
+    ext_id = clean_external_id(show.get("id"))
+    title = clean_title(show.get("name"))
+    if ext_id is None or title is None:
+        return None
+    img = show.get("image") if isinstance(show.get("image"), dict) else {}
+    poster = clean_url(img.get("original") or img.get("medium"))
+    return ExternalTitle(
+        external_id=ext_id,
+        title=title,
+        poster_url=poster,
+        release_date=clean_date(show.get("premiered")),
+    )
+
+
+def _search_public_movies(query: str, limit: int) -> list[ExternalTitle]:
     response = request_with_retry(
         _session,
         "GET",
@@ -316,31 +329,36 @@ def _search_public(media_type: MediaType, query: str, limit: int) -> list[Extern
     items = body.get("results") if isinstance(body, dict) else None
     if not isinstance(items, list):
         return []
-    results = []
+
+    results: list[ExternalTitle] = []
     for item in items[: int(limit)]:
-        if not isinstance(item, dict):
-            continue
-        ext_id = clean_external_id(item.get("trackId"))
-        title = clean_title(item.get("trackName"))
-        if ext_id is None or title is None:
-            continue
-        art = item.get("artworkUrl100")
-        poster = (
-            clean_url(art.replace("100x100bb", "600x600bb"))
-            if isinstance(art, str)
-            else None
-        )
-        raw_date = item.get("releaseDate")
-        rel_date = clean_date(raw_date[:10]) if isinstance(raw_date, str) else None
-        results.append(
-            ExternalTitle(
-                external_id=ext_id,
-                title=title,
-                poster_url=poster,
-                release_date=rel_date,
-            )
-        )
+        title = _parse_itunes_entry(item)
+        if title is not None:
+            results.append(title)
     return dedupe(results)
+
+
+def _parse_itunes_entry(item: Any) -> Optional[ExternalTitle]:
+    if not isinstance(item, dict):
+        return None
+    ext_id = clean_external_id(item.get("trackId"))
+    title = clean_title(item.get("trackName"))
+    if ext_id is None or title is None:
+        return None
+    art = item.get("artworkUrl100")
+    poster = (
+        clean_url(art.replace("100x100bb", "600x600bb"))
+        if isinstance(art, str)
+        else None
+    )
+    raw_date = item.get("releaseDate")
+    rel_date = clean_date(raw_date[:10]) if isinstance(raw_date, str) else None
+    return ExternalTitle(
+        external_id=ext_id,
+        title=title,
+        poster_url=poster,
+        release_date=rel_date,
+    )
 
 
 def _fetch_public_movie_details(external_id: int) -> Optional[ExternalDetails]:
@@ -383,6 +401,7 @@ def _fetch_public_series(external_id: int) -> Optional[ExternalSeries]:
     show = json_body(response, SOURCE)
     if not isinstance(show, dict):
         return None
+
     raw_genres = show.get("genres")
     genre_entries = (
         [{"name": g} for g in raw_genres if isinstance(g, str)]
@@ -397,6 +416,12 @@ def _fetch_public_series(external_id: int) -> Optional[ExternalSeries]:
     raw_seasons = embedded.get("seasons") if isinstance(embedded.get("seasons"), list) else []
     raw_episodes = embedded.get("episodes") if isinstance(embedded.get("episodes"), list) else []
 
+    eps_by_season = _group_public_episodes(raw_episodes)
+    seasons = _build_public_seasons(raw_seasons, eps_by_season)
+    return ExternalSeries(seasons=seasons, details=details)
+
+
+def _group_public_episodes(raw_episodes: list[Any]) -> dict[int, dict[int, ExternalEpisode]]:
     eps_by_season: dict[int, dict[int, ExternalEpisode]] = {}
     for ep in raw_episodes:
         if not isinstance(ep, dict):
@@ -405,16 +430,21 @@ def _fetch_public_series(external_id: int) -> Optional[ExternalSeries]:
         e_num = clean_number(ep.get("number"))
         if s_num is None or e_num is None:
             continue
-        eps_by_season.setdefault(s_num, {})
-        if e_num not in eps_by_season[s_num] and len(eps_by_season[s_num]) < MAX_EPISODES_PER_SEASON:
-            eps_by_season[s_num][e_num] = ExternalEpisode(
+        season_eps = eps_by_season.setdefault(s_num, {})
+        if e_num not in season_eps and len(season_eps) < MAX_EPISODES_PER_SEASON:
+            season_eps[e_num] = ExternalEpisode(
                 number=e_num,
                 title=clean_title(ep.get("name")),
                 release_date=clean_date(ep.get("airdate")),
                 runtime_minutes=clean_number(ep.get("runtime")),
                 external_id=clean_external_id(ep.get("id")),
             )
+    return eps_by_season
 
+
+def _build_public_seasons(
+    raw_seasons: list[Any], eps_by_season: dict[int, dict[int, ExternalEpisode]]
+) -> list[ExternalSeason]:
     seasons_by_num: dict[int, ExternalSeason] = {}
     for s in raw_seasons:
         if not isinstance(s, dict):
@@ -429,9 +459,4 @@ def _fetch_public_series(external_id: int) -> Optional[ExternalSeries]:
             air_date=clean_date(s.get("premiereDate")),
             episodes=[ep_map[n] for n in sorted(ep_map)],
         )
-
-    sorted_nums = sorted(seasons_by_num)[:MAX_SEASONS]
-    return ExternalSeries(
-        seasons=[seasons_by_num[n] for n in sorted_nums],
-        details=details,
-    )
+    return [seasons_by_num[n] for n in sorted(seasons_by_num)[:MAX_SEASONS]]

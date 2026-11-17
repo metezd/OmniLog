@@ -464,5 +464,5 @@ This section reviews the Epic 5 data design.
 | # | Question |
 |---|---|
 | 1 | Which embedding model is used (hosted or open source), and what is its dimension? Decided: OpenAI `text-embedding-3-small`, 1536 dimensions. |
-| 2 | Is the Charter's collaborative filtering part of version 1? This document assumes version 1 is content-based. No extra table is needed for the collaborative part because it uses the ratings in `user_libraries`. |
-| 3 | Which model detects spoilers? It needs no table, but `spoiler_model_version` must be filled. |
+| 2 | Is the Charter's collaborative filtering part of version 1? Decided: No. Version 1 uses content-based recommendations only. |
+| 3 | Which model detects spoilers? Decided: OpenAI `gpt-4o-mini`, with a threshold of `0.5`. The model name is stored in `spoiler_model_version`. |
