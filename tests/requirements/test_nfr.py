@@ -4,10 +4,28 @@ NFR-05 (code coverage) is measured in the Testing phase with:
     pytest --cov=backend/app
 """
 import time
+from types import SimpleNamespace
 
 import pytest
 
-from helpers import new_credentials
+from helpers import add_to_library, create_media, new_credentials
+
+
+# ---------------------------------------------------------------- NFR-01
+def _p95_of_repeated_gets(client, path, headers, params=None, runs=100):
+    """Call GET `path` `runs` times and return the 95th percentile duration in seconds."""
+    durations = []
+    for _ in range(runs):
+        start = time.perf_counter()
+        response = client.get(path, params=params, headers=headers)
+        durations.append(time.perf_counter() - start)
+        assert response.status_code == 200
+
+    durations.sort()
+    p95 = durations[int(runs * 0.95) - 1]
+    # Shown with `pytest -s`. Copy this line into the Testing Report.
+    print(f"\n[NFR-01] GET {path}: p95={p95 * 1000:.1f} ms over {runs} requests")
+    return p95
 
 
 def test_nfr01_cached_search_p95_under_500ms(client, auth_headers):
@@ -16,34 +34,46 @@ def test_nfr01_cached_search_p95_under_500ms(client, auth_headers):
     warmup = client.get("/catalog/search", params=params, headers=auth_headers)
     assert warmup.status_code == 200  # fills the cache
 
-    durations = []
-    for _ in range(100):
-        start = time.perf_counter()
-        response = client.get("/catalog/search", params=params, headers=auth_headers)
-        durations.append(time.perf_counter() - start)
-        assert response.status_code == 200
+    p95 = _p95_of_repeated_gets(client, "/catalog/search", auth_headers, params)
 
-    durations.sort()
-    p95 = durations[94]
     assert p95 < 0.5, f"p95 was {p95:.3f}s"
 
 
+def test_nfr01_cached_stats_p95_under_500ms(client, auth_headers):
+    """NFR-01: 95th percentile of repeated /stats requests is under 500 ms."""
+    game = create_media(client, auth_headers, media_type="GAME")
+    add_to_library(client, auth_headers, game["id"], status="COMPLETED", rating=8)
+    warmup = client.get("/stats", headers=auth_headers)
+    assert warmup.status_code == 200  # fills the cache, if the endpoint has one
+
+    p95 = _p95_of_repeated_gets(client, "/stats", auth_headers)
+
+    assert p95 < 0.5, f"p95 was {p95:.3f}s"
+
+
+# ---------------------------------------------------------------- NFR-02
 @pytest.mark.parametrize(
-    "path",
+    ("method", "path"),
     [
-        "/library",
-        "/lists",
-        "/diary",
-        "/stats",
+        ("GET", "/library"),
+        ("GET", "/lists"),
+        ("GET", "/diary"),
+        ("GET", "/stats"),
+        ("GET", "/recommendations"),
+        ("GET", "/library/1/review"),
+        ("POST", "/library/1/review"),
     ],
 )
-def test_nfr02_protected_endpoints_require_token(client, path):
+def test_nfr02_protected_endpoints_require_token(client, method, path):
     """NFR-02: protected endpoints return 401 without a valid token."""
-    response = client.get(path)
+    kwargs = {"json": {"text": "Great game."}} if method == "POST" else {}
+
+    response = client.request(method, path, **kwargs)
 
     assert response.status_code == 401
 
 
+# ---------------------------------------------------------------- NFR-03
 def test_nfr03_password_is_hashed_and_never_returned(client):
     """NFR-03: stored password differs from plain text and is never returned."""
     credentials = new_credentials()
@@ -62,6 +92,37 @@ def test_nfr03_password_is_hashed_and_never_returned(client):
         assert len(user.hashed_password) > len(credentials["password"])
 
 
+# ---------------------------------------------------------------- NFR-04
+@pytest.fixture
+def lenient_client():
+    """A client that returns a real 500 response instead of raising the server error."""
+    from fastapi.testclient import TestClient
+    from app.main import app
+
+    return TestClient(app, raise_server_exceptions=False)
+
+
+@pytest.fixture
+def openai_down(monkeypatch):
+    """OpenAI is configured, but every call to it fails with a connection error."""
+    import httpx
+    from openai import APIConnectionError
+    from app.core import config
+    from app.integrations import openai_client
+
+    def broken(*args, **kwargs):
+        raise APIConnectionError(
+            request=httpx.Request("POST", "https://api.openai.com/v1/test")
+        )
+
+    broken_client = SimpleNamespace(
+        embeddings=SimpleNamespace(create=broken),
+        chat=SimpleNamespace(completions=SimpleNamespace(create=broken)),
+    )
+    monkeypatch.setattr(config, "OPENAI_API_KEY", "test-key")
+    monkeypatch.setattr(openai_client, "_client", broken_client)
+
+
 def test_nfr04_survives_external_api_failure(auth_headers, monkeypatch):
     """NFR-04: when IGDB/TMDB is down the API returns cached data or 503, not 500."""
     import requests
@@ -72,12 +133,44 @@ def test_nfr04_survives_external_api_failure(auth_headers, monkeypatch):
         raise requests.exceptions.ConnectionError("external API unavailable")
 
     monkeypatch.setattr(requests.sessions.Session, "request", broken_request)
-    lenient_client = TestClient(app, raise_server_exceptions=False)
+    lenient = TestClient(app, raise_server_exceptions=False)
 
-    response = lenient_client.get(
+    response = lenient.get(
         "/catalog/search",
         params={"q": "uncached-query-for-failure-test", "type": "GAME"},
         headers=auth_headers,
     )
 
     assert response.status_code in (200, 503)
+
+
+def test_nfr04_recommendations_survive_openai_down(
+    openai_down, lenient_client, auth_headers
+):
+    """NFR-04: /recommendations answers 200 or 503 when OpenAI is down, never 500."""
+    response = lenient_client.get(
+        "/recommendations", params={"target": "SERIES"}, headers=auth_headers
+    )
+
+    assert response.status_code in (200, 503)
+
+
+def test_nfr04_review_survives_openai_down_and_is_saved(
+    openai_down, lenient_client, auth_headers, library_entry
+):
+    """NFR-04: a review gets 201 or 503 when OpenAI is down, never 500, and is still saved."""
+    text = "In the final chapter the main character dies."
+
+    response = lenient_client.post(
+        f"/library/{library_entry['id']}/review",
+        json={"text": text},
+        headers=auth_headers,
+    )
+
+    assert response.status_code in (200, 201, 503)
+    saved = lenient_client.get(
+        f"/library/{library_entry['id']}/review", headers=auth_headers
+    )
+    assert saved.status_code == 200
+    assert saved.json() is not None, "the review was not saved"
+    assert saved.json()["text"] == text
