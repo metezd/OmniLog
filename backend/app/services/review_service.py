@@ -1,4 +1,5 @@
 """Review submission and NLP spoiler detection (US-14, DFD 5.4 and 5.5)."""
+import logging
 import re
 from datetime import datetime
 from typing import Tuple
@@ -9,7 +10,10 @@ from app.models.entities import Review, User, UserLibrary
 from app.schemas.review import ReviewCreate
 from app.services.diary_service import DiaryAction, record_event
 from app.services.library_service import LibraryEntryNotFoundError
+from app.integrations.common import ExternalServiceError
 from app.integrations.openai_client import classify_spoiler
+
+logger = logging.getLogger(__name__)
 
 SPOILER_MODEL_VERSION = "omnilog-nlp-spoiler-v1"
 SPOILER_THRESHOLD = 0.5
@@ -31,8 +35,12 @@ def detect_spoilers(text: str) -> Tuple[bool, float, str]:
     from app.core import config
 
     if config.OPENAI_API_KEY:
-        contains_spoiler, score = classify_spoiler(text)
-        return contains_spoiler, score, config.SPOILER_MODEL
+        try:
+            contains_spoiler, score = classify_spoiler(text)
+            return contains_spoiler, score, config.SPOILER_MODEL
+        except ExternalServiceError:
+            # OpenAI is down: the review is still saved, with the local patterns
+            logger.warning("OpenAI unavailable, using the local spoiler patterns")
 
     score = 0.0
     for pattern, weight in _SPOILER_PATTERNS:
