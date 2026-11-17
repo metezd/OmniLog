@@ -26,7 +26,7 @@ def upgrade() -> None:
     if offenders:
         names = ", ".join(f"{row.id}:{row.username}" for row in offenders)
         raise RuntimeError(
-            "Cannot add chk_username_no_at. These users (id:username) have an @ in the username: "
+            "Cannot add chk_username_no_at. These users (id:username) have an @ in the username: "  # noqa: S608 - error-message text, not a query
             f"{names}. Rename them first, for example: UPDATE users SET username = "
             "replace(username, '@', '_') WHERE position('@' in username) > 0;"
         )
