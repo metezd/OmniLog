@@ -306,15 +306,11 @@ export default function GlobalAsciiBackground() {
   const pathname = usePathname() || "/";
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  const [preset, setPreset] = useState<PresetKey>("butterfly");
+  const [manualPreset, setManualPreset] = useState<PresetKey>("butterfly");
   const [autoRoute, setAutoRoute] = useState(true);
   const [zoomed, setZoomed] = useState(false);
 
-  useEffect(() => {
-    if (autoRoute) {
-      setPreset(getRoutePreset(pathname));
-    }
-  }, [pathname, autoRoute]);
+  const preset: PresetKey = autoRoute ? getRoutePreset(pathname) : manualPreset;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -562,7 +558,10 @@ export default function GlobalAsciiBackground() {
             <button
               key={key}
               type="button"
-              onClick={() => setPreset(key)}
+              onClick={() => {
+                setAutoRoute(false);
+                setManualPreset(key);
+              }}
               className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-medium transition-all ${
                 active
                   ? "border-white/25 bg-white/15 text-white shadow-lg"
