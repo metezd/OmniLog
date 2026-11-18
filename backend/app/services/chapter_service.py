@@ -23,6 +23,7 @@ from app.models.entities import (
 )
 from app.services.diary_service import DiaryAction, record_event
 from app.services.library_service import LibraryEntryNotFoundError
+from app.services.stats_service import invalidate_stats_cache
 
 # The unique constraint that two first requests for the same chapter can collide on
 PROGRESS_UNIQUE_CONSTRAINT = "uq_progress_entry_chapter"
@@ -175,6 +176,7 @@ def rate_chapter(
     record_event(db, user_id, DiaryAction.CHAPTER_RATED, media_item_id, event_text)
     db.commit()
     db.refresh(progress)
+    invalidate_stats_cache(user_id)
     return progress
 
 
@@ -208,6 +210,7 @@ def log_playtime(
     db.commit()
     db.refresh(log)
     db.refresh(progress)
+    invalidate_stats_cache(user_id)
     return log, progress
 
 
@@ -304,6 +307,7 @@ def record_decision(
         db.rollback()
         raise  # a real database error. The cause stays visible.
 
+    invalidate_stats_cache(user_id)
     return point, option, _find_decision(db, entry_pk, point_pk)
 
 

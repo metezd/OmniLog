@@ -294,7 +294,7 @@ def test_two_users_with_the_same_title_each_see_their_own_numbers(client, auth_h
 
 # ---------------------------------------------------------------- always current
 def test_the_numbers_follow_changes_at_once(client, auth_headers):
-    """There is no cache yet, so a change shows in the next request."""
+    """The cache is invalidated after each write, so a change shows in the next request."""
     [entry] = add_titles(client, auth_headers, "GAME", 1, rating=5)
     assert get_stats(client, auth_headers)["rating_distribution"]["5"] == 1
 

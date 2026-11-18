@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.models.entities import MediaItem, User, UserLibrary
 from app.schemas.library import UserLibraryCreate, UserLibraryUpdate
 from app.services.diary_service import DiaryAction, record_event
+from app.services.stats_service import invalidate_stats_cache
 
 
 class MediaNotFoundError(Exception):
@@ -53,6 +54,7 @@ def add_entry(db: Session, user: User, data: UserLibraryCreate) -> UserLibrary:
 
     db.commit()
     db.refresh(entry)
+    invalidate_stats_cache(user.id)
     return entry
 
 
@@ -98,6 +100,7 @@ def update_entry(db: Session, user: User, entry_id: int, data: UserLibraryUpdate
 
     db.commit()
     db.refresh(entry)
+    invalidate_stats_cache(user.id)
     return entry
 
 
@@ -115,3 +118,4 @@ def remove_entry(db: Session, user: User, entry_id: int) -> None:
     db.delete(entry)
     record_event(db, user.id, DiaryAction.LIBRARY_REMOVED, media_item_id, "Removed from library")
     db.commit()
+    invalidate_stats_cache(user.id)
