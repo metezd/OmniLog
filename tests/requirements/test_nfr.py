@@ -55,18 +55,53 @@ def test_nfr01_cached_stats_p95_under_500ms(client, auth_headers):
 @pytest.mark.parametrize(
     ("method", "path"),
     [
+        # Library (US-04, US-05, removal)
+        ("POST", "/library"),
         ("GET", "/library"),
-        ("GET", "/lists"),
-        ("GET", "/diary"),
-        ("GET", "/stats"),
-        ("GET", "/recommendations"),
-        ("GET", "/library/1/review"),
+        ("PATCH", "/library/1"),
+        ("DELETE", "/library/1"),
+        # Reviews (US-14)
         ("POST", "/library/1/review"),
+        ("GET", "/library/1/review"),
+        # Episodic logging (US-10, US-11, US-12)
+        ("PUT", "/library/1/chapters/1/rating"),
+        ("POST", "/library/1/chapters/1/playtime"),
+        ("PUT", "/library/1/chapters/1/decision"),
+        ("GET", "/library/1/chapters/1"),
+        # Custom lists and diary (US-06, US-07)
+        ("POST", "/lists"),
+        ("GET", "/lists"),
+        ("GET", "/lists/1"),
+        ("POST", "/lists/1/items"),
+        ("DELETE", "/lists/1/items/1"),
+        ("DELETE", "/lists/1"),
+        ("GET", "/diary"),
+        # Catalog (US-08, US-09)
+        ("GET", "/catalog/search"),
+        ("GET", "/catalog/1"),
+        # Recommendations (US-13)
+        ("GET", "/recommendations"),
+        # Statistics (US-15)
+        ("GET", "/stats"),
+        # Media (internal)
+        ("POST", "/media"),
     ],
 )
 def test_nfr02_protected_endpoints_require_token(client, method, path):
     """NFR-02: protected endpoints return 401 without a valid token."""
-    kwargs = {"json": {"text": "Great game."}} if method == "POST" else {}
+    # Provide minimal valid-shaped bodies so the auth check is reached before
+    # validation rejects the request with 422.
+    body_by_path = {
+        "/library": {"media_item_id": 1},
+        "/library/1/review": {"text": "Great game."},
+        "/library/1/chapters/1/rating": {"rating": 3},
+        "/library/1/chapters/1/playtime": {"minutes": 30},
+        "/library/1/chapters/1/decision": {"choice": "A"},
+        "/lists": {"name": "My list"},
+        "/lists/1/items": {"media_item_id": 1},
+        "/media": {"title": "Test", "media_type": "GAME"},
+    }
+    kwargs = {"json": body_by_path[path]} if path in body_by_path else {}
 
     response = client.request(method, path, **kwargs)
 
