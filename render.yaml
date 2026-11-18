@@ -2,19 +2,20 @@ databases:
   - name: omnilog-db
     databaseName: omnilog
     user: omnilog
-    plan: free # İhtiyaca göre starter seçilebilir
+    region: frankfurt
+    plan: free
 
 services:
-  # 1. Redis Önbellek Servisi
   - type: redis
     name: omnilog-redis
+    region: frankfurt
     plan: free
-    ipAllowList: [] # Sadece Render iç ağından erişime izin verir
+    ipAllowList: []
 
-  # 2. Backend (FastAPI)
   - type: web
     name: omnilog-api
     runtime: python
+    region: frankfurt
     rootDir: backend
     plan: free
     buildCommand: pip install -r requirements.txt
@@ -35,7 +36,7 @@ services:
       - key: SECRET_KEY
         generateValue: true
       - key: CORS_ORIGINS
-        sync: false # Render panelinde frontend URL'sini (ör. https://omnilog-web.onrender.com) gireceksin
+        sync: false
       - key: IGDB_CLIENT_ID
         sync: false
       - key: IGDB_CLIENT_SECRET
@@ -43,10 +44,10 @@ services:
       - key: TMDB_API_KEY
         sync: false
 
-  # 3. Frontend (Next.js)
   - type: web
     name: omnilog-web
     runtime: node
+    region: frankfurt
     rootDir: frontend
     plan: free
     buildCommand: npm ci && npm run build
@@ -54,5 +55,7 @@ services:
     envVars:
       - key: NODE_VERSION
         value: 20.18.0
+      - key: BACKEND_URL
+        sync: false
       - key: NEXT_PUBLIC_API_URL
-        sync: false # Render panelinde backend URL'sini (ör. https://omnilog-api.onrender.com) gireceksin
+        sync: false
