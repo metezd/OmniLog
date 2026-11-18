@@ -1,4 +1,4 @@
-@import "tailwindcss";
+﻿@import "tailwindcss";
 
 @theme {
   --color-horizon-abyss: #090c15;
@@ -136,7 +136,5 @@ main textarea {
 }
 
 /* Ensure main content always sits cleanly above the zIndex 0 ASCII canvas */
-main, header, nav, [role="dialog"] {
-  position: relative;
-  z-index: 10;
-}
+header, nav, [role="dialog"], form, .liquid-glass, .glass-card { position: relative; z-index: 10; } main { position: relative; z-index: 2; background: transparent !important; }
+
