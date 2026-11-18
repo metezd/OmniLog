@@ -62,6 +62,18 @@ def _mark_redis_down(exc: Exception) -> None:
     )
 
 
+def is_available() -> bool:
+    """True when Redis answers. Used by the readiness check. It never raises."""
+    client = _redis()
+    if client is None:
+        return False
+    try:
+        return bool(client.ping())
+    except redis.RedisError as exc:
+        _mark_redis_down(exc)
+        return False
+
+
 def get_json(key: str) -> Optional[Any]:
     """Return the cached value, or None on a miss or an unreadable entry."""
     client = _redis()

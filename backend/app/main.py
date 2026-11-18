@@ -1,5 +1,9 @@
-﻿from fastapi import FastAPI
+﻿from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
 
 from app.api.auth import router as auth_router
 from app.api.catalog import router as catalog_router
@@ -10,7 +14,9 @@ from app.api.stats import router as stats_router
 from app.core.errors import register_exception_handlers
 from app.api.library import router as library_router
 from app.api.media import router as media_router
+from app.core import cache
 from app.core.config import CORS_ORIGINS
+from app.core.database import get_db
 
 app = FastAPI(
     title="OmniLog API",
@@ -45,4 +51,26 @@ def read_root():
 
 @app.get("/health")
 def health_check():
+    """Liveness: the process answers. Use this for the health check of the host (Docker, Render)."""
     return {"status": "healthy"}
+
+
+@app.get("/health/ready")
+def readiness_check(db: Session = Depends(get_db)):
+    """Readiness: the parts that the API needs. Use this for an uptime monitor, not for restarts.
+
+    The database is required. Redis is optional, because the API works without it (NFR-04), so
+    Redis down only shows as "down" and the answer stays 200. No error details are returned.
+    """
+    try:
+        db.execute(text("SELECT 1"))
+        database = "ok"
+    except SQLAlchemyError:
+        database = "down"
+    ready = database == "ok"
+    body = {
+        "status": "ready" if ready else "unavailable",
+        "database": database,
+        "cache": "ok" if cache.is_available() else "down",
+    }
+    return JSONResponse(body, status_code=200 if ready else 503)
