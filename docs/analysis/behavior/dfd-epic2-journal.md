@@ -106,9 +106,10 @@ flowchart TB
 ### 2.3 Manage Library (US-04 and US-05)
 - **Add a title (`POST /library`):**
   1. Ask process 3.0 if the title exists.
-  2. If the user already has the title, answer 409.
-  3. Create the entry in D2. The default status is `PLAN_TO_WATCH`. Answer 201.
-  4. Send a `LIBRARY_ADDED` event to 2.5.
+  2. If the title has an outside id and was not synced yet, load its details and genres from process 3.0 (issue #125). A failure of the external catalog is ignored so adding to the library is not blocked (NFR-04).
+  3. If the user already has the title, answer 409.
+  4. Create the entry in D2. The default status is `PLAN_TO_WATCH`. Answer 201.
+  5. Send a `LIBRARY_ADDED` event to 2.5.
 - **List the library (`GET /library`):** return the entries of the logged-in user only.
 - **Update an entry (`PATCH /library/{id}`):**
   1. Find the entry. If it does not exist or belongs to another user, answer 404 (or 403).
