@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.models.entities import CustomList, CustomListItem, DiaryEntry, MediaItem, User
 from app.services.diary_service import DiaryAction, record_event
+from app.services.stats_service import invalidate_stats_cache
 
 
 class ListNotFoundError(Exception):
@@ -131,6 +132,7 @@ def remove_item(db: Session, user: User, list_id: int, media_item_id: int) -> No
         f"Removed from list {custom_list.name}",
     )
     db.commit()
+    invalidate_stats_cache(user.id)
 
 
 def delete_list(db: Session, user: User, list_id: int) -> None:
@@ -142,6 +144,7 @@ def delete_list(db: Session, user: User, list_id: int) -> None:
     db.delete(custom_list)
     record_event(db, user.id, DiaryAction.LIST_DELETED, None, f"Deleted list {name}")
     db.commit()
+    invalidate_stats_cache(user.id)
 
 
 def diary_for_user(db: Session, user: User) -> List[DiaryEntry]:
