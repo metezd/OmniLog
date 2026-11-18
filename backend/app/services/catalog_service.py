@@ -221,6 +221,60 @@ def _search_saved(db: Session, media_type: MediaType, query: str) -> list[MediaI
 
 
 # - title details (US-09)
+def ensure_title_details(db: Session, item: MediaItem) -> None:
+    """Make sure a title has its description and genres (and seasons for a series).
+
+    Option 1 for issue #125: load details when a title is added to the library, so that
+    titles added directly from search results without visiting their details page still have
+    complete genres for personal statistics (US-15) and recommendations (US-13).
+
+    If the title was added by hand (no external_api_id) or has already been synced,
+    this is a no-op. Any failure from outside catalog services is caught and ignored so that
+    adding to the library is never blocked (NFR-04).
+    """
+    if item.external_api_id is None or item.last_synced is not None:
+        return
+
+    try:
+        if item.media_type == MediaType.SERIES:
+            _refresh_series(db, item)
+        else:
+            _refresh_details(db, item)
+    except Exception as exc:
+        db.rollback()
+        logger.warning(
+            "Could not fetch details for media %s (%s) on library addition: %s",
+            item.id,
+            item.title,
+            exc,
+        )
+
+
+def sync_missing_details(db: Session) -> int:
+    """Load details and genres for all titles with an external_api_id that have not been synced.
+
+    Option 2 companion utility: one-time backfill for existing catalog entries.
+    Returns the count of successfully synced titles.
+    """
+    items = (
+        db.query(MediaItem)
+        .filter(MediaItem.external_api_id.isnot(None), MediaItem.last_synced.is_(None))
+        .all()
+    )
+    count = 0
+    for item in items:
+        try:
+            if item.media_type == MediaType.SERIES:
+                _refresh_series(db, item)
+            else:
+                _refresh_details(db, item)
+            count += 1
+        except Exception as exc:
+            db.rollback()
+            logger.warning("Failed to sync details for media %s: %s", item.id, exc)
+    return count
+
+
 def get_title_details(db: Session, media_id: int) -> MediaItem:
     """Return a title with its description and genres, and its seasons and episodes (series) or its
     chapters (games).
