@@ -175,6 +175,7 @@ def fake_external_apis(request, monkeypatch):
     # Redis keeps its data between test runs, but the database is created again for each run
     cache.clear_prefix("omni:search:")
     cache.clear_prefix("omni:catalog:")
+    cache.clear_prefix("omni:stats:")
     igdb.reset_access_token()
 
     if request.node.get_closest_marker("live"):
