@@ -109,3 +109,34 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #009bb9;
 }
+/* === LIQUID GLASS READABILITY PATCH === */
+.liquid-glass,
+.glass-card,
+.glass-panel,
+[class*="backdrop-blur"] {
+  background-color: rgba(8, 12, 22, 0.78) !important;
+  backdrop-filter: blur(22px) saturate(165%) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(165%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  box-shadow: 0 12px 36px -6px rgba(0, 0, 0, 0.7), inset 0 1px 0 0 rgba(255, 255, 255, 0.12) !important;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+}
+
+/* Keep form inputs, buttons, and inner cards extra crisp */
+.liquid-glass input,
+.liquid-glass select,
+.liquid-glass textarea,
+main input,
+main select,
+main textarea {
+  background-color: rgba(4, 6, 12, 0.90) !important;
+  border-color: rgba(255, 255, 255, 0.16) !important;
+  color: #f8fafc !important;
+  text-shadow: none;
+}
+
+/* Ensure main content always sits cleanly above the zIndex 0 ASCII canvas */
+main, header, nav, [role="dialog"] {
+  position: relative;
+  z-index: 10;
+}
