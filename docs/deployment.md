@@ -71,6 +71,7 @@ All settings are in `.env.prod`. The file holds secrets and is ignored by Git. C
 | `API_DOMAIN` | yes | Name of the backend, for example `api.example.com` |
 | `API_URL` | yes | The address that the browser calls, for example `https://api.example.com`. Built into the frontend image |
 | `CORS_ORIGINS` | yes | The address of the frontend, for example `https://app.example.com`. The backend accepts browser calls only from here |
+| `ENABLE_DOCS` | no | Shows the API documentation at `/docs`, `/redoc` and `/openapi.json`. Default is `false` in `docker-compose.prod.yml` and `true` when the backend runs without it (development) |
 | `IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET`, `TMDB_API_KEY` | no | Keys of the catalog services. Without them the catalog search cannot reach the outside services |
 | `OPENAI_API_KEY` | no | OpenAI API key. Without it, OpenAI-backed features are disabled |
 | `EMBEDDING_MODEL`, `EMBEDDING_DIMENSIONS`, `SPOILER_MODEL`, `SPOILER_THRESHOLD`, `OPENAI_TIMEOUT_SECONDS`, `OPENAI_MAX_RETRIES` | no | Models, spoiler confidence threshold, request timeout in seconds and retry count |
@@ -151,6 +152,10 @@ Open `https://localhost` in the browser and accept the certificate warning, beca
 | Passwords or keys in the repository | `.env.prod` is in `.gitignore`. The images do not contain `.env` files (`.dockerignore`) |
 | Traffic can be read | The proxy uses HTTPS with certificates that renew by themselves |
 | Other websites call the API from a browser | `CORS_ORIGINS` lists only the app address |
+| A stolen token works forever | Every token has `exp`. A token without `exp` or `sub` is rejected with 401 |
+| The browser guesses the type of an answer, or sends the API address to other sites | The backend sends `X-Content-Type-Options: nosniff` and `Referrer-Policy: no-referrer` on every answer. Caddy does not add them, so they also work on Render |
+| A token or user data stays in a browser or proxy cache | Answers of `/auth/*` have `Cache-Control: no-store` |
+| The full list of endpoints is public | `ENABLE_DOCS` is `false` in production, so `/docs`, `/redoc` and `/openapi.json` answer 404 |
 | A break-in to a container gives full control | The backend and the frontend run as a normal user, not as root |
 | A forgotten setting | Compose and the frontend build stop with a message when a required value is missing |
 
