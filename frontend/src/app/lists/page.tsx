@@ -1,11 +1,10 @@
-﻿import DeleteListButton from "@/components/lists/DeleteListButton";
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
 import Link from "next/link";
 
 import CreateListForm from "@/components/lists/CreateListForm";
+import DeleteListButton from "@/components/lists/DeleteListButton";
 import EmptyState from "@/components/states/EmptyState";
 import ErrorState from "@/components/states/ErrorState";
-import { deleteListAction } from "@/lib/actions/lists";
 import { toErrorState } from "@/lib/server/error-state";
 import { getLists } from "@/lib/server/journal";
 import type { CustomList } from "@/types/api";
@@ -67,17 +66,9 @@ export default async function ListsPage() {
                   href={`/lists/${list.id}`}
                   className="text-xs font-medium text-cyan-300 hover:underline"
                 >
-                  Open List â†’
+                  Open List →
                 </Link>
-                <form action={deleteListAction}>
-                  <input type="hidden" name="listId" value={list.id} />
-                  <button
-                    type="submit"
-                    className="text-xs font-medium text-rose-300 hover:text-rose-200"
-                  >
-                    Delete
-                  </button>
-                </form>
+                <DeleteListButton listId={list.id} listName={list.name} />
               </div>
             </article>
           ))}

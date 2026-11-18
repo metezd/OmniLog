@@ -1,7 +1,8 @@
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
+import GlobalAsciiBackground from "@/components/layout/background/GlobalAsciiBackground";
 import { SearchProvider } from "@/context/SearchContext";
 import { getCurrentUser } from "@/lib/server/user";
 import "./globals.css";
@@ -26,31 +27,28 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // Read on every request, so the navigation shows the right links after a login or a logout
   const user = await getCurrentUser();
 
   return (
-    <html lang="en" className="dark">
+    <html lang="en" className="dark" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen flex flex-col relative overflow-x-hidden`}
+        suppressHydrationWarning
+        className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen flex flex-col relative overflow-x-hidden bg-[#05070d]`}
       >
         <SearchProvider>
-          {/* Horizon Ambient Light Glow */}
-          <div
-            aria-hidden="true"
-            className="pointer-events-none fixed -top-32 left-1/2 -translate-x-1/2 w-[1100px] h-[340px] bg-horizon-glow opacity-25 blur-[130px] rounded-full z-0"
-          />
-
           {/* Navigation */}
           <header className="relative z-50">
             <Navbar user={user} />
           </header>
 
-          {/* Main Content */}
-          <main className="relative z-10 flex-1">{children}</main>
+          {/* Global Persistent ASCII Creature Canvas (zIndex: 20) + Top Pill Switcher (zIndex: 40) */}
+          <GlobalAsciiBackground />
+
+          {/* Main Content (z-30 so interactive cards sit cleanly above the z-20 canvas) */}
+          <main className="relative z-30 flex-1 bg-transparent">{children}</main>
 
           {/* Footer */}
-          <footer className="relative z-10">
+          <footer className="relative z-30 bg-transparent">
             <Footer />
           </footer>
         </SearchProvider>
