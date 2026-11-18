@@ -24,14 +24,13 @@ _SPOILER_PATTERNS: list[Tuple[re.Pattern[str], float]] = [
     (re.compile(r"\b(dies|died|death\s+of)\b", re.I), 0.55),
     (re.compile(r"\b(gets\s+killed|is\s+killed|murdered)\b", re.I), 0.55),
     (re.compile(r"\b(sacrifices\s+himself|sacrifices\s+herself)\b", re.I), 0.55),
-    (re.compile(r"\b(murdered|sacrifices\s+himself|sacrifices\s+herself)\b", re.I), 0.55),
     (re.compile(r"\b(turns\s+out|all\s+along|was\s+the\s+killer)\b", re.I), 0.55),
     (re.compile(r"\b(is\s+the\s+killer|is\s+the\s+traitor)\b", re.I), 0.55),
     (re.compile(r"\b(betrays|secretly\s+alive)\b", re.I), 0.55),
     (re.compile(r"\b(in\s+the\s+(final|last)\s+(chapter|episode|act|scene))\b", re.I), 0.45),
     (re.compile(r"\b(at\s+the\s+end\s+of\s+the\s+(game|series|season|story))\b", re.I), 0.45),
     (re.compile(r"\b(plot\s+twist|ending\s+reveal|spoiler\s*alert)\b", re.I), 0.70),
-    (re.compile(r"\b(\[spoiler\]|major\s+spoiler)\b", re.I), 0.70),
+    (re.compile(r"(\[spoiler\]|\bmajor\s+spoiler\b)", re.I), 0.70),
     (re.compile(r"\b(main\s+character|protagonist|narrator|villain)\s+(dies|is\s+dead|was\s+dead|is\s+the)\b", re.I), 0.60),
 ]
 
