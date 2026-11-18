@@ -57,7 +57,7 @@ A person with an account. The user owns a library, lists, an activity diary, pro
 ### 3.2 MediaItem
 One title in the shared catalog. It can be a game, a series or a movie.
 - Key fields: `id`, `title`, `media_type`, `poster_url`, `release_date`.
-- Proposed new fields: `description`, `source_id`, `external_id`, `normalized_payload`, `last_synced`, `created_at`, `updated_at`. `last_synced` is implemented (US-09). It is empty until the seasons of a series are loaded, so a search result alone does not set it.
+- Proposed new fields: `description`, `source_id`, `external_id`, `normalized_payload`, `last_synced`, `created_at`, `updated_at`. `last_synced` is implemented (US-09). It is set when details, genres and seasons are loaded, which happens when opening details (US-09) or when adding a title to the library (issue #125). A search result alone does not set it.
 - `description` is needed because the embedding text is built from it.
 - `source_id` and `external_id` replace the implemented column `external_api_id`.
 - Rules: `title` and `media_type` are required. The pair (`source_id`, `external_id`) is unique when both are present.
@@ -167,6 +167,7 @@ Cached responses with a time to live. It is not a table in the relational databa
 | BR-15 | A review is stored with a spoiler flag set by the classifier. | US-14 |
 | BR-16 | The statistics only use the data of the logged-in user. | US-15 |
 | BR-17 | Deleting a user deletes their library, lists, diary, progress and reviews. | NFR-03 |
+| BR-18 | Adding a title with an external ID to the library loads its details and genres if not already synced. | US-04, US-09, US-15 |
 
 ## 6. Normalization notes
 
@@ -196,3 +197,4 @@ Cached responses with a time to live. It is not a table in the relational databa
 | 4 | Decision points per chapter | The model allows many. The API in the tests assumes one. Add an optional `decision_point_id` to the request. |
 | 5 | Reviews per library entry | One review for each entry. Posting again replaces the old review. |
 | 6 | Admin role | Add `is_admin` to `users`. |
+| 7 | Genres and descriptions for unopened titles (#125) | **Decided:** Load the details when a title is added to the library (Option 1). When a title with an `external_api_id` is added to `UserLibrary` and has not been synced yet (`last_synced is None`), its details (genres, description, and seasons/episodes for series) are fetched and saved from the external catalog. This prevents gaps in genre statistics (US-15) and recommendations (US-13) for titles added directly from search. If the outside service is down, the title is still added to the library without error (NFR-04). A one-time utility (`sync_missing_details`) is also provided for backfilling existing catalog rows. |
