@@ -113,7 +113,22 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod logs -f backend
 docker compose -f docker-compose.prod.yml --env-file .env.prod logs migrate
 ```
 
-The backend answers `GET /health`. The images have a health check, and `docker compose ps` shows `healthy` when it passes.
+The backend answers two health paths. The frontend answers `GET /api/health`. It does not call the backend.
+
+| Path | What it checks | Use it for |
+|---|---|---|
+| `GET /health` | Only that the process answers | The health check of the container and of the host (Render) |
+| `GET /health/ready` | The database (`SELECT 1`) and Redis. It answers 503 when the database is down. Redis down gives 200 with `"cache": "down"`, because the API works without it | An uptime monitor |
+| `GET /api/health` (frontend) | Only that the frontend answers | The health check of the host |
+
+The images have a health check, and `docker compose ps` shows `healthy` when it passes.
+
+### Render
+
+- Set **Health Check Path** in the settings of each web service. Use `/health` for the backend and `/api/health` for the frontend.
+- Do not use `/health/ready` there. When the database is down, Render would mark the service as unhealthy and restart it, and a restart does not fix the database. Point an uptime monitor at `/health/ready` instead.
+- Third party APIs (TMDB, IGDB, OpenAI) are not checked on purpose. Their outages must not stop the service.
+- Set the environment variable `NODE_VERSION=24` for the frontend. Tailwind needs Node 20.19 or 22.12 and newer. An older Node stops the build with `require() of ES Module ... not supported`.
 
 ## 8. Try it on your own computer
 
