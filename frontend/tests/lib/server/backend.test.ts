@@ -280,3 +280,36 @@ describe("the address of the backend", () => {
     await expect(backendFetch("health")).rejects.toThrow(TypeError);
   });
 });
+
+describe("the address of the browser (#217)", () => {
+  async function sentForwardedFor(forwardedFor: string | null | undefined): Promise<string | null> {
+    vi.stubEnv("BACKEND_URL", BASE);
+    let seen: string | null = "not called";
+    server.use(
+      http.post(`${BASE}/auth/login`, ({ request }) => {
+        seen = request.headers.get("x-forwarded-for");
+        return HttpResponse.json({ access_token: "t", token_type: "bearer" });
+      }),
+    );
+    await backendFetch("/auth/login", { method: "POST", body: {}, forwardedFor });
+    return seen;
+  }
+
+  it("sends an IPv4, an IPv6 address or a list of them as X-Forwarded-For", async () => {
+    expect(await sentForwardedFor("203.0.113.7")).toBe("203.0.113.7");
+    expect(await sentForwardedFor("2001:db8::1")).toBe("2001:db8::1");
+    expect(await sentForwardedFor(" 203.0.113.7, 10.0.0.2 ")).toBe("203.0.113.7, 10.0.0.2");
+  });
+
+  it("sends nothing for a missing or empty value", async () => {
+    expect(await sentForwardedFor(undefined)).toBeNull();
+    expect(await sentForwardedFor(null)).toBeNull();
+    expect(await sentForwardedFor("  ")).toBeNull();
+  });
+
+  it("sends nothing for a value that is not a list of addresses", async () => {
+    expect(await sentForwardedFor("evil.example.com")).toBeNull();
+    expect(await sentForwardedFor("1.2.3.4; drop")).toBeNull();
+    expect(await sentForwardedFor("1".repeat(600))).toBeNull();
+  });
+});
