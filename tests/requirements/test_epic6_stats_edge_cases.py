@@ -302,3 +302,27 @@ def test_the_numbers_follow_changes_at_once(client, auth_headers):
 
     distribution = get_stats(client, auth_headers)["rating_distribution"]
     assert distribution["5"] == 0 and distribution["6"] == 1
+
+def test_playtime_histogram_is_capped_at_21_buckets_with_100h_plus_and_under_10kb(
+    client, auth_headers, db
+):
+    [entry] = add_titles(client, auth_headers, "GAME", 1)
+    chapter_id = add_chapter(db, entry["media_item_id"], number=1)
+
+    for _ in range(100):
+        response = client.post(
+            f"/library/{entry['id']}/chapters/{chapter_id}/playtime",
+            json={"minutes": 100_000},
+            headers=auth_headers,
+        )
+        assert response.status_code == 201, response.text
+
+    response = client.get("/stats", headers=auth_headers)
+    assert response.status_code == 200, response.text
+    assert len(response.content) < 10 * 1024
+
+    playtime = response.json()["playtime"]
+    assert playtime["total_minutes"] == 10_000_000
+    assert len(playtime["histogram"]) <= 21
+    assert playtime["histogram"][-1] == {"bucket": "100+h", "count": 1}
+    assert sum(item["count"] for item in playtime["histogram"]) == 1

@@ -10,13 +10,15 @@ class GenreCount(BaseModel):
 
 
 class PlaytimeBucket(BaseModel):
-    """Titles with a total playtime in one range, for example `5-10h`."""
+    """Titles with a total playtime in one range, for example `5-10h`, or `100+h` at 100+ hours."""
 
     bucket: str
     count: int
 
 
 class PlaytimeStats(BaseModel):
+    """Playtime summary with exact total_minutes and a histogram of at most 21 buckets."""
+
     total_minutes: int
     histogram: List[PlaytimeBucket]
 
