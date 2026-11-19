@@ -9,20 +9,21 @@ flowchart LR
     B[Browser] -->|HTTPS 443| P[proxy Caddy]
     P -->|app domain| F[frontend Next.js :3000]
     P -->|api domain| A[backend FastAPI :8000]
+    F -->|BACKEND_URL, private network| A
     A --> D[(PostgreSQL)]
     A --> R[(Redis)]
     M[migrate, runs once] --> D
 ```
 
 - Only the proxy publishes ports (80 and 443). The database, Redis, the backend and the frontend are on a private Docker network. They cannot be reached from outside the server.
-- The browser opens the frontend at the app domain, and the frontend code calls the backend at the API domain. This is why two names are needed, for example `app.example.com` and `api.example.com`.
+- The browser opens the frontend at the app domain. The server code of the frontend calls the backend over the private network at `BACKEND_URL` (`http://backend:8000`), and the browser itself does not call the backend. The proxy still publishes the backend at the API domain, for the interactive docs (`/docs`), the health checks and other clients. This is why two names are needed, for example `app.example.com` and `api.example.com`.
 - The service `migrate` runs `alembic upgrade head` and stops. The backend starts only after it finished without an error.
 
 | File | Purpose |
 |---|---|
 | `docker-compose.prod.yml` | The production stack |
-| `backend/Dockerfile` | Backend image (Python 3.11, runs as a normal user) |
-| `frontend/Dockerfile` | Frontend image (Node 24, Next.js standalone output) |
+| `backend/Dockerfile` | Backend image (Python 3.15, runs as a normal user) |
+| `frontend/Dockerfile` | Frontend image (Node 26, Next.js standalone output) |
 | `docker/Caddyfile` | The proxy settings |
 | `env.prod.example` | A list of all settings. Copy it to `.env.prod` |
 | `.github/workflows/docker-build.yml` | Builds the images and tests the stack on every change |
@@ -56,6 +57,16 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod ps
 curl https://api.example.com/health        # {"status":"healthy"}
 ```
 
+Then load the chapters and decision points of the games, once after the first start and again whenever `backend/app/seed/game_chapters.json` changes:
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env.prod exec backend python -m app.seed
+```
+
+The command checks the file first and saves nothing when the file has an error. It can be run again without harm. The shipped file holds one game (Life is Strange, 5 chapters, 6 decision points). To load another file, copy it into the container or rebuild the image. The tables for the migrations are created by the service `migrate`, so no other database command is needed.
+
+There is no command for embeddings. The API does not create them yet, and the recommendations use the genres of the library.
+
 Then open the app domain in the browser. The proxy asks for the certificates when it starts, so wait a minute after the first start.
 
 ## 4. Settings
@@ -69,18 +80,39 @@ All settings are in `.env.prod`. The file holds secrets and is ignored by Git. C
 | `SECRET_KEY` | yes | Signs the login tokens. At least 32 characters. The backend does not start with a shorter key |
 | `APP_DOMAIN` | yes | Name of the frontend, for example `app.example.com` |
 | `API_DOMAIN` | yes | Name of the backend, for example `api.example.com` |
-| `API_URL` | yes | The address that the browser calls, for example `https://api.example.com`. Built into the frontend image |
+| `API_URL` | yes | The public address of the backend, for example `https://api.example.com`. Built into the frontend image as `NEXT_PUBLIC_API_URL`. Only the Axios client in `src/lib/api.ts` uses it, and the build stops when it is empty |
 | `CORS_ORIGINS` | yes | The address of the frontend, for example `https://app.example.com`. The backend accepts browser calls only from here |
 | `ENABLE_DOCS` | no | Shows the API documentation at `/docs`, `/redoc` and `/openapi.json`. Default is `false` in `docker-compose.prod.yml` and `true` when the backend runs without it (development) |
 | `IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET`, `TMDB_API_KEY` | no | Keys of the catalog services. Without them the catalog search cannot reach the outside services |
 | `OPENAI_API_KEY` | no | OpenAI API key. Without it, OpenAI-backed features are disabled |
 | `EMBEDDING_MODEL`, `EMBEDDING_DIMENSIONS`, `SPOILER_MODEL`, `SPOILER_THRESHOLD`, `OPENAI_TIMEOUT_SECONDS`, `OPENAI_MAX_RETRIES` | no | Models, spoiler confidence threshold, request timeout in seconds and retry count |
+| `IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET`, `TMDB_API_KEY` | no | Keys of the catalog services. Without them the catalog search cannot reach the outside services. For a demo without keys, set `IGDB_CLIENT_ID=public` (and any value in `IGDB_CLIENT_SECRET`) for games from the Steam Store, and `TMDB_API_KEY=public` for series from TVMaze and movies from iTunes. Their ids are not IGDB or TMDB ids, so fill one database in one mode only |
+| `OPENAI_API_KEY` | no | OpenAI API key. Without it, the spoiler check of a review uses local patterns instead of OpenAI. The review is saved in both cases |
+| `SPOILER_MODEL` | no | Model that classifies a review. Default `gpt-4o-mini` |
+| `SPOILER_THRESHOLD` | no | Score from 0 to 1 at which a review is flagged. Default `0.5` |
+| `OPENAI_TIMEOUT_SECONDS`, `OPENAI_MAX_RETRIES` | no | Time limit of one OpenAI call in seconds (default `8`) and number of retries (default `2`) |
+| `EMBEDDING_MODEL`, `EMBEDDING_DIMENSIONS` | no | Embedding model (default `text-embedding-3-small`) and its size (default `1536`). The OpenAI client reads them, but no endpoint creates or stores embeddings yet, so they have no visible effect |
 | `POSTGRES_USER`, `POSTGRES_DB` | no | Defaults are `omnilog` |
 | `TAG` | no | Tag of the built images. Default is `latest` |
 
 Use passwords that have only letters and digits (`openssl rand -hex 32`). The passwords are part of the database and Redis addresses, so characters such as `/` or `@` would break them.
 
 `API_URL` is written into the JavaScript of the frontend when the image is built (Next.js does this for every variable that starts with `NEXT_PUBLIC_`). After you change it, build again with `--build`.
+
+`OPENAI_*`, `SPOILER_*` and `EMBEDDING_*` are passed from `.env.prod` to the backend by `docker-compose.prod.yml`. The values in the table are the defaults, so an empty or missing line keeps them.
+
+**Settings that are not in `.env.prod`.** The compose file sets `BACKEND_URL=http://backend:8000` for the frontend. The frontend needs it, because its server code calls the backend at this address, and it stops with `BACKEND_URL is not set` without it. On Render, set `BACKEND_URL` by hand to the address of the backend service (`render.yaml` lists it). The backend reads some more settings that have defaults and that the compose file does not pass on. To change one, add it to `x-backend-env` in `docker-compose.prod.yml`:
+
+| Name | Default | Meaning |
+|---|---|---|
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | `90` | How long a login token stays valid |
+| `CACHE_TTL_SECONDS` | `3600` | How long search results stay in Redis |
+| `DETAILS_CACHE_TTL_SECONDS` | `86400` | How long title details stay in Redis |
+| `EXTERNAL_API_TIMEOUT_SECONDS` | `8` | Time limit of one call to IGDB or TMDB |
+| `EXTERNAL_API_MAX_RETRIES` | `3` | Retries after a timeout, a 429 or a 5xx answer |
+| `EXTERNAL_API_BACKOFF_SECONDS` | `0.5` | First wait between retries. It doubles after each retry |
+
+The backend finds the database and Redis through `DATABASE_URL` and `REDIS_URL`, which the compose file builds from the passwords.
 
 ## 5. Update
 
@@ -114,7 +146,7 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod logs -f backend
 docker compose -f docker-compose.prod.yml --env-file .env.prod logs migrate
 ```
 
-The backend answers two health paths. The frontend answers `GET /api/health`. It does not call the backend.
+The backend answers two health paths. The frontend answers `GET /api/health`. This path does not call the backend, so it stays green when the backend is down.
 
 | Path | What it checks | Use it for |
 |---|---|---|
@@ -129,7 +161,8 @@ The images have a health check, and `docker compose ps` shows `healthy` when it 
 - Set **Health Check Path** in the settings of each web service. Use `/health` for the backend and `/api/health` for the frontend.
 - Do not use `/health/ready` there. When the database is down, Render would mark the service as unhealthy and restart it, and a restart does not fix the database. Point an uptime monitor at `/health/ready` instead.
 - Third party APIs (TMDB, IGDB, OpenAI) are not checked on purpose. Their outages must not stop the service.
-- Set the environment variable `NODE_VERSION=24` for the frontend. Tailwind needs Node 20.19 or 22.12 and newer. An older Node stops the build with `require() of ES Module ... not supported`.
+- Set the environment variable `NODE_VERSION=24` for the frontend. Tailwind needs Node 20.19 or 22.12 and newer, and `frontend/package.json` asks for Node 24 or newer. An older Node stops the build with `require() of ES Module ... not supported`. `render.yaml` still lists `NODE_VERSION` as `20.18.0`, so change that value to `24` before you create a service from the Blueprint.
+- Set `OPENAI_API_KEY` (optional), the keys of the catalog services and `BACKEND_URL` by hand. They are listed in `render.yaml` without a value.
 
 ## 8. Try it on your own computer
 
@@ -142,7 +175,7 @@ API_URL=https://api.localhost
 CORS_ORIGINS=https://localhost
 ```
 
-Open `https://localhost` in the browser and accept the certificate warning, because the browser does not know the local authority. Open `https://api.localhost/health` once and accept the warning there too. Without that, the browser blocks the calls from the app to the API. This is the same setup that the CI workflow tests.
+Open `https://localhost` in the browser and accept the certificate warning, because the browser does not know the local authority. Open `https://api.localhost/health` once and accept the warning there too if you want to use the API domain from the browser, for example `https://api.localhost/docs`. The app itself does not need it, because its server code calls the backend inside the Docker network. This is the same setup that the CI workflow tests.
 
 ## 9. What protects what
 
@@ -156,6 +189,7 @@ Open `https://localhost` in the browser and accept the certificate warning, beca
 | The browser guesses the type of an answer, or sends the API address to other sites | The backend sends `X-Content-Type-Options: nosniff` and `Referrer-Policy: no-referrer` on every answer. Caddy does not add them, so they also work on Render |
 | A token or user data stays in a browser or proxy cache | Answers of `/auth/*` have `Cache-Control: no-store` |
 | The full list of endpoints is public | `ENABLE_DOCS` is `false` in production, so `/docs`, `/redoc` and `/openapi.json` answer 404 |
+| The login token is stolen by a script in the page | The frontend keeps the token in an `httpOnly` cookie and sends it to the backend from its server code |
 | A break-in to a container gives full control | The backend and the frontend run as a normal user, not as root |
 | A forgotten setting | Compose and the frontend build stop with a message when a required value is missing |
 
@@ -165,8 +199,11 @@ Open `https://localhost` in the browser and accept the certificate warning, beca
 - There is no automatic deployment to a server or a hosting platform. The workflow only checks that the stack starts and answers.
 - There are no automatic backups, no monitoring and no alerts.
 - The stack runs one copy of each service. Running more copies of the backend is not set up and not tested.
-- The frontend does not call the API yet, because the login and register screens still use a mock service. `API_URL` has an effect when the frontend starts to use the API client.
-- OpenAI-backed embeddings and spoiler detection (US-13 and US-14) require an `OPENAI_API_KEY`. Without the key, OpenAI-backed features are disabled.
+- The friends page of the frontend shows sample data. The login, register, library, search, title, lists, diary, statistics and recommendations screens call the backend through the server code of Next.js (`BACKEND_URL`).
+- Embeddings are not built. There is no `media_embeddings` table and no embeddings command. The recommendations (US-13) rank the catalog by the genres of the library, so they work without any key.
+- The spoiler check (US-14) uses OpenAI only when `OPENAI_API_KEY` is set. Without the key, or when OpenAI does not answer, the review is saved and checked with local patterns.
+- The catalog has no manual sync and no admin endpoints. Title details load from IGDB and TMDB when a title is opened.
+- The migrations and the tests need PostgreSQL. If the backend finds nothing at `localhost:5432` outside Docker, `app/core/database.py` falls back to a SQLite file. The production stack always has PostgreSQL, so this does not apply there.
 
 ## 11. Problems
 
@@ -174,6 +211,7 @@ Open `https://localhost` in the browser and accept the certificate warning, beca
 |---|---|
 | `required variable ... is missing a value` | A value is empty in `.env.prod`. Fill it in |
 | The browser shows a certificate error on a real domain | The DNS record does not point to the server yet, or port 80 is blocked. See `docker compose ... logs proxy` |
-| The login page cannot reach the API | `API_URL` is wrong or was changed without `--build` |
+| The login page shows an error or the frontend log says `BACKEND_URL is not set` | The frontend has no `BACKEND_URL`. The compose file sets it, so check that you use `docker-compose.prod.yml`. On Render, set it by hand. Check also `docker compose ... logs backend` |
+| `src/lib/api.ts` calls go to the wrong address | `API_URL` is wrong or was changed without `--build` |
 | The API answers 4xx in the browser console with a CORS message | `CORS_ORIGINS` does not match the address of the frontend exactly. It has no trailing slash |
 | `next build` fails with a font error | The build machine cannot reach `fonts.googleapis.com` |

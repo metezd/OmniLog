@@ -2,7 +2,14 @@
 
 This document has the entity-relationship diagrams, the data dictionary, the Redis key dictionary and the review of the embedding table.
 
-The entities are explained in [domain-model.md](domain-model.md). Tables marked **Implemented** already exist in `backend/app/models/entities.py`. Tables marked **Proposed** are new.
+The entities are explained in [domain-model.md](domain-model.md). Tables marked **Implemented** exist in `backend/app/models/entities.py` and in the migrations (the last one is `0011_reviews.py`). Tables marked **Proposed, not built** are part of the design only. Nothing in the code uses them. This document was checked against the code on 19.11.2026.
+
+| Table | State |
+|---|---|
+| `users`, `media_items`, `genres`, `media_item_genres`, `seasons`, `chapters`, `user_libraries`, `custom_lists`, `custom_list_items`, `diary_entries`, `chapter_progress`, `playtime_logs`, `decision_points`, `decision_options`, `user_decisions`, `reviews` | **Implemented** |
+| `external_sources`, `sync_job_logs`, `media_embeddings`, `user_taste_vectors` | **Proposed, not built** |
+
+The diary table is called `diary_entries` in the code. Earlier drafts called it `activity_events`.
 
 ## 1. Overview diagram
 
@@ -15,10 +22,10 @@ erDiagram
     USERS ||--o{ CUSTOM_LISTS : "owns"
     CUSTOM_LISTS ||--o{ CUSTOM_LIST_ITEMS : "contains"
     MEDIA_ITEMS ||--o{ CUSTOM_LIST_ITEMS : "listed in"
-    USERS ||--o{ ACTIVITY_EVENTS : "performs"
-    MEDIA_ITEMS ||--o{ ACTIVITY_EVENTS : "refers to"
-    EXTERNAL_SOURCES ||--o{ MEDIA_ITEMS : "provides"
-    EXTERNAL_SOURCES ||--o{ SYNC_JOB_LOGS : "is synced by"
+    USERS ||--o{ DIARY_ENTRIES : "performs"
+    MEDIA_ITEMS ||--o{ DIARY_ENTRIES : "refers to"
+    EXTERNAL_SOURCES ||--o{ MEDIA_ITEMS : "provides (not built)"
+    EXTERNAL_SOURCES ||--o{ SYNC_JOB_LOGS : "is synced by (not built)"
     MEDIA_ITEMS ||--o{ MEDIA_ITEM_GENRES : "has"
     GENRES ||--o{ MEDIA_ITEM_GENRES : "tags"
     MEDIA_ITEMS ||--o{ SEASONS : "has"
@@ -33,9 +40,11 @@ erDiagram
     DECISION_POINTS ||--o{ USER_DECISIONS : "is answered in"
     DECISION_OPTIONS ||--o{ USER_DECISIONS : "is chosen in"
     USER_LIBRARIES ||--o| REVIEWS : "has"
-    MEDIA_ITEMS ||--o{ MEDIA_EMBEDDINGS : "is embedded as"
-    USERS ||--o| USER_TASTE_VECTORS : "has"
+    MEDIA_ITEMS ||--o{ MEDIA_EMBEDDINGS : "is embedded as (not built)"
+    USERS ||--o| USER_TASTE_VECTORS : "has (not built)"
 ```
+
+The relationships marked "not built" belong to `EXTERNAL_SOURCES`, `SYNC_JOB_LOGS`, `MEDIA_EMBEDDINGS` and `USER_TASTE_VECTORS`. These four tables do not exist in the database.
 
 ## 2. Core and journal tables (Epic 2)
 
@@ -46,7 +55,6 @@ erDiagram
         string username UK
         string email UK
         string hashed_password
-        boolean is_admin
         datetime created_at
     }
     USER_LIBRARIES {
@@ -69,31 +77,26 @@ erDiagram
         int media_item_id FK
         datetime added_at
     }
-    ACTIVITY_EVENTS {
+    DIARY_ENTRIES {
         int id PK
         int user_id FK
         int media_item_id FK
-        string event_type
-        json payload
+        string action
+        string details
         datetime created_at
     }
     USERS ||--o{ USER_LIBRARIES : "has"
     USERS ||--o{ CUSTOM_LISTS : "owns"
     CUSTOM_LISTS ||--o{ CUSTOM_LIST_ITEMS : "contains"
-    USERS ||--o{ ACTIVITY_EVENTS : "performs"
+    USERS ||--o{ DIARY_ENTRIES : "performs"
 ```
+
+The column `users.is_admin` of the design is not built.
 
 ## 3. Catalog tables (Epic 3)
 
 ```mermaid
 erDiagram
-    EXTERNAL_SOURCES {
-        int id PK
-        string name UK
-        string base_url
-        json auth_meta
-        json rate_limit_meta
-    }
     MEDIA_ITEMS {
         int id PK
         string title
@@ -101,9 +104,7 @@ erDiagram
         string poster_url
         string release_date
         text description
-        int source_id FK
-        string external_id
-        json normalized_payload
+        int external_api_id
         datetime last_synced
     }
     GENRES {
@@ -114,6 +115,8 @@ erDiagram
         int id PK
         int media_item_id FK
         int season_number
+        string title
+        string air_date
     }
     CHAPTERS {
         int id PK
@@ -122,6 +125,28 @@ erDiagram
         int number
         string kind
         string title
+        string release_date
+        int runtime_minutes
+        int external_id
+    }
+    MEDIA_ITEMS }o--o{ GENRES : "media_item_genres"
+    MEDIA_ITEMS ||--o{ SEASONS : "has"
+    SEASONS ||--o{ CHAPTERS : "has"
+    MEDIA_ITEMS ||--o{ CHAPTERS : "has"
+```
+
+### Proposed, not built
+
+These two tables and the columns of `media_items` that go with them are in the design only. The code identifies a title by `media_type` and `external_api_id` and has no manual sync, so it needs none of them.
+
+```mermaid
+erDiagram
+    EXTERNAL_SOURCES {
+        int id PK
+        string name UK
+        string base_url
+        json auth_meta
+        json rate_limit_meta
     }
     SYNC_JOB_LOGS {
         int id PK
@@ -132,12 +157,7 @@ erDiagram
         datetime started_at
         datetime finished_at
     }
-    EXTERNAL_SOURCES ||--o{ MEDIA_ITEMS : "provides"
     EXTERNAL_SOURCES ||--o{ SYNC_JOB_LOGS : "is synced by"
-    MEDIA_ITEMS }o--o{ GENRES : "media_item_genres"
-    MEDIA_ITEMS ||--o{ SEASONS : "has"
-    SEASONS ||--o{ CHAPTERS : "has"
-    MEDIA_ITEMS ||--o{ CHAPTERS : "has"
 ```
 
 ## 4. Episodic logging tables (Epic 4)
@@ -148,6 +168,7 @@ erDiagram
         int id PK
         int library_entry_id FK
         int chapter_id FK
+        int media_item_id FK
         int rating
         int playtime_minutes
         datetime updated_at
@@ -161,6 +182,7 @@ erDiagram
     DECISION_POINTS {
         int id PK
         int chapter_id FK
+        int media_item_id FK
         string prompt
         int position
     }
@@ -175,6 +197,7 @@ erDiagram
         int library_entry_id FK
         int decision_point_id FK
         int option_id FK
+        int media_item_id FK
         datetime decided_at
     }
     CHAPTER_PROGRESS ||--o{ PLAYTIME_LOGS : "has"
@@ -185,8 +208,11 @@ erDiagram
 
 ## 5. AI tables (Epic 5)
 
+Only `reviews` is built.
+
 ```mermaid
 erDiagram
+    USER_LIBRARIES ||--o| REVIEWS : "has"
     REVIEWS {
         int id PK
         int library_entry_id FK
@@ -195,7 +221,16 @@ erDiagram
         float spoiler_score
         string spoiler_model_version
         datetime created_at
+        datetime updated_at
     }
+```
+
+### Proposed, not built
+
+The two vector tables have no model, no migration and no code that writes or reads them. The recommendations (US-13) do not need them, because they rank by genre.
+
+```mermaid
+erDiagram
     MEDIA_EMBEDDINGS {
         int media_item_id PK
         string model_name PK
@@ -217,17 +252,18 @@ erDiagram
 
 Notation: PK is primary key, FK is foreign key, UK is unique, NN is not null. A delete rule such as "cascade" means that the child rows are deleted with the parent row.
 
-### users (Implemented, one column proposed)
+### users (Implemented)
 | Column | Type | Constraints | Description |
 |---|---|---|---|
 | `id` | INTEGER | PK | Identifier |
-| `username` | VARCHAR(50) | UK, NN | Login and display name |
-| `email` | VARCHAR(100) | UK, NN | Email address |
+| `username` | VARCHAR(50) | UK, NN, indexed, check without `@` | Login and display name. The check `chk_username_no_at` keeps a username from looking like an email, so a login name or an email is never ambiguous |
+| `email` | VARCHAR(100) | UK, NN, indexed | Email address |
 | `hashed_password` | VARCHAR(255) | NN | Password hash. Never returned by the API |
-| `is_admin` | BOOLEAN | NN, default false | **New.** Allows manual sync and the admin screens |
-| `created_at` | DATETIME | default now | Account creation time |
+| `created_at` | DATETIME | NULL, default now | Account creation time |
 
-### external_sources (Proposed)
+The column `is_admin` of the design (manual sync and admin screens) is not built.
+
+### external_sources (Proposed, not built)
 | Column | Type | Constraints | Description |
 |---|---|---|---|
 | `id` | INTEGER | PK | Identifier |
@@ -236,8 +272,7 @@ Notation: PK is primary key, FK is foreign key, UK is unique, NN is not null. A 
 | `auth_meta` | JSON | NULL | Token type and expiry. Never the secret key itself |
 | `rate_limit_meta` | JSON | NULL | Known rate limit information |
 
-### media_items (Implemented, columns proposed)
-Of the new columns, only `last_synced` is implemented so far (US-09).
+### media_items (Implemented)
 | Column | Type | Constraints | Description |
 |---|---|---|---|
 | `id` | INTEGER | PK | Identifier |
@@ -245,15 +280,13 @@ Of the new columns, only `last_synced` is implemented so far (US-09).
 | `media_type` | ENUM | NN | `GAME`, `SERIES` or `MOVIE` |
 | `poster_url` | VARCHAR(500) | NULL | Cover image |
 | `release_date` | VARCHAR(50) | NULL | Release date text |
-| `description` | TEXT | NULL | **New. Implemented (migration 0010).** Synopsis. Used for embeddings. Loaded when the details of the title are opened (US-09) |
-| `source_id` | INTEGER | FK to `external_sources.id`, NULL | **New.** Data provider. Empty for items created by hand |
-| `external_id` | VARCHAR(50) | NULL | **New.** Id at the provider. Replaces `external_api_id` |
-| `normalized_payload` | JSON | NULL | **New.** Normalized provider data |
-| `last_synced` | DATETIME | NULL | **New.** Last successful fetch. Used for stale checks |
-| `created_at` | DATETIME | default now | **New.** Creation time |
-| `updated_at` | DATETIME | default now, on update | **New.** Last change |
+| `description` | TEXT | NULL | Synopsis (migration 0010). Loaded when the details of the title are opened (US-09) |
+| `external_api_id` | INTEGER | NULL, indexed | Id at IGDB or TMDB. Empty for titles that were created by hand |
+| `last_synced` | DATETIME | NULL | Last successful fetch of the details (US-09) |
 
-Unique index on (`source_id`, `external_id`). Index on `last_synced`.
+Unique on (`media_type`, `external_api_id`), named `uq_media_type_external_id` (migration 0004). TMDB ids of series and movies are different number spaces, so the media type is part of the key.
+
+Columns of the design that are not built: `source_id` (foreign key to `external_sources`), `external_id` (a text id that would replace `external_api_id`), `normalized_payload`, `created_at` and `updated_at`. The unique index on (`source_id`, `external_id`) and the index on `last_synced` are not built either.
 
 ### genres and media_item_genres (Implemented, migration 0010)
 | Column | Type | Constraints | Description |
@@ -287,7 +320,7 @@ Unique on (`media_item_id`, `season_number`).
 | `runtime_minutes` | INTEGER | NULL | Length of an episode |
 | `external_id` | INTEGER | NULL | Id at the provider. An integer, like `media_items.external_api_id` |
 
-Unique on (`season_id`, `number`) for episodes, and a partial unique index on (`media_item_id`, `number`) where `season_id` is empty for game chapters. Check constraints: an `EPISODE` has a season and a `CHAPTER` has none, and `number` and `runtime_minutes` are not negative. Unique on (`id`, `media_item_id`) as well, for the composite foreign key of `chapter_progress`. Rows are never deleted by a refresh, because the ratings of users (Epic 4) will point to them.
+Unique on (`season_id`, `number`) for episodes, and a partial unique index on (`media_item_id`, `number`) where `season_id` is empty for game chapters. Check constraints: an `EPISODE` has a season and a `CHAPTER` has none, and `number` and `runtime_minutes` are not negative. Unique on (`id`, `media_item_id`) as well, for the composite foreign key of `chapter_progress`. Rows are never deleted by a refresh or by the seed command, because the ratings, playtime and decisions of users point to them.
 
 ### user_libraries (Implemented)
 | Column | Type | Constraints | Description |
@@ -301,32 +334,31 @@ Unique on (`season_id`, `number`) for episodes, and a partial unique index on (`
 
 Unique on (`user_id`, `media_item_id`) and on (`id`, `media_item_id`). The second one is needed by the composite foreign key of `chapter_progress`.
 
-### custom_lists and custom_list_items (Proposed)
+### custom_lists and custom_list_items (Implemented, migration 16c8eff0da76)
 | Column | Type | Constraints | Description |
 |---|---|---|---|
 | `custom_lists.id` | INTEGER | PK | Identifier |
 | `custom_lists.user_id` | INTEGER | FK, NN, cascade | Owner |
-| `custom_lists.name` | VARCHAR(100) | NN | List name. Not empty. Unique for one user |
-| `custom_lists.description` | VARCHAR(500) | NULL | Optional text |
-| `custom_lists.created_at` | DATETIME | default now | Creation time |
+| `custom_lists.name` | VARCHAR(200) | NN | List name. Unique for one user |
+| `custom_lists.created_at` | DATETIME | NN, default now | Creation time |
 | `custom_list_items.id` | INTEGER | PK | Identifier |
 | `custom_list_items.list_id` | INTEGER | FK, NN, cascade | The list |
 | `custom_list_items.media_item_id` | INTEGER | FK, NN, cascade | The title |
-| `custom_list_items.added_at` | DATETIME | default now | When it was added |
+| `custom_list_items.added_at` | DATETIME | NN, default now | When it was added |
 
-Unique on (`list_id`, `media_item_id`).
+Unique on (`custom_lists.user_id`, `custom_lists.name`) and on (`custom_list_items.list_id`, `custom_list_items.media_item_id`). The list has no description column. The name is checked as not empty by the API.
 
-### activity_events (Proposed)
+### diary_entries (Implemented, US-07)
 | Column | Type | Constraints | Description |
 |---|---|---|---|
 | `id` | INTEGER | PK | Identifier |
 | `user_id` | INTEGER | FK, NN, cascade | Who did it |
-| `media_item_id` | INTEGER | FK, NULL, set null | Title that the event is about |
-| `event_type` | ENUM | NN | See the enum list below |
-| `payload` | JSON | NULL | Details such as the old and new value |
+| `media_item_id` | INTEGER | FK, NULL, cascade | Title that the event is about |
+| `action` | VARCHAR(50) | NN | Event type. The values are listed in the enum table below. The database does not check them, the code in `diary_service.py` does |
+| `details` | VARCHAR(255) | NULL | Short text about the event. The service cuts it at 255 characters |
 | `created_at` | DATETIME | NN, default now | Event time |
 
-Index on (`user_id`, `created_at` descending).
+Events are only added. They are never changed or deleted, and a removal is a new event. A title is never deleted from the catalog, so the cascade on `media_item_id` does not remove events in practice. There is no index beyond the primary key.
 
 ### chapter_progress (Implemented, US-10)
 | Column | Type | Constraints | Description |
@@ -351,38 +383,44 @@ Unique on (`library_entry_id`, `chapter_id`). The foreign keys are composite: (`
 
 Index on `chapter_progress_id`. The check constraint `chk_playtime_minutes` keeps every entry at 1 minute or more (BR-12). `chapter_progress.playtime_minutes` is the sum of the entries and is raised by the database in the same transaction as the new entry.
 
-### decision_points, decision_options and user_decisions (Proposed)
+### decision_points, decision_options and user_decisions (Implemented, US-12, migration 0008)
 | Column | Type | Constraints | Description |
 |---|---|---|---|
 | `decision_points.id` | INTEGER | PK | Identifier |
-| `decision_points.chapter_id` | INTEGER | FK, NN, cascade | The chapter |
+| `decision_points.chapter_id` | INTEGER | FK, NN, cascade, indexed | The chapter |
+| `decision_points.media_item_id` | INTEGER | NN | The title of the chapter. Part of a composite foreign key |
 | `decision_points.prompt` | VARCHAR(300) | NN | The question of the decision |
-| `decision_points.position` | INTEGER | NN, default 1 | Order inside the chapter |
+| `decision_points.position` | INTEGER | NN, default 1, check 1 or more | Order inside the chapter |
 | `decision_options.id` | INTEGER | PK | Identifier |
 | `decision_options.decision_point_id` | INTEGER | FK, NN, cascade | The decision point |
 | `decision_options.label` | VARCHAR(10) | NN | Short label such as `A` or `B` |
 | `decision_options.text` | VARCHAR(200) | NULL | Description of the option |
 | `user_decisions.id` | INTEGER | PK | Identifier |
 | `user_decisions.library_entry_id` | INTEGER | FK, NN, cascade | The library entry of the user |
-| `user_decisions.decision_point_id` | INTEGER | FK, NN, cascade | The decision point |
-| `user_decisions.option_id` | INTEGER | FK, NN | The chosen option |
-| `user_decisions.decided_at` | DATETIME | NN, default now | Time of the latest choice |
+| `user_decisions.decision_point_id` | INTEGER | FK, NN, cascade, indexed | The decision point |
+| `user_decisions.option_id` | INTEGER | FK, NN | The chosen option. No cascade, so a chosen option cannot be deleted |
+| `user_decisions.media_item_id` | INTEGER | NN | The title of the library entry and of the decision point |
+| `user_decisions.decided_at` | DATETIME | NN, default now (UTC) | Time of the latest choice |
 
-Unique on (`decision_options.decision_point_id`, `decision_options.label`). Unique on (`user_decisions.library_entry_id`, `user_decisions.decision_point_id`).
+Unique on (`decision_options.decision_point_id`, `decision_options.label`) and on (`user_decisions.library_entry_id`, `user_decisions.decision_point_id`). The foreign keys are composite, like the ones of `chapter_progress`: (`chapter_id`, `media_item_id`) of a decision point points to `chapters`, (`library_entry_id`, `media_item_id`) of a decision points to `user_libraries`, (`decision_point_id`, `media_item_id`) points to `decision_points`, and (`decision_point_id`, `option_id`) points to `decision_options`. So the database refuses a decision whose option belongs to another decision point or whose decision point belongs to another title than the library entry. The unique constraints on (`id`, `media_item_id`) in `decision_points` and on (`decision_point_id`, `id`) in `decision_options` support this.
 
-### reviews (Proposed)
+### reviews (Implemented, US-14, migration 0011)
 | Column | Type | Constraints | Description |
 |---|---|---|---|
 | `id` | INTEGER | PK | Identifier |
 | `library_entry_id` | INTEGER | FK, UK, NN, cascade | The library entry. One review for each entry |
-| `text` | TEXT | NN | Review text |
-| `contains_spoiler` | BOOLEAN | NULL | True or false. NULL when not checked yet |
+| `text` | TEXT | NN | Review text. The API accepts 1 to 5000 characters |
+| `contains_spoiler` | BOOLEAN | NULL | True or false. The API always sets it |
 | `spoiler_score` | FLOAT | NULL | Classifier score from 0 to 1 |
-| `spoiler_model_version` | VARCHAR(50) | NULL | Classifier version |
-| `created_at` | DATETIME | NN, default now | Creation time |
-| `updated_at` | DATETIME | default now, on update | Last change |
+| `spoiler_model_version` | VARCHAR(50) | NULL | The model that classified the text, for example `gpt-4o-mini`, or `omnilog-nlp-spoiler-v1` for the local patterns |
+| `created_at` | DATETIME | NN, default now (UTC) | Creation time |
+| `updated_at` | DATETIME | NULL | Empty until the review is replaced. The service sets it, the database does not |
 
-### media_embeddings (Proposed)
+A second review for the same entry replaces the first one, so the unique constraint `uq_review_library_entry` is never hit by the API.
+
+### media_embeddings (Proposed, not built)
+This table does not exist. There is no model, no migration and no code that reads or writes it. The function `embed_texts` in `backend/app/integrations/openai_client.py` can ask OpenAI for vectors, but nothing calls it.
+
 | Column | Type | Constraints | Description |
 |---|---|---|---|
 | `media_item_id` | INTEGER | PK, FK, cascade | The title |
@@ -393,7 +431,7 @@ Unique on (`decision_options.decision_point_id`, `decision_options.label`). Uniq
 | `created_at` | DATETIME | default now | First creation |
 | `updated_at` | DATETIME | default now, on update | Last refresh |
 
-### user_taste_vectors (Proposed, optional)
+### user_taste_vectors (Proposed, optional, not built)
 | Column | Type | Constraints | Description |
 |---|---|---|---|
 | `user_id` | INTEGER | PK, FK, cascade | The user |
@@ -402,7 +440,7 @@ Unique on (`decision_options.decision_point_id`, `decision_options.label`). Uniq
 | `based_on_count` | INTEGER | NN | Number of titles used |
 | `updated_at` | DATETIME | NN | Last refresh |
 
-### sync_job_logs (Proposed)
+### sync_job_logs (Proposed, not built)
 | Column | Type | Constraints | Description |
 |---|---|---|---|
 | `id` | INTEGER | PK | Identifier |
@@ -422,28 +460,29 @@ Unique on (`decision_options.decision_point_id`, `decision_options.label`). Uniq
 | MediaType | `GAME`, `SERIES`, `MOVIE` |
 | WatchStatus | `PLAN_TO_WATCH`, `IN_PROGRESS`, `COMPLETED`, `DROPPED` |
 | ChapterKind | `EPISODE`, `CHAPTER` |
-| ActivityType | `LIBRARY_ADDED`, `STATUS_CHANGED`, `RATED`, `CHAPTER_RATED`, `PLAYTIME_LOGGED`, `DECISION_RECORDED`, `LIST_CREATED`, `LIST_ITEM_ADDED`, `LIBRARY_REMOVED`, `LIST_ITEM_REMOVED`, `LIST_DELETED`, `REVIEW_POSTED` |
-| JobTrigger | `SCHEDULED`, `MANUAL` |
-| JobStatus | `RUNNING`, `SUCCESS`, `FAILED` |
+| DiaryAction (text in `diary_entries.action`) | `LIBRARY_ADDED`, `STATUS_CHANGED`, `RATED`, `CHAPTER_RATED`, `PLAYTIME_LOGGED`, `DECISION_RECORDED`, `LIST_CREATED`, `LIST_ITEM_ADDED`, `LIBRARY_REMOVED`, `LIST_ITEM_REMOVED`, `LIST_DELETED`, `REVIEW_POSTED` |
+| JobTrigger (not built) | `SCHEDULED`, `MANUAL` |
+| JobStatus (not built) | `RUNNING`, `SUCCESS`, `FAILED` |
 
 ## 7. Redis key dictionary
 
 | Key pattern | Content | TTL | Written by |
 |---|---|---|---|
-| `omni:catalog:{source}:{external_id}` | Normalized catalog record. For US-09 the source is `tmdb_tv` (the ids of TMDB series and movies are different number spaces) and the record is the seasons and episodes of the series with its description and genres, or `{"found": false}` when TMDB does not know the id. The sources `igdb` (a game) and `tmdb_movie` (a movie) hold the description and genres of one title | 1 hour to 24 hours. US-09 uses `DETAILS_CACHE_TTL_SECONDS`, default 24 hours | Process 3.5 |
-| `omni:search:{type}:{query_hash}` | List of search results | 1 hour | Process 3.2 |
-| `omni:reco:{user_id}:{target}` | List of recommended media ids | 10 minutes | Process 5.3 |
-| `omni:stats:{user_id}` | Statistics response | 5 minutes. Deleted when the library or progress changes | Process 6.5 |
+| `omni:catalog:{source}:{external_id}` | Normalized catalog record. For US-09 the source is `tmdb_tv` (the ids of TMDB series and movies are different number spaces) and the record is the seasons and episodes of the series with its description and genres, or `{"found": false}` when TMDB does not know the id. The sources `igdb` (a game) and `tmdb_movie` (a movie) hold the description and genres of one title | `DETAILS_CACHE_TTL_SECONDS`, default 24 hours | Process 3.5 |
+| `omni:search:{type}:{query_hash}` | List of search results | `CACHE_TTL_SECONDS`, default 1 hour | Process 3.2 |
+| `omni:stats:{user_id}` | Statistics response | 24 hours. Deleted when the user changes a library entry, a chapter rating, playtime or a decision, or removes a list item or a list | Process 6.5 |
+
+The key `omni:reco:{user_id}:{target}` of the design is not built. The recommendations are computed on every request. Every key falls back to an in-process cache when Redis is down.
 
 ## 8. Embedding table and vector space review
 
-This section reviews the Epic 5 data design.
+This section reviews the Epic 5 data design. **It is a design only and none of it is built.** The code has no `media_embeddings` table, and `GET /recommendations` ranks the titles by the genres of the library. Only the model name and the size (`text-embedding-3-small`, 1536) exist in the settings, and the function `embed_texts` exists in the OpenAI client without a caller.
 
 ### 8.1 What was checked
 
 | Check | Result |
 |---|---|
-| Is there a table for the vectors? | No. The earlier draft had none. `media_embeddings` was added. |
+| Is there a table for the vectors? | Not in the code. The design has `media_embeddings`, which is not built. |
 | Can games and series be compared? | Yes, if one model and one text template are used for all media types. Then all titles share one vector space. |
 | Can the model be changed later? | Yes. The primary key (`media_item_id`, `model_name`) allows two models at the same time during a migration. |
 | Does the vector become old when the title changes? | `source_text_hash` detects this. If the hash changes, the vector is made again. |
@@ -456,7 +495,7 @@ This section reviews the Epic 5 data design.
 2. **One embedding text template.** The text is the title, the genres and the description. Every media type uses the same template.
 3. **Fixed dimension.** Use OpenAI `text-embedding-3-small` with its default dimension of 1536 (no shortening).
 4. **Cosine distance.** Vectors are normalized to length 1. The index uses cosine distance. A HNSW index is the proposed index type.
-5. **Vector store.** The Charter allows pgvector or Pinecone. The proposal is pgvector. PostgreSQL is already in the stack, and no extra service is needed. This depends on the move from SQLite to PostgreSQL (open point 1 in the domain model).
+5. **Vector store.** The Charter allows pgvector or Pinecone. The proposal is pgvector. PostgreSQL is already in the stack and the Compose image is a pgvector image, but no migration creates the extension yet.
 6. **Recommendation query.** The query takes the taste vector of the user and finds the nearest vectors of the target type. It removes titles that are already in the library.
 
 ### 8.3 Open points for the AI work
@@ -465,4 +504,5 @@ This section reviews the Epic 5 data design.
 |---|---|
 | 1 | Which embedding model is used (hosted or open source), and what is its dimension? Decided: OpenAI `text-embedding-3-small`, 1536 dimensions. |
 | 2 | Is the Charter's collaborative filtering part of version 1? Decided: No. Version 1 uses content-based recommendations only. |
+| 3 | Are the embeddings built? No. Version 1 of the code ranks by genre and never creates a vector. The two tables stay proposed. |
 | 3 | Which model detects spoilers? Decided: OpenAI `gpt-4o-mini`, with a threshold of `0.5`. The model name is stored in `spoiler_model_version`. |
