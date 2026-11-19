@@ -161,7 +161,7 @@ The images have a health check, and `docker compose ps` shows `healthy` when it 
 - Set **Health Check Path** in the settings of each web service. Use `/health` for the backend and `/api/health` for the frontend.
 - Do not use `/health/ready` there. When the database is down, Render would mark the service as unhealthy and restart it, and a restart does not fix the database. Point an uptime monitor at `/health/ready` instead.
 - Third party APIs (TMDB, IGDB, OpenAI) are not checked on purpose. Their outages must not stop the service.
-- Set the environment variable `NODE_VERSION=24` for the frontend. Tailwind needs Node 20.19 or 22.12 and newer, and `frontend/package.json` asks for Node 24 or newer. An older Node stops the build with `require() of ES Module ... not supported`. `render.yaml` still lists `NODE_VERSION` as `20.18.0`, so change that value to `24` before you create a service from the Blueprint.
+- `render.yaml` sets `NODE_VERSION` to `26` for the frontend, the same major version as `frontend/Dockerfile`. If you create the service by hand, set the same value. Tailwind needs Node 20.19 or 22.12 and newer, and `frontend/package.json` asks for Node 24 or newer. An older Node stops the build with `require() of ES Module ... not supported`.
 - Set `OPENAI_API_KEY` (optional), the keys of the catalog services and `BACKEND_URL` by hand. They are listed in `render.yaml` without a value.
 
 ## 8. Try it on your own computer
