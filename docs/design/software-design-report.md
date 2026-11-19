@@ -62,7 +62,7 @@ To regenerate all PNG and SVG diagrams from PlantUML sources: `./docs/design/ren
 The production stack defined in `docker-compose.prod.yml` runs six containers on a single isolated Docker network (`internal`):
 1. **`proxy` (`caddy:2-alpine`, `docker/Caddyfile`):** The only container that publishes host ports (`80` and `443`). Terminates TLS automatically via Let's Encrypt and routes `{$APP_DOMAIN}` to `frontend:3000` and `{$API_DOMAIN}` to `backend:8000`.
 2. **`frontend` (`node:24-alpine`, `frontend/Dockerfile`):** Runs the Next.js 16 standalone server on port `3000` as non-root user `10001`. Renders Server Components and executes Server Actions, communicating with the backend over HTTP using Bearer JWT tokens read from the `omnilog_session` `httpOnly` cookie.
-3. **`backend` (`python:3.11-slim-bookworm`, `backend/Dockerfile`):** Runs FastAPI under Uvicorn on port `8000` as non-root user `10001:10001`. Waits for `migrate` (`service_completed_successfully`) and `redis` (`service_healthy`) before starting.
+3. **`backend` (`python:3.15-slim-bookworm`, `backend/Dockerfile`):** Runs FastAPI under Uvicorn on port `8000` as non-root user `10001:10001`. Waits for `migrate` (`service_completed_successfully`) and `redis` (`service_healthy`) before starting.
 4. **`migrate` (`omnilog-backend` image):** A one-shot container (`restart: "no"`) that runs `alembic upgrade head` against PostgreSQL once `db` is healthy.
 5. **`db` (`pgvector/pgvector:pg16`):** PostgreSQL 16 relational database with the `pgvector` extension, persisted in volume `pgdata`.
 6. **`redis` (`redis:7-alpine`):** Password-protected (`--requirepass`) in-memory cache with append-only persistence (`--appendonly yes`), persisted in volume `redisdata`.

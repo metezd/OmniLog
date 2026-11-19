@@ -82,7 +82,7 @@ def log_playtime(
     except (LibraryEntryNotFoundError, ChapterNotFoundError) as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
     except PlaytimeLimitError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc))
     return PlaytimeLogResponse(
         id=log.id,
         chapter_id=progress.chapter_id,
@@ -115,7 +115,7 @@ def record_decision(
     except (LibraryEntryNotFoundError, ChapterNotFoundError, DecisionPointNotFoundError) as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
     except DecisionNotAllowedError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc))
     return DecisionResponse(
         library_entry_id=decision.library_entry_id,
         chapter_id=chapter_id,

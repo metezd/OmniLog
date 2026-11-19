@@ -41,3 +41,16 @@ def test_token_without_sub():
     payload = {"exp": datetime.now(timezone.utc) + timedelta(minutes=15)}
     token = jwt.encode(payload, SECRET_KEY, algorithm=JWT_ALGORITHM)
     assert decode_access_token(token) is None
+
+
+def test_token_without_exp():
+    # Signed with the right key but without exp. It must not be valid forever.
+    token = jwt.encode({"sub": "42"}, SECRET_KEY, algorithm=JWT_ALGORITHM)
+    assert decode_access_token(token) is None
+
+
+def test_new_token_has_iat_and_exp():
+    token = create_access_token(user_id=42)
+    payload = jwt.decode(token, SECRET_KEY, algorithms=[JWT_ALGORITHM])
+    assert {"sub", "iat", "exp"} <= payload.keys()
+    assert payload["iat"] < payload["exp"]

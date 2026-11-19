@@ -1,8 +1,8 @@
 # Domain Model
 
-> **Note:** this document describes the baseline that is already implemented. The full analysis model for all six epics is in [data/domain-model.md](data/domain-model.md).
+> **Note:** this document is the record of the first slice of the code: users, titles and the library. It is no longer the full picture. The code now has more tables, and `media_items` has more columns than shown here (`description` and `last_synced`). The current model for all six epics is in [data/domain-model.md](data/domain-model.md).
 
-This document summarizes the current domain model for OmniLog as represented in the backend data model and aligned with the project requirements. The scope is intentionally limited to the entities that already exist in the codebase and the relationships needed to support media tracking and personal library management.
+This document summarizes the first slice of the domain model of OmniLog. The scope is limited to the entities that existed at that time and the relationships needed to support media tracking and personal library management.
 
 ## Core entities
 
@@ -112,4 +112,4 @@ This pattern keeps the catalog clean while storing all personal tracking state i
 
 ## Design notes
 
-The current implementation is intentionally simple and domain-focused. It supports the project's minimum viable media-tracking workflow without introducing more advanced concepts such as custom lists, chapter-level tracking, review moderation, or AI recommendations. Those features can be layered on top of this structure later.
+This first slice was intentionally simple. It supported the minimum media-tracking workflow without custom lists, chapter-level tracking, review moderation or recommendations. Those features were layered on top of this structure later and are described in [data/domain-model.md](data/domain-model.md).

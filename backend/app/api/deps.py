@@ -1,10 +1,11 @@
 """FastAPI dependencies shared by protected endpoints."""
-from typing import Optional
+from typing import Callable, Optional
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
+from app.core import rate_limit
 from app.core.database import get_db
 from app.core.security import decode_access_token
 from app.models.entities import User
@@ -37,3 +38,28 @@ def get_current_user(
     if user is None:
         raise unauthorized()
     return user
+
+
+def limit_per_client(name: str) -> Callable[[Request], None]:
+    """A dependency that applies the rate limit `name` to the address of the client (#217).
+
+    Behind the proxy, uvicorn takes the address from X-Forwarded-For, but only when the call comes
+    from an address in FORWARDED_ALLOW_IPS (see docs/deployment.md).
+    """
+
+    def dependency(request: Request) -> None:
+        rate_limit.check(name, request.client.host if request.client else "unknown")
+
+    return dependency
+
+
+def limit_per_user(name: str) -> Callable[[User], None]:
+    """A dependency that applies the rate limit `name` to the logged in user (#217).
+
+    get_current_user runs first, so a call without a valid token gets 401 and is not counted.
+    """
+
+    def dependency(current_user: User = Depends(get_current_user)) -> None:
+        rate_limit.check(name, f"user:{current_user.id}")
+
+    return dependency
