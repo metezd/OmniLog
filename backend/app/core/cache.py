@@ -62,6 +62,16 @@ def _mark_redis_down(exc: Exception) -> None:
     )
 
 
+def redis_client() -> Optional[redis.Redis]:
+    """The shared Redis client, or None while Redis is marked as down. Used by the rate limits."""
+    return _redis()
+
+
+def mark_redis_down(exc: Exception) -> None:
+    """Skip Redis for a short time after a failure. Used by the rate limits."""
+    _mark_redis_down(exc)
+
+
 def is_available() -> bool:
     """True when Redis answers. Used by the readiness check. It never raises."""
     client = _redis()
