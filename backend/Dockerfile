@@ -1,7 +1,8 @@
 # Backend image for production (FastAPI + Uvicorn).
 # Build context: the backend/ folder.  docker build -t omnilog-backend ./backend
-# The Python version is the one of the CI (3.11). The Debian release is named, so a new Debian
-# release does not change the image unless this file changes.
+# The CI reads the Python version from the FROM line below and runs the backend tests on it, so
+# the version that we ship is the version that we test. Change it only here. The Debian release is
+# named, so a new Debian release does not change the image unless this file changes.
 FROM python:3.15-slim-bookworm
 
 ENV PYTHONDONTWRITEBYTECODE=1 \

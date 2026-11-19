@@ -23,7 +23,7 @@ flowchart LR
     SRV["Server Data Layer (src/lib/server)\nauthed.ts, backend.ts, session.ts (omnilog_session httpOnly cookie)\ncatalog.ts, library.ts, journal.ts, chapters.ts, reviews.ts, recommendations.ts, stats.ts, user.ts"]
   end
 
-  subgraph BackendContainer["Backend Container (Python 3.11 / FastAPI)"]
+  subgraph BackendContainer["Backend Container (Python 3.15 / FastAPI)"]
     API["FastAPI Routers (backend/app/api)\nauth.py (/auth), media.py (/media), catalog.py (/catalog),\nlibrary.py (/library, /library/{entry_id}/review), chapters.py (/library/{entry_id}/chapters),\njournal.py (/lists, /diary), recommendations.py (/recommendations), stats.py (/stats), deps.py"]
     SVC["Services Layer (backend/app/services)\nauth_service.py, media_service.py, catalog_service.py, library_service.py,\nchapter_service.py, journal_service.py, diary_service.py, review_service.py, stats_service.py"]
     INT["Integration Layer (backend/app/integrations)\nigdb.py, tmdb.py, common.py, genres.py"]
