@@ -11,6 +11,7 @@ from app.api.chapters import router as chapters_router
 from app.api.journal import router as journal_router
 from app.api.recommendations import router as recommendations_router
 from app.api.stats import router as stats_router
+from app.api import lists
 from app.core.errors import register_exception_handlers
 from app.api.library import router as library_router
 from app.api.media import router as media_router
@@ -65,6 +66,7 @@ app.include_router(chapters_router)
 app.include_router(journal_router)
 app.include_router(recommendations_router)
 app.include_router(stats_router)
+app.include_router(lists.router)
 
 
 @app.get("/")
