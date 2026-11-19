@@ -4,7 +4,7 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, limit_per_user
 from app.core.database import get_db
 from app.models.entities import User
 from app.schemas.library import UserLibraryCreate, UserLibraryResponse, UserLibraryUpdate
@@ -72,7 +72,16 @@ def remove_library_entry(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
 
 
-@router.post("/{entry_id}/review", response_model=ReviewResponse)
+
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+
+
+@router.post(
+    "/{entry_id}/review",
+    response_model=ReviewResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(limit_per_user("review"))],
+)
 def submit_review(
     entry_id: int,
     payload: ReviewCreate,
