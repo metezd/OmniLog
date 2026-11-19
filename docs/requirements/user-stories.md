@@ -178,7 +178,7 @@ Acceptance criteria:
 
 ## Traceability: stories to tests
 
-| Story | Epic | Priority | Planned test file | Test function |
+| Story | Epic | Priority | Test file | Test function |
 |---|---|---|---|---|
 | US-01 | 1 | Must | `test_epic1_infrastructure.py` | `test_us01_health_returns_ok` |
 | US-02 | 2 | Must | `test_epic2_users.py` | `test_us02_register_user` |
@@ -193,7 +193,9 @@ Acceptance criteria:
 | US-11 | 4 | Should | `test_epic4_episodic.py` | `test_us11_log_playtime` |
 | US-12 | 4 | Should | `test_epic4_episodic.py` | `test_us12_record_decision` |
 | US-13 | 5 | Should | `test_epic5_ai.py` | `test_us13_cross_media_recommendations` |
-| US-14 | 5 | Could | `test_epic5_ai.py` | `test_us14_spoiler_detection` |
+| US-14 | 5 | Could | `test_epic5_ai.py` | `test_us14_spoiler_detected` |
 | US-15 | 6 | Should | `test_epic6_analytics.py` | `test_us15_personal_statistics` |
 | NFR-01 to NFR-04 | - | - | `test_nfr.py` | `test_nfr01_...` to `test_nfr04_...` |
-| NFR-05 | - | - | measured in the Testing phase | `pytest --cov` |
+| NFR-05 | - | - | CI gate `--cov-fail-under=70` in `.github/workflows/ci.yml` | `pytest --cov` |
+
+The other test functions and the edge-case files of each story are in [../analysis/data/traceability.md](../analysis/data/traceability.md), section 2.

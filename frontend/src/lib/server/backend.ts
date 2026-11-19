@@ -38,7 +38,16 @@ export type BackendFetchOptions = {
   /** Sent as JSON. */
   body?: unknown;
   timeoutMs?: number;
+  /**
+   * The X-Forwarded-For value of the browser's request, as the proxy set it. It is passed on, so
+   * the rate limits of the backend count the browser and not this server (#217). A value that does
+   * not look like a list of addresses is not sent.
+   */
+  forwardedFor?: string | null;
 };
+
+/** Addresses (IPv4, IPv6) separated by commas, as in an X-Forwarded-For header. */
+const FORWARDED_FOR = /^[0-9A-Fa-f.:\[\], ]{1,512}$/;
 
 /** The address of the backend, without a slash at the end. */
 function backendBaseUrl(): string {
@@ -113,7 +122,7 @@ function describeError(
  */
 export async function backendFetch<T = unknown>(
   path: string,
-  { method = "GET", token, body, timeoutMs = DEFAULT_TIMEOUT_MS }: BackendFetchOptions = {},
+  { method = "GET", token, body, timeoutMs = DEFAULT_TIMEOUT_MS, forwardedFor }: BackendFetchOptions = {},
 ): Promise<T> {
   if (!path.startsWith("/")) {
     throw new TypeError("The path must start with /");
@@ -123,6 +132,8 @@ export async function backendFetch<T = unknown>(
   const headers = new Headers({ Accept: "application/json" });
   if (token) headers.set("Authorization", `Bearer ${token}`);
   if (body !== undefined) headers.set("Content-Type", "application/json");
+  const forwarded = forwardedFor?.trim();
+  if (forwarded && FORWARDED_FOR.test(forwarded)) headers.set("X-Forwarded-For", forwarded);
 
   let response: Response;
   try {

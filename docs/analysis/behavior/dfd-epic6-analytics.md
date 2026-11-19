@@ -1,6 +1,6 @@
 # DFD Level 2: Epic 6, Analytics Dashboard
 
-This document is the detailed view (Level 2) of process **6.0 Analytics**. The parent diagram is in [dfd-level0-1.md](dfd-level0-1.md).
+This document is the detailed view (Level 2) of process **6.0 Analytics**. The parent diagram is in [dfd-level0-1.md](dfd-level0-1.md). It was checked against the code on 19.11.2026.
 
 ## 1. Scope
 
@@ -16,7 +16,7 @@ The Charter names four visual metrics: playtime histograms, genre breakdowns, ra
 | Type | Items |
 |---|---|
 | External entity | User |
-| Neighbor processes | 1.0 API Gateway (token check), 2.3 and 4.3 (delete the cache after a change) |
+| Neighbor processes | 1.0 API Gateway (token check), 2.3, 2.4, 4.2, 4.3 and 4.4 (delete the cache after a change) |
 | Data stores | D2 Library (read), D5 Catalog (read), D6 Episodic Log (read), D9 Redis Cache |
 
 Epic 6 has no tables of its own. All numbers are computed from the other stores.
@@ -88,12 +88,13 @@ flowchart TB
 - Put the titles in buckets by total playtime. The bucket width is 5 hours. A title with no playtime is in the first bucket (`0-5h`). A bucket includes its lower edge, so exactly 5 hours is in `5-10h`. Empty buckets between the first and the last are listed, so a chart has no gaps. An empty library has an empty histogram.
 
 ### 6.5 Assemble and Cache Statistics
-> **Status:** `GET /stats` is implemented without the cache. The numbers are computed on every request, so they are never old. The cache (steps 1 and 3) and the deletion of the entry after a change (step 4) are planned as one change, because a cache without the deletion would show old numbers.
+> **Status:** built, with the cache and the deletion of the entry after a change (`backend/app/services/stats_service.py`).
 
 1. Check Redis with the key `omni:stats:{user_id}`. On a hit, return the cached response.
 2. On a miss, run 6.1 to 6.4 and build the response.
-3. Save the response in Redis for 5 minutes.
-4. The cache entry is deleted when the library changes (process 2.3) or playtime is logged (process 4.3). So the user never sees old numbers after a change.
+3. Save the response for 24 hours. If Redis is down, an in-process cache holds it instead.
+4. The cache entry is deleted when the user adds, changes or removes a library entry (process 2.3), rates a chapter (4.2), logs playtime (4.3), records a decision (4.4), or removes a list item or a list (2.4). So the user does not see old numbers after one of these changes.
+5. One change does not delete the entry: loading the genres of a title when its details are opened for the first time (process 3.1). Until the entry is deleted by another change or expires, `genre_breakdown` can miss those genres for up to 24 hours.
 
 ## 5. Response format
 
@@ -120,7 +121,7 @@ The tests check `media_split`, `rating_distribution` (with string keys) and `tot
 | 6.2 Compute Media Split and Ratings | | | | |
 | 6.3 Compute Genre Breakdown | | | | |
 | 6.4 Compute Playtime Histogram | | | | |
-| 6.5 Assemble and Cache Statistics | | | | C, R |
+| 6.5 Assemble and Cache Statistics | | | | C, R, D (after a change) |
 
 Processes 6.2 to 6.4 work only on data in memory.
 
@@ -129,6 +130,8 @@ Processes 6.2 to 6.4 work only on data in memory.
 | Story | Process | Endpoint | Test |
 |---|---|---|---|
 | US-15 | 6.1 to 6.5 | `GET /stats` | `test_us15_*` |
+| US-15 (cache) | 6.5, 2.3, 2.4, 4.2 to 4.4 | `GET /stats` | `test_epic6_stats_cache.py` |
+| NFR-01 | 6.5 | The 95th percentile of a cached `GET /stats` is under 500 ms | `test_nfr01_*` |
 | NFR-02 | 1.0 | `GET /stats` without token returns 401 | `test_nfr02_*` |
 
 ## 8. Dashboard screen

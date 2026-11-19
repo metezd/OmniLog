@@ -1,11 +1,11 @@
 """Review submission and NLP spoiler detection (US-14, DFD 5.4 and 5.5)."""
 import logging
 import re
-from datetime import datetime
 from typing import Tuple
 
 from sqlalchemy.orm import Session
 
+from app.core.clock import utc_now
 from app.models.entities import Review, User, UserLibrary
 from app.schemas.review import ReviewCreate
 from app.services.diary_service import DiaryAction, record_event
@@ -96,7 +96,7 @@ def upsert_review(
         review.contains_spoiler = contains_spoiler
         review.spoiler_score = spoiler_score
         review.spoiler_model_version = model_version
-        review.updated_at = datetime.utcnow()
+        review.updated_at = utc_now()
 
     record_event(
         db,
