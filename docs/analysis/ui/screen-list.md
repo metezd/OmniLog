@@ -13,12 +13,12 @@ Roles: **V** is Visitor, **U** is User, **A** is Admin (Operator).
 | S-01 | Landing page | `/` | V | 1, 2 | None | Must |
 | S-02 | Register | `/register` | V | 2, US-02 | `POST /auth/register` | Must |
 | S-03 | Log in | `/login` | V | 2, US-03 | `POST /auth/login` | Must |
-| S-04 | Library | `/library` | U | 2, US-04, US-05 | `GET /library`, `PATCH /library/{id}`, `DELETE /library/{id}` | Must |
+| S-04 | Library | `/library` | U | 2, US-04, US-05 | `GET /library?limit=&offset=`, `PATCH /library/{id}`, `DELETE /library/{id}` | Must |
 | S-05 | Catalog search | `/search` | U | 3, US-08 | `GET /catalog/search` | Must |
 | S-06 | Title details | `/title/[id]` | U | 3, 4, US-09 to US-12, US-14 | `GET /catalog/{id}`, `POST /library`, chapter endpoints, `POST /library/{id}/review` | Must |
-| S-07 | Custom lists | `/lists` | U | 2, US-06 | `GET /lists`, `POST /lists`, `DELETE /lists/{id}` | Should |
+| S-07 | Custom lists | `/lists` | U | 2, US-06 | `GET /lists?limit=&offset=`, `POST /lists`, `DELETE /lists/{id}` | Should |
 | S-08 | List details | `/lists/[id]` | U | 2, US-06 | `GET /lists/{id}`, `POST /lists/{id}/items`, `DELETE /lists/{id}/items/{media_item_id}` | Should |
-| S-09 | Activity diary | `/diary` | U | 2, US-07 | `GET /diary` | Should |
+| S-09 | Activity diary | `/diary` | U | 2, US-07 | `GET /diary?limit=&offset=` (read with `limit`, default 100, at most 500) | Should |
 | S-10 | Recommendations | `/recommendations` | U | 5, US-13 | `GET /recommendations?target=` | Should |
 | S-11 | Statistics | `/stats` | U | 6, US-15 | `GET /stats` | Should |
 | S-12 | Profile | `/profile` | U | 2 (no story yet) | None yet | Could |
