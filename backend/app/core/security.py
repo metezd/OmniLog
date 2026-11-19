@@ -2,6 +2,7 @@
 
 Passwords are hashed with bcrypt through passlib. Tokens are signed with
 SECRET_KEY (HS256) using PyJWT and carry the user id in the `sub` claim.
+A token without `exp` or `sub` is rejected, so every token runs out.
 """
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -37,15 +38,23 @@ DUMMY_HASH = hash_password("dummy-password-for-timing-only")
 
 def create_access_token(user_id: int) -> str:
     """Create a signed JWT for the given user id."""
-    expires_at = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    payload = {"sub": str(user_id), "exp": expires_at}
+    issued_at = datetime.now(timezone.utc)
+    expires_at = issued_at + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    payload = {"sub": str(user_id), "iat": issued_at, "exp": expires_at}
     return jwt.encode(payload, SECRET_KEY, algorithm=JWT_ALGORITHM)
 
 
 def decode_access_token(token: str) -> Optional[int]:
     """Return the user id in a valid token, or None if it is invalid or expired."""
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[JWT_ALGORITHM])
+        # PyJWT checks exp only when the token has it. Without "require" a token with no exp
+        # would be accepted and never run out.
+        payload = jwt.decode(
+            token,
+            SECRET_KEY,
+            algorithms=[JWT_ALGORITHM],
+            options={"require": ["exp", "sub"]},
+        )
         return int(payload["sub"])
     except (jwt.PyJWTError, KeyError, ValueError):
         return None

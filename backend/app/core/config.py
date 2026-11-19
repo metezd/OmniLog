@@ -39,6 +39,10 @@ CORS_ORIGINS = [
 if "*" in CORS_ORIGINS:
     raise RuntimeError("CORS_ORIGINS must list explicit origins. A wildcard (*) is not allowed.")
 
+# Show the API documentation (/docs, /redoc and /openapi.json). On by default for development.
+# Turn it off in production, so the full list of endpoints is not public.
+ENABLE_DOCS = os.getenv("ENABLE_DOCS", "true").strip().lower() in ("1", "true", "yes", "on")
+
 # How long a login token stays valid, in minutes
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "90"))
 
