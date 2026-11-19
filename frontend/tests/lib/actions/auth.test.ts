@@ -8,9 +8,12 @@ import { cookieStore } from "../../mocks/cookie-store";
 import { server } from "../../mocks/server";
 
 vi.mock("next/navigation", async () => await import("../../mocks/next-navigation"));
+/** The headers of the browser's request to the frontend, as the proxy sent them. */
+const requestHeaders = new Headers();
+
 vi.mock("next/headers", async () => {
   const { cookieStore } = await import("../../mocks/cookie-store");
-  return { cookies: async () => cookieStore };
+  return { cookies: async () => cookieStore, headers: async () => requestHeaders };
 });
 
 const BASE = "http://backend.test";
@@ -49,10 +52,12 @@ function useBackend({
   const calls: Array<{ path: string; body: unknown }> = [];
   server.use(
     http.post(`${BASE}/auth/register`, async ({ request }) => {
+      forwarded.push(request.headers.get("x-forwarded-for"));
       calls.push({ path: "/auth/register", body: await request.json() });
       return register();
     }),
     http.post(`${BASE}/auth/login`, async ({ request }) => {
+      forwarded.push(request.headers.get("x-forwarded-for"));
       calls.push({ path: "/auth/login", body: await request.json() });
       return login();
     }),
@@ -60,12 +65,53 @@ function useBackend({
   return calls;
 }
 
+/** The X-Forwarded-For header of each call that reached the backend. */
+const forwarded: Array<string | null> = [];
+
 const unprocessable = (detail: unknown[]) => () => HttpResponse.json({ detail }, { status: 422 });
 const refuse = (status: number, detail: string) => () => HttpResponse.json({ detail }, { status });
 
 beforeEach(() => {
   vi.stubEnv("BACKEND_URL", BASE);
   cookieStore.clear();
+  forwarded.length = 0;
+  requestHeaders.delete("x-forwarded-for");
+});
+
+describe("the address of the browser (rate limits, #217)", () => {
+  it("passes the address from the proxy on to the backend for the login", async () => {
+    useBackend();
+    requestHeaders.set("x-forwarded-for", "203.0.113.7");
+
+    await redirectOf(loginAction(undefined, form({ username: "ali", password: PASSWORD })));
+
+    expect(forwarded).toEqual(["203.0.113.7"]);
+  });
+
+  it("passes it on for the registration and the login after it", async () => {
+    useBackend();
+    requestHeaders.set("x-forwarded-for", "2001:db8::1");
+
+    await redirectOf(registerAction(undefined, form({ username: "ali", email: "a@example.com", password: PASSWORD })));
+
+    expect(forwarded).toEqual(["2001:db8::1", "2001:db8::1"]);
+  });
+
+  it("sends no address when the request has none", async () => {
+    useBackend();
+
+    await redirectOf(loginAction(undefined, form({ username: "ali", password: PASSWORD })));
+
+    expect(forwarded).toEqual([null]);
+  });
+
+  it("shows the message of the backend when the limit is reached", async () => {
+    useBackend({ login: refuse(429, "Too many requests. Try again in 45 seconds.") });
+
+    const state = await loginAction(undefined, form({ username: "ali", password: PASSWORD }));
+
+    expect(state).toEqual({ values: { username: "ali" }, message: "Too many requests. Try again in 45 seconds." });
+  });
 });
 
 describe("loginAction", () => {

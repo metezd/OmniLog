@@ -20,6 +20,12 @@ x-backend-env: &backend-env
   SPOILER_THRESHOLD: ${SPOILER_THRESHOLD:-0.5}
   OPENAI_TIMEOUT_SECONDS: ${OPENAI_TIMEOUT_SECONDS:-8}
   OPENAI_MAX_RETRIES: ${OPENAI_MAX_RETRIES:-2}
+  # Rate limits (#217). "<count>/<second|minute|hour|day>". See docs/deployment.md.
+  RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}
+  RATE_LIMIT_LOGIN: ${RATE_LIMIT_LOGIN:-10/minute}
+  RATE_LIMIT_REGISTER: ${RATE_LIMIT_REGISTER:-5/hour}
+  RATE_LIMIT_SEARCH: ${RATE_LIMIT_SEARCH:-30/minute}
+  RATE_LIMIT_REVIEW: ${RATE_LIMIT_REVIEW:-20/minute}
 
 services:
   db:
@@ -74,6 +80,9 @@ services:
     restart: unless-stopped
     environment:
       <<: *backend-env
+      # Only the proxy and the frontend may tell the backend the address of the browser
+      # (X-Forwarded-For). The rate limits count that address. Their fixed addresses are below.
+      FORWARDED_ALLOW_IPS: 172.30.42.10,172.30.42.11
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -93,7 +102,10 @@ services:
       # The server code of the frontend calls the backend at this address, inside the private
       # network. The browser never calls the backend itself.
       BACKEND_URL: http://backend:8000
-    networks: [internal]
+    networks:
+      internal:
+        # Fixed, because the backend trusts the X-Forwarded-For header of this address
+        ipv4_address: 172.30.42.11
 
   proxy:
     image: caddy:2-alpine
@@ -112,12 +124,22 @@ services:
     depends_on:
       - frontend
       - backend
-    networks: [internal]
+    networks:
+      internal:
+        # Fixed, because the backend trusts the X-Forwarded-For header of this address
+        ipv4_address: 172.30.42.10
 
 # One private network. Only the proxy publishes ports, so the database, Redis, the backend and
 # the frontend cannot be reached from outside the host.
+#
+# The proxy and the frontend have fixed addresses (see FORWARDED_ALLOW_IPS of the backend). The
+# other services get an address from the upper half of the subnet, so they never take one of them.
 networks:
   internal:
+    ipam:
+      config:
+        - subnet: 172.30.42.0/24
+          ip_range: 172.30.42.128/25
 
 volumes:
   pgdata:

@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, limit_per_client
 from app.core.database import get_db
 from app.core.security import create_access_token
 from app.models.entities import User
@@ -13,7 +13,12 @@ from app.services.auth_service import AccountConflictError
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/register",
+    response_model=UserResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(limit_per_client("register"))],
+)
 def register(data: UserCreate, db: Session = Depends(get_db)):
     try:
         return auth_service.register_user(db, data)
@@ -21,7 +26,7 @@ def register(data: UserCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
 
 
-@router.post("/login", response_model=Token)
+@router.post("/login", response_model=Token, dependencies=[Depends(limit_per_client("login"))])
 def login(data: UserLogin, db: Session = Depends(get_db)):
     """Log in with a username or an email in the field `username`."""
     user = auth_service.authenticate_user(db, data.username, data.password)
