@@ -147,12 +147,12 @@ def test_review_is_limited_per_user(limits_on, monkeypatch):
         return client.post(f"/library/{entry_id}/review", json={"text": "A calm and lovely game."}, headers=auth)
 
     assert review(entry["id"], headers).status_code == 201
-    assert review(entry["id"], headers).status_code == 201
+    assert review(entry["id"], headers).status_code == 200
     assert_limited(review(entry["id"], headers), retry_after=60)
     assert review(other_entry["id"], other).status_code == 201
 
     FakeClock.now += 60
-    assert review(entry["id"], headers).status_code == 201
+    assert review(entry["id"], headers).status_code == 200
 
 
 # ------------------------------------------------------------------------- Redis and settings
