@@ -57,6 +57,22 @@ def new_series(client, headers, fake, *, overview="An overview.", genres=("Drama
     return {**response.json(), "fake_key": external_id}
 
 
+def new_game(client, headers, fake, *, summary="A summary.", genres=("Adventure", "Indie")):
+    """A game with its own outside id so shared-DB state from earlier tests does not interfere."""
+    external_id = next(_outside_ids)
+    game_title = unique("game")
+    fake.games.append(
+        {
+            "id": external_id,
+            "name": game_title,
+            "summary": summary,
+            "genres": [{"id": n + 1, "name": g} for n, g in enumerate(genres)],
+        }
+    )
+    results = find(client, headers, game_title, "GAME")
+    return next(i for i in results if i["external_api_id"] == external_id)
+
+
 def give_genres(db, media_id, names):
     """Link a title to genres directly in the database."""
     item = db.get(MediaItem, media_id)
@@ -464,7 +480,7 @@ def test_the_number_of_queries_of_a_search_does_not_grow_with_the_genres(client,
 # ---------------------------------------------------------------- issue #125: load details on library addition
 def test_adding_title_from_search_to_library_loads_genres_and_description(client, auth_headers, fake_external_apis):
     """Issue #125 (Option 1): Adding a title to library without opening its details loads genres."""
-    game = life_is_strange(client, auth_headers)
+    game = new_game(client, auth_headers, fake_external_apis, genres=("Adventure", "Indie"))
     assert game["genres"] == []  # search alone does not load genres
 
     # Add directly to library without calling /catalog/{id}
@@ -475,7 +491,7 @@ def test_adding_title_from_search_to_library_loads_genres_and_description(client
 
 def test_stats_genre_breakdown_reflects_title_added_from_search(client, auth_headers, fake_external_apis):
     """Issue #125: Genre statistics (US-15) include titles added directly from search."""
-    game = life_is_strange(client, auth_headers)
+    game = new_game(client, auth_headers, fake_external_apis, genres=("Adventure", "Indie"))
     add_to_library(client, auth_headers, game["id"])
 
     stats_resp = client.get("/stats", headers=auth_headers)
@@ -495,7 +511,7 @@ def test_adding_series_from_search_to_library_loads_seasons_and_genres(client, a
 
 def test_adding_title_to_library_succeeds_even_when_external_service_down(client, auth_headers, fake_external_apis):
     """Issue #125 & NFR-04: If the external service is down, adding to library still succeeds."""
-    game = life_is_strange(client, auth_headers)
+    game = new_game(client, auth_headers, fake_external_apis)
     fake_external_apis.fail("igdb", status=503, times=None)
 
     entry = add_to_library(client, auth_headers, game["id"])
@@ -504,7 +520,7 @@ def test_adding_title_to_library_succeeds_even_when_external_service_down(client
 
 def test_sync_missing_details_backfills_unopened_titles(client, auth_headers, fake_external_apis, db):
     """Issue #125 (Option 2 companion): sync_missing_details can backfill unsynced catalog titles."""
-    game = life_is_strange(client, auth_headers)
+    game = new_game(client, auth_headers, fake_external_apis, genres=("Adventure", "Indie"))
     assert db.get(MediaItem, game["id"]).last_synced is None
 
     synced_count = catalog_service.sync_missing_details(db)
@@ -513,4 +529,3 @@ def test_sync_missing_details_backfills_unopened_titles(client, auth_headers, fa
     item = db.get(MediaItem, game["id"])
     assert item.last_synced is not None
     assert [g.name for g in item.genres] == ["Adventure", "Indie"]
-
