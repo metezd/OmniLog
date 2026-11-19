@@ -1,0 +1,70 @@
+backend/app/main.py
+    ERROR: invalid non-printable character U+FEFF (<unknown>, line 1)
+backend/app/seed/loader.py
+    F 111:0 _apply_game - B (8)
+    F 172:0 _apply_decision_points - B (8)
+    F 66:0 read_seed_file - B (6)
+backend/app/seed/schema.py
+    C 20:0 SeedDecisionPoint - B (6)
+    C 72:0 SeedFile - B (6)
+backend/app/seed/__main__.py
+    F 14:0 main - C (13)
+backend/app/services/auth_service.py
+    F 45:0 authenticate_user - B (6)
+backend/app/services/catalog_service.py
+    F 166:0 _save_once - B (10)
+    F 332:0 _outside_from_cache - B (10)
+    F 359:0 _season_from_cache - B (9)
+    F 458:0 _details_from_cache_fields - B (8)
+    F 120:0 _titles_from_cache - B (7)
+    F 282:0 _refresh_series - B (7)
+    F 545:0 _save_seasons_once - B (7)
+    F 83:0 search_catalog - B (6)
+    F 412:0 _refresh_details - B (6)
+backend/app/services/library_service.py
+    F 83:0 update_entry - B (6)
+backend/app/services/chapter_service.py
+    F 248:0 record_decision - B (10)
+    F 228:0 _resolve_decision_point - B (6)
+backend/app/services/stats_service.py
+    F 46:0 get_stats - B (6)
+    F 97:0 _media_split - B (6)
+backend/app/api/recommendations.py
+    F 13:0 get_recommendations - C (13)
+backend/app/api/chapters.py
+    F 129:0 get_chapter_progress - B (8)
+backend/app/integrations/common.py
+    F 92:0 request_with_retry - B (8)
+backend/app/integrations/genres.py
+    F 30:0 normalize_genres - B (7)
+backend/app/integrations/tmdb.py
+    F 153:0 fetch_series - C (12)
+    F 389:0 _fetch_public_series - B (10)
+    F 364:0 _fetch_public_movie_details - B (9)
+    F 79:0 search - B (8)
+    F 212:0 _listed_seasons - B (8)
+    F 232:0 _normalize_season - B (8)
+    F 445:0 _build_public_seasons - B (8)
+    F 300:0 _parse_tvmaze_entry - B (7)
+    F 424:0 _group_public_episodes - B (7)
+    F 318:0 _search_public_movies - B (6)
+    F 341:0 _parse_itunes_entry - B (6)
+backend/app/integrations/openai_client.py
+    F 43:0 embed_texts - C (14)
+    F 84:0 classify_spoiler - C (13)
+backend/app/integrations/igdb.py
+    F 58:0 _get_access_token - C (11)
+    F 131:0 _search_steam_games - B (9)
+    F 168:0 _fetch_steam_game_details - B (9)
+    F 198:0 _query - B (6)
+    F 229:0 _normalize - B (6)
+backend/app/core/errors.py
+    F 12:0 _replace_non_finite - B (7)
+backend/app/core/database.py
+    ERROR: invalid non-printable character U+FEFF (<unknown>, line 1)
+backend/app/core/security.py
+    ERROR: invalid non-printable character U+FEFF (<unknown>, line 1)
+backend/app/core/cache.py
+    F 99:0 set_json - B (8)
+    F 120:0 clear_prefix - B (7)
+    F 77:0 get_json - B (6)
