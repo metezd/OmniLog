@@ -1,0 +1,12 @@
+# The tools for the backend tests. Change this file, not requirements-test.txt.
+#
+# requirements-test.txt is the lock file of these tools. It is made on top of the backend lock
+# (-c below), so a tool never changes a version of the backend. Make it again after a change here
+# or in backend/requirements.txt (from the repository root):
+#
+#   uv pip compile tests/requirements-test.in -o tests/requirements-test.txt --generate-hashes --python-platform x86_64-manylinux_2_28 --python-version 3.15
+-c ../backend/requirements.txt
+psycopg[binary]
+pytest
+pytest-cov
+pip-audit
