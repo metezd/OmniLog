@@ -10,6 +10,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.clock import utc_now
 from app.models.entities import (
     Chapter,
     ChapterKind,
@@ -296,7 +297,7 @@ def record_decision(
                 )
                 .on_conflict_do_update(
                     constraint="uq_user_decision_entry_point",
-                    set_={"option_id": option_pk, "decided_at": datetime.utcnow()},
+                    set_={"option_id": option_pk, "decided_at": utc_now()},
                 )
             )
         else:
