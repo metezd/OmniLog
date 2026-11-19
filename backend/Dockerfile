@@ -1,7 +1,8 @@
 # Backend image for production (FastAPI + Uvicorn).
 # Build context: the backend/ folder.  docker build -t omnilog-backend ./backend
-# The Python version is the one of the CI (3.11). The Debian release is named, so a new Debian
-# release does not change the image unless this file changes.
+# The CI reads the Python version from the FROM line below and runs the backend tests on it, so
+# the version that we ship is the version that we test. Change it only here. The Debian release is
+# named, so a new Debian release does not change the image unless this file changes.
 FROM python:3.15-slim-bookworm
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -32,5 +33,11 @@ EXPOSE 8000
 HEALTHCHECK --interval=10s --timeout=5s --start-period=20s --retries=5 \
     CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
 
+# The rate limits count the address of the client (#217). Behind a proxy, uvicorn reads it from
+# X-Forwarded-For, but only when the call comes from an address in FORWARDED_ALLOW_IPS. Nobody else
+# can choose the address that is counted. docker-compose.prod.yml sets the addresses of the proxy
+# and the frontend. Without a proxy, only the local host is trusted.
+ENV FORWARDED_ALLOW_IPS=127.0.0.1
+
 # Migrations are not run here. The compose file runs `alembic upgrade head` in a separate step.
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers"]
