@@ -13,6 +13,13 @@ x-backend-env: &backend-env
   IGDB_CLIENT_ID: ${IGDB_CLIENT_ID:-}
   IGDB_CLIENT_SECRET: ${IGDB_CLIENT_SECRET:-}
   TMDB_API_KEY: ${TMDB_API_KEY:-}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
+  EMBEDDING_DIMENSIONS: ${EMBEDDING_DIMENSIONS:-1536}
+  SPOILER_MODEL: ${SPOILER_MODEL:-gpt-4o-mini}
+  SPOILER_THRESHOLD: ${SPOILER_THRESHOLD:-0.5}
+  OPENAI_TIMEOUT_SECONDS: ${OPENAI_TIMEOUT_SECONDS:-8}
+  OPENAI_MAX_RETRIES: ${OPENAI_MAX_RETRIES:-2}
 
 services:
   db:
@@ -82,6 +89,10 @@ services:
         NEXT_PUBLIC_API_URL: ${API_URL:?Set API_URL in .env.prod}
     image: omnilog-frontend:${TAG:-latest}
     restart: unless-stopped
+    environment:
+      # The server code of the frontend calls the backend at this address, inside the private
+      # network. The browser never calls the backend itself.
+      BACKEND_URL: http://backend:8000
     networks: [internal]
 
   proxy:
