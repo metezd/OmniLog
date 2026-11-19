@@ -130,10 +130,12 @@ cp .env.example .env
 python -c "import secrets; print(secrets.token_urlsafe(32))"
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install --require-hashes -r requirements.txt
 alembic upgrade head
 uvicorn app.main:app --reload
 ```
+
+`requirements.txt` is a lock file for Linux and the Python version of the production image (see `backend/requirements.in`). On Windows, or on another Python version, use `pip install -r requirements.in` instead. You then get the newest allowed versions, not the locked ones.
 
 The API runs at `http://localhost:8000`. Interactive docs are at `http://localhost:8000/docs`.
 
@@ -195,7 +197,7 @@ The app runs at `http://localhost:3000`. The server code of Next.js (Server Comp
 The tests use the separate `omnilog_test` database, so `docker compose up -d` must be running. From the repository root, with the virtual environment active:
 
 ```bash
-python -m pip install -r tests/requirements-test.txt
+python -m pip install --require-hashes -r tests/requirements-test.txt
 python -m pytest tests -v --tb=short
 ```
 

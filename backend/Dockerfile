@@ -17,9 +17,11 @@ WORKDIR /app
 RUN groupadd --system --gid 10001 omnilog \
     && useradd --system --uid 10001 --gid 10001 --no-create-home --shell /usr/sbin/nologin omnilog
 
-# The dependencies come first, so this layer is reused when only the code changes
+# The dependencies come first, so this layer is reused when only the code changes.
+# requirements.txt is the lock file (see requirements.in): the exact versions that CI tested, and
+# pip refuses a file whose hash is not in the lock.
 COPY requirements.txt .
-RUN pip install -r requirements.txt
+RUN pip install --require-hashes -r requirements.txt
 
 # The code belongs to root. The application user can read it but cannot change it.
 COPY alembic.ini .
