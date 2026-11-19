@@ -35,6 +35,11 @@ _SPOILER_PATTERNS: list[Tuple[re.Pattern[str], float]] = [
 ]
 
 
+def check_spoiler(text: str) -> Tuple[None, None, None]:
+    """Spoiler detection will be implemented in issue #152."""
+    return None, None, None
+
+
 
 def detect_spoilers(text: str) -> Tuple[bool, float, str]:
     """Classify review text using OpenAI when configured, otherwise use local patterns."""
@@ -63,7 +68,7 @@ def upsert_review(
     current_user: User,
     entry_id: int,
     payload: ReviewCreate,
-) -> Review:
+) -> tuple[Review, bool]:
     """Create or replace the user's review for a library entry and run spoiler detection (US-14)."""
     entry = (
         db.query(UserLibrary)
@@ -73,9 +78,10 @@ def upsert_review(
     if not entry:
         raise LibraryEntryNotFoundError("Library entry not found")
 
-    contains_spoiler, spoiler_score, model_version = detect_spoilers(payload.text)
+    contains_spoiler, spoiler_score, model_version = check_spoiler(payload.text)
 
     review = db.query(Review).filter(Review.library_entry_id == entry.id).first()
+    is_new = review is None
     if review is None:
         review = Review(
             library_entry_id=entry.id,
@@ -101,7 +107,7 @@ def upsert_review(
     )
     db.commit()
     db.refresh(review)
-    return review
+    return review, is_new
 
 
 def get_review(db: Session, current_user: User, entry_id: int) -> Review | None:
