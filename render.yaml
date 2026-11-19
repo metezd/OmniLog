@@ -43,6 +43,8 @@ services:
         sync: false
       - key: TMDB_API_KEY
         sync: false
+      - key: OPENAI_API_KEY
+        sync: false
 
   - type: web
     name: omnilog-web
@@ -54,7 +56,7 @@ services:
     startCommand: npm run start -- -p $PORT
     envVars:
       - key: NODE_VERSION
-        value: 20.18.0
+        value: 26
       - key: BACKEND_URL
         sync: false
       - key: NEXT_PUBLIC_API_URL
