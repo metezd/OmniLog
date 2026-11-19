@@ -92,6 +92,8 @@ All settings are in `.env.prod`. The file holds secrets and is ignored by Git. C
 | `SPOILER_THRESHOLD` | no | Score from 0 to 1 at which a review is flagged. Default `0.5` |
 | `OPENAI_TIMEOUT_SECONDS`, `OPENAI_MAX_RETRIES` | no | Time limit of one OpenAI call in seconds (default `8`) and number of retries (default `2`) |
 | `EMBEDDING_MODEL`, `EMBEDDING_DIMENSIONS` | no | Embedding model (default `text-embedding-3-small`) and its size (default `1536`). The OpenAI client reads them, but no endpoint creates or stores embeddings yet, so they have no visible effect |
+| `RATE_LIMIT_ENABLED` | no | `false` turns all rate limits off. Default `true`. See section 9.1 |
+| `RATE_LIMIT_LOGIN`, `RATE_LIMIT_REGISTER`, `RATE_LIMIT_SEARCH`, `RATE_LIMIT_REVIEW` | no | The rate limits as `<count>/<second\|minute\|hour\|day>`. Defaults `10/minute`, `5/hour`, `30/minute` and `20/minute`. The backend does not start with a value in another form |
 | `POSTGRES_USER`, `POSTGRES_DB` | no | Defaults are `omnilog` |
 | `TAG` | no | Tag of the built images. Default is `latest` |
 
@@ -192,6 +194,26 @@ Open `https://localhost` in the browser and accept the certificate warning, beca
 | The login token is stolen by a script in the page | The frontend keeps the token in an `httpOnly` cookie and sends it to the backend from its server code |
 | A break-in to a container gives full control | The backend and the frontend run as a normal user, not as root |
 | A forgotten setting | Compose and the frontend build stop with a message when a required value is missing |
+| Guessing passwords, creating many accounts, using up the IGDB, TMDB or OpenAI quota | Rate limits on login, register, search and review answer 429 with `Retry-After` (section 9.1) |
+
+### 9.1 Rate limits
+
+| Endpoint | Counted per | Default | Why |
+|---|---|---|---|
+| `POST /auth/login` | Browser address | `10/minute` | Every try costs a bcrypt check |
+| `POST /auth/register` | Browser address | `5/hour` | A bcrypt hash, and new accounts |
+| `GET /catalog/search` | User | `30/minute` | A new search text calls IGDB or TMDB with the shared keys |
+| `POST /library/{entry_id}/review` | User | `20/minute` | A review can call OpenAI, which costs money |
+
+A call over the limit gets `429 Too Many Requests` with a `Retry-After` header (seconds until the window ends) and `{"detail": "Too many requests. Try again in N seconds."}`. A limit counts the calls in a fixed window, for example one minute. The counts are in Redis, so all workers share them. When Redis is down, each process counts for itself and the API keeps answering. A call without a valid token gets 401 and is not counted.
+
+**Which address is counted.** The browser does not call the backend for the login and the registration. It calls the frontend, and the frontend's server code calls the backend. Without help, the backend would see the address of the frontend for every user, and one user could block the login of everybody. So:
+
+1. Caddy writes the browser address into `X-Forwarded-For`.
+2. The frontend passes this header on to the backend for the login and the registration (`src/lib/actions/auth.ts`).
+3. Uvicorn runs with `--proxy-headers` (`backend/Dockerfile`) and uses `X-Forwarded-For` only from the addresses in `FORWARDED_ALLOW_IPS`. `docker-compose.prod.yml` gives the proxy (`172.30.42.10`) and the frontend (`172.30.42.11`) fixed addresses and trusts only these two. Calls through the API domain come from Caddy, so they are counted by the browser address too.
+
+A client cannot choose the counted address by sending its own `X-Forwarded-For`: Caddy replaces the header of a client that it does not trust, and the backend ignores it from every other address. Without a proxy (development), the Dockerfile trusts only `127.0.0.1`.
 
 ## 10. What is not included yet
 
@@ -199,6 +221,8 @@ Open `https://localhost` in the browser and accept the certificate warning, beca
 - There is no automatic deployment to a server or a hosting platform. The workflow only checks that the stack starts and answers.
 - There are no automatic backups, no monitoring and no alerts.
 - The stack runs one copy of each service. Running more copies of the backend is not set up and not tested.
+- Rate limits on Render: the backend there runs behind the proxy of Render, whose address is not fixed, and `render.yaml` does not set `FORWARDED_ALLOW_IPS`. Check which address is counted before you rely on the per-address limits there. `RATE_LIMIT_ENABLED=false` turns them off.
+- Only login, register, search and review have a rate limit.
 - The friends page of the frontend shows sample data. The login, register, library, search, title, lists, diary, statistics and recommendations screens call the backend through the server code of Next.js (`BACKEND_URL`).
 - Embeddings are not built. There is no `media_embeddings` table and no embeddings command. The recommendations (US-13) rank the catalog by the genres of the library, so they work without any key.
 - The spoiler check (US-14) uses OpenAI only when `OPENAI_API_KEY` is set. Without the key, or when OpenAI does not answer, the review is saved and checked with local patterns.
@@ -215,3 +239,5 @@ Open `https://localhost` in the browser and accept the certificate warning, beca
 | `src/lib/api.ts` calls go to the wrong address | `API_URL` is wrong or was changed without `--build` |
 | The API answers 4xx in the browser console with a CORS message | `CORS_ORIGINS` does not match the address of the frontend exactly. It has no trailing slash |
 | `next build` fails with a font error | The build machine cannot reach `fonts.googleapis.com` |
+| `Pool overlaps with other one on this host` when the stack starts | Another Docker network or the host already uses `172.30.42.0/24`. Change the subnet, the two fixed addresses and `FORWARDED_ALLOW_IPS` in `docker-compose.prod.yml` together |
+| Users get `429 Too many requests` although each one calls rarely | The backend counts one address for everybody. Check that `FORWARDED_ALLOW_IPS` matches the fixed addresses of the proxy and the frontend |
