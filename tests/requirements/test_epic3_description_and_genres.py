@@ -146,7 +146,13 @@ def test_a_description_is_cleaned():
 
 # ---------------------------------------------------------------- the details of a title
 def test_game_details_have_the_description_and_the_genres_of_igdb(client, auth_headers, fake_external_apis):
-    game = life_is_strange(client, auth_headers)
+    game = new_game(
+        client,
+        auth_headers,
+        fake_external_apis,
+        summary="A student discovers that she can rewind time.",
+        genres=("Adventure", "Indie"),
+    )
     assert game["genres"] == []  # a search result does not carry them
 
     body = open_title(client, auth_headers, game["id"]).json()
