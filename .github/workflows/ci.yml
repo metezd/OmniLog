@@ -30,10 +30,24 @@ jobs:
         with:
           persist-credentials: false
 
+      # The tests run on the Python version of the production image, so the version that we ship is
+      # the version that we test. The version is read from the FROM line of backend/Dockerfile, so a
+      # Dependabot update of the base image is tested on the new version in its own pull request.
+      - name: Read the Python version of the production image
+        id: python
+        run: |
+          version="$(sed -n 's/^FROM python:\([0-9][0-9.]*\)-.*/\1/p' backend/Dockerfile)"
+          if [ -z "$version" ]; then
+            echo "::error file=backend/Dockerfile::No 'FROM python:<version>-...' line found"
+            exit 1
+          fi
+          echo "Python $version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
       - name: Set up Python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
         with:
-          python-version: "3.11"
+          python-version: ${{ steps.python.outputs.version }}
 
       # The version is pinned in .github/requirements-ruff.txt, which Dependabot keeps up to date
       - name: Install Ruff
@@ -83,10 +97,24 @@ jobs:
         with:
           persist-credentials: false
 
+      # The tests run on the Python version of the production image, so the version that we ship is
+      # the version that we test. The version is read from the FROM line of backend/Dockerfile, so a
+      # Dependabot update of the base image is tested on the new version in its own pull request.
+      - name: Read the Python version of the production image
+        id: python
+        run: |
+          version="$(sed -n 's/^FROM python:\([0-9][0-9.]*\)-.*/\1/p' backend/Dockerfile)"
+          if [ -z "$version" ]; then
+            echo "::error file=backend/Dockerfile::No 'FROM python:<version>-...' line found"
+            exit 1
+          fi
+          echo "Python $version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
       - name: Set up Python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
         with:
-          python-version: "3.11"
+          python-version: ${{ steps.python.outputs.version }}
           cache: pip
           cache-dependency-path: |
             backend/requirements.txt
@@ -185,10 +213,24 @@ jobs:
       - name: Check Redis
         run: docker compose exec -T redis redis-cli ping | grep PONG
 
+      # The tests run on the Python version of the production image, so the version that we ship is
+      # the version that we test. The version is read from the FROM line of backend/Dockerfile, so a
+      # Dependabot update of the base image is tested on the new version in its own pull request.
+      - name: Read the Python version of the production image
+        id: python
+        run: |
+          version="$(sed -n 's/^FROM python:\([0-9][0-9.]*\)-.*/\1/p' backend/Dockerfile)"
+          if [ -z "$version" ]; then
+            echo "::error file=backend/Dockerfile::No 'FROM python:<version>-...' line found"
+            exit 1
+          fi
+          echo "Python $version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
       - name: Set up Python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
         with:
-          python-version: "3.11"
+          python-version: ${{ steps.python.outputs.version }}
           cache: pip
           cache-dependency-path: backend/requirements.txt
 
