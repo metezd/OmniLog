@@ -55,6 +55,7 @@ Rules / assumptions:
 - `media_type` is required
 - Title is required for catalog identity
 - External IDs are optional and may be null when the item is not linked to an external source
+- When a title with an external ID is added to a user's library and its details have not been synced yet, its description and genres are automatically fetched and saved (issue #125).
 
 ---
 
@@ -83,6 +84,7 @@ Rules / assumptions:
 - A user cannot add the same media item twice to the same library
 - `rating` must be between 1 and 10 when provided
 - Status defaults to `PLAN_TO_WATCH` when no explicit value is provided
+- Adding a catalog title to the library ensures its genres and description are populated from external sources (Option 1 for issue #125) so that statistics (US-15) and recommendations (US-13) have complete data. Failure of external services does not block library addition (NFR-04).
 
 ---
 
