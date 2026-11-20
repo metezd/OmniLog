@@ -137,7 +137,7 @@ erDiagram
 
 ### Proposed, not built
 
-These two tables and the columns of `media_items` that go with them are in the design only. The code identifies a title by `media_type` and `external_api_id` and has no manual sync, so it needs none of them.
+These two tables and the columns of `media_items` that go with them are in the design only. The code identifies a title by `media_type` and `external_api_id` and has no sync job log (the manual sync is the command `python -m app.sync`), so it needs none of them.
 
 ```mermaid
 erDiagram

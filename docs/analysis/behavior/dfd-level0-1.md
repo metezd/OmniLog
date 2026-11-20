@@ -25,7 +25,7 @@ Process 1.0 (API gateway and access control) belongs to Epic 1. It is small and 
 |---|---|
 | Visitor | A person who is not logged in. Can register and log in |
 | User | A logged-in person who tracks media |
-| Operator | A team member who runs the system. In the code the Operator only reads the health paths. The manual sync and the Admin UI are not built |
+| Operator | A team member who runs the system. In the code the Operator reads the health paths and runs the manual sync command (`python -m app.sync`). The Admin UI is not built |
 | IGDB API | Outside source of game data |
 | TMDB API | Outside source of movie and series data |
 | Embedding and LLM Provider | OpenAI. It classifies the text of a review (spoiler check). The code can also ask it for embeddings, but nothing does yet |
@@ -65,7 +65,7 @@ flowchart LR
 |---|---|---|---|---|
 | 1.0 | API Gateway and Access Control | 1 | US-01, NFR-02 | Receives every request, checks the token, answers the health checks, and sends the request to the right process |
 | 2.0 | User and Journal Management | 2 | US-02 to US-07, NFR-03 | Accounts, login, library, custom lists and activity diary |
-| 3.0 | Catalog Aggregation | 3 | US-08, US-09, NFR-01, NFR-04 | Search and details of titles. Fetches, normalizes, caches and stores outside data. There is no manual sync |
+| 3.0 | Catalog Aggregation | 3 | US-08, US-09, NFR-01, NFR-04 | Search and details of titles. Fetches, normalizes, caches and stores outside data. The manual sync is the command `python -m app.sync` |
 | 4.0 | Episodic and Decision Logging | 4 | US-10 to US-12 | Chapter ratings, playtime and branching decisions |
 | 5.0 | AI Engine | 5 | US-13, US-14 | Recommendations by genre, reviews and spoiler detection. Embeddings are not built |
 | 6.0 | Analytics | 6 | US-15 | Personal statistics |
