@@ -7,6 +7,7 @@ The tests that need game chapters therefore put them in the database directly.
 """
 import copy
 import itertools
+import time
 
 import pytest
 from sqlalchemy.exc import IntegrityError
@@ -20,7 +21,7 @@ from fake_external_apis import SERIES_DETAILS
 from helpers import create_media, unique
 
 # The tests share one database, so every test that loads a series gets an outside id of its own
-_outside_ids = itertools.count(1_000_000)
+_outside_ids = itertools.count(10_000_000 + time.time_ns() % 900_000_000)
 
 DETAIL_FIELDS = {
     "id", "title", "media_type", "poster_url", "release_date", "external_api_id",
