@@ -1,8 +1,6 @@
 import type { ActivityComment, Friend, FriendActivity } from "@/types/social";
 
-// Mock social service. Data lives in memory and resets on page reload.
-// Replace each function body with an Axios call (see src/lib/api.ts) once the
-// backend exposes friend and activity endpoints.
+// Demo social service for the /friends preview page. Data lives in memory and resets on reload.
 
 const CURRENT_USER_AVATAR =
   "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150";

@@ -65,6 +65,12 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod exec backend pyth
 
 The command checks the file first and saves nothing when the file has an error. It can be run again without harm. The shipped file holds one game (Life is Strange, 5 chapters, 6 decision points). To load another file, copy it into the container or rebuild the image. The tables for the migrations are created by the service `migrate`, so no other database command is needed.
 
+To load the details (description, genres, seasons) of titles that were found in a search but never opened, run the manual sync. `--dry-run` only counts them. The command can be run again without harm, and a title that the outside service could not answer is tried again:
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env.prod exec backend python -m app.sync
+```
+
 There is no command for embeddings. The API does not create them yet, and the recommendations use the genres of the library.
 
 Then open the app domain in the browser. The proxy asks for the certificates when it starts, so wait a minute after the first start.
@@ -234,7 +240,7 @@ A client cannot choose the counted address by sending its own `X-Forwarded-For`:
 - The friends page of the frontend shows sample data. The login, register, library, search, title, lists, diary, statistics and recommendations screens call the backend through the server code of Next.js (`BACKEND_URL`).
 - Embeddings are not built. There is no `media_embeddings` table and no embeddings command. The recommendations (US-13) rank the catalog by the genres of the library, so they work without any key.
 - The spoiler check (US-14) uses OpenAI only when `OPENAI_API_KEY` is set. Without the key, or when OpenAI does not answer, the review is saved and checked with local patterns.
-- The catalog has no manual sync and no admin endpoints. Title details load from IGDB and TMDB when a title is opened.
+- The manual sync is the command `python -m app.sync`. The catalog has no sync endpoint, no scheduled sync and no admin endpoints. Title details also load from IGDB and TMDB when a title is opened.
 - The migrations and the tests need PostgreSQL. If the backend finds nothing at `localhost:5432` outside Docker, `app/core/database.py` falls back to a SQLite file. The production stack always has PostgreSQL, so this does not apply there.
 
 ## 11. Problems
