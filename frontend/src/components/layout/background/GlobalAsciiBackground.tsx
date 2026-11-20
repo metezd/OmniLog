@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 
-export type PresetKey = "jellyfish" | "betta";
+export type PresetKey = "jellyfish" | "betta" | "manta";
 export type AmbientMode = "both" | "stars" | "rain" | "off";
 
 interface Palette {
@@ -104,6 +104,46 @@ const AGENTS: AgentConfig[] = [
 const clamp = (v: number, lo: number, hi: number) => (v < lo ? lo : v > hi ? hi : v);
 const lerp = (a: number, b: number, u: number) => a + (b - a) * u;
 
+type Vec3 = [number, number, number];
+
+// ---------------------------------------------------------------------------
+// Shading
+// ---------------------------------------------------------------------------
+
+// Dark -> bright characters used for lit surfaces. A 4x4 ordered dither blends
+// neighbouring levels so gradients look smooth instead of banded.
+const RAMP = ".:-=+*#%@";
+const BAYER4 = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+
+const norm3 = (v: Vec3): Vec3 => {
+  const l = Math.hypot(v[0], v[1], v[2]) || 1;
+  return [v[0] / l, v[1] / l, v[2] / l];
+};
+
+// The viewer sits at -z, so "toward the viewer" is negative z.
+// The light comes from the upper left, slightly toward the viewer.
+const LIGHT = norm3([-0.45, -0.65, -0.62]);
+const HALF = norm3([LIGHT[0], LIGHT[1], LIGHT[2] - 1]);
+const AMBIENT_LIGHT = 0.2;
+
+// Diffuse + rim + specular for a (possibly unnormalised) surface normal.
+// Surfaces are double sided, so a normal pointing away from the viewer is flipped.
+const lightSurface = (nx: number, ny: number, nz: number, rimW: number, specW: number): number => {
+  const len = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
+  nx /= len;
+  ny /= len;
+  nz /= len;
+  if (nz > 0) {
+    nx = -nx;
+    ny = -ny;
+    nz = -nz;
+  }
+  const diff = Math.max(0, nx * LIGHT[0] + ny * LIGHT[1] + nz * LIGHT[2]);
+  const rim = Math.pow(1 + nz, 2.4);
+  const spec = Math.pow(Math.max(0, nx * HALF[0] + ny * HALF[1] + nz * HALF[2]), 26);
+  return AMBIENT_LIGHT + diff * 0.62 + rim * rimW + spec * specW;
+};
+
 export default function GlobalAsciiBackground() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const pathname = usePathname();
@@ -113,7 +153,6 @@ export default function GlobalAsciiBackground() {
   const [autoRoute, setAutoRoute] = useState<boolean>(true);
   const [paletteIdx, setPaletteIdx] = useState<number>(0);
 
-  // Derived during render (no effect + setState): route picks the preset unless the user chose one.
   const routePreset: PresetKey =
     pathname?.includes("/login") || pathname?.includes("/register") || pathname?.includes("/search")
       ? "jellyfish"
@@ -215,15 +254,6 @@ export default function GlobalAsciiBackground() {
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mousedown", onDown);
 
-    const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
-    const bettaBodySamples: { u: number; th: number }[] = [];
-    for (let i = 0; i < 460; i++) {
-      bettaBodySamples.push({
-        u: i / 460,
-        th: (i * GOLDEN_ANGLE) % (Math.PI * 2),
-      });
-    }
-
     const sparks: Spark[] = [];
     const glints: GlintRing[] = [];
     let lastPulseIdx = -1;
@@ -251,13 +281,15 @@ export default function GlobalAsciiBackground() {
       }
     };
 
+    // `whiten` pushes the colour toward white (rim light, specular highlights).
     const computeLitRGB = (
       way: number,
       lum: number,
       t: number,
       oldPal: Palette,
       newPal: Palette,
-      useAccent: boolean
+      useAccent: boolean,
+      whiten = 0
     ): string => {
       const PERIOD = 3.8;
       const waveFront = ((t % PERIOD) / PERIOD) * 1.45 - 0.15;
@@ -272,9 +304,15 @@ export default function GlobalAsciiBackground() {
       const baseG = lerp(cOld[1], cNew[1], on);
       const baseB = lerp(cOld[2], cNew[2], on);
 
-      const r = clamp(Math.floor(baseR * lum + (255 - baseR) * band), 28, 255);
-      const g = clamp(Math.floor(baseG * lum + (255 - baseG) * band), 28, 255);
-      const b = clamp(Math.floor(baseB * lum + (255 - baseB) * band), 35, 255);
+      let r = clamp(Math.floor(baseR * lum + (255 - baseR) * band), 28, 255);
+      let g = clamp(Math.floor(baseG * lum + (255 - baseG) * band), 28, 255);
+      let b = clamp(Math.floor(baseB * lum + (255 - baseB) * band), 35, 255);
+      if (whiten > 0) {
+        const w = clamp(whiten, 0, 1);
+        r = Math.floor(r + (255 - r) * w);
+        g = Math.floor(g + (255 - g) * w);
+        b = Math.floor(b + (255 - b) * w);
+      }
       return `rgb(${r},${g},${b})`;
     };
 
@@ -307,6 +345,56 @@ export default function GlobalAsciiBackground() {
       const gx = Math.round(centerX + (x * scale * fov) / CELL_W);
       const gy = Math.round(centerY + (y * scale * fov) / CELL_H);
       return plotCell(gx, gy, z, ch, color);
+    };
+
+    // Screen-space (cell units, fractional) position of a 3D point.
+    const projX = (x: number, z: number, scale: number, cx: number) =>
+      cx + (x * scale * (3.4 / (3.4 + z * 0.65))) / CELL_W;
+    const projY = (y: number, z: number, scale: number, cy: number) =>
+      cy + (y * scale * (3.4 / (3.4 + z * 0.65))) / CELL_H;
+
+    // Character that follows a stroke direction on screen (cells are taller than wide).
+    const dirChar = (dx: number, dy: number, flat = "-"): string => {
+      const ax = Math.abs(dx) * CELL_W;
+      const ay = Math.abs(dy) * CELL_H;
+      if (ax + ay < 1e-6) return "|";
+      const ang = Math.atan2(ay, ax);
+      if (ang > 1.18) return "|";
+      if (ang < 0.36) return flat;
+      return dx * dy > 0 ? "\\" : "/";
+    };
+
+    // Pick a ramp character for a brightness value, dithered against neighbouring cells.
+    const shadeChar = (lum: number, gx: number, gy: number): string => {
+      const v = clamp(lum, 0, 1) * (RAMP.length - 1) + (BAYER4[((gy & 3) << 2) | (gx & 3)] / 16 - 0.47) * 0.95;
+      return RAMP[clamp(Math.round(v), 0, RAMP.length - 1)];
+    };
+
+    // Depth-tested plot that picks its own character from the brightness unless `ch` is given.
+    // `zBias` pulls a point toward the viewer for the depth test only (eyes, highlights).
+    const plotLit = (
+      x: number,
+      y: number,
+      z: number,
+      lum: number,
+      color: string,
+      scale: number,
+      centerX: number,
+      centerY: number,
+      ch?: string,
+      zBias = 0
+    ) => {
+      const fov = 3.4 / (3.4 + z * 0.65);
+      const gx = Math.round(centerX + (x * scale * fov) / CELL_W);
+      const gy = Math.round(centerY + (y * scale * fov) / CELL_H);
+      if (gx < 0 || gx >= cols || gy < 0 || gy >= rows) return false;
+      const idx = gy * cols + gx;
+      const zt = z - zBias;
+      if (zt >= zBuffer[idx]) return false;
+      zBuffer[idx] = zt;
+      charBuffer[idx] = ch !== undefined ? ch : shadeChar(lum, gx, gy);
+      colorBuffer[idx] = color;
+      return true;
     };
 
     const render = (now: number) => {
@@ -465,6 +553,11 @@ export default function GlobalAsciiBackground() {
         const oldPal = PALETTES[cycle % PALETTES.length];
         const newPal = PALETTES[(cycle + 1) % PALETTES.length];
 
+        // Sample density follows the on-screen size, so big screens get no holes and small ones stay cheap.
+        const dens = clamp(scale / 200, 0.7, 2.4);
+        // Creatures further back are a little dimmer.
+        const depthDim = 1 - ag.zOffset * 0.22;
+
         let roamX = cols * ag.centerBiasX;
         let roamY = rows * ag.centerBiasY;
 
@@ -481,6 +574,7 @@ export default function GlobalAsciiBackground() {
           roamX = cols * clamp(ag.centerBiasX + normX, 0.08, 0.92);
           roamY = rows * clamp(ag.centerBiasY + normY, 0.10, 0.90);
         } else {
+          // betta and manta share the same horizontal cruising path
           const normX =
             Math.sin(t * ag.freqX + ag.phase) * ag.ampX +
             stateRef.current.mouseX * (0.11 / (ag.id * 0.4 + 1));
@@ -502,142 +596,451 @@ export default function GlobalAsciiBackground() {
           const rotY = ta * 0.6 + stateRef.current.mouseX * 0.3;
           const bobY = -0.16;
 
-          const rotateJelly = (lx: number, ly: number, lz: number) => {
-            const bx = lx * Math.cos(tiltZ) - ly * Math.sin(tiltZ);
-            const by = lx * Math.sin(tiltZ) + ly * Math.cos(tiltZ);
-            const y3 = by * Math.cos(tiltX) - lz * Math.sin(tiltX) + bobY;
-            const z3 = by * Math.sin(tiltX) + lz * Math.cos(tiltX) + ag.zOffset;
-            return { x: bx, y: y3, z: z3 };
+          const cTz = Math.cos(tiltZ);
+          const sTz = Math.sin(tiltZ);
+          const cTx = Math.cos(tiltX);
+          const sTx = Math.sin(tiltX);
+
+          // Rotation only (also used for surface normals); position adds bobY and the depth offset.
+          const rotVecJelly = (lx: number, ly: number, lz: number): Vec3 => {
+            const bx = lx * cTz - ly * sTz;
+            const by = lx * sTz + ly * cTz;
+            return [bx, by * cTx - lz * sTx, by * sTx + lz * cTx];
           };
 
-          const U_STEPS = 18;
-          const TH_STEPS = 38;
-          for (let iu = 0; iu <= U_STEPS; iu++) {
-            const u = iu / U_STEPS;
+          // Bell surface: u runs from the apex (0) to the scalloped rim (1)
+          const bellLocal = (u: number, th: number): Vec3 => {
             const contract = 1 - 0.22 * squeeze * Math.pow(u, 1.45);
-            const baseR = Math.sin(u * Math.PI * 0.62) * 0.68 * contract;
-            const baseY = -Math.cos(u * Math.PI * 0.62) * 0.52 * (1 + 0.12 * squeeze);
+            let r = Math.sin(u * Math.PI * 0.62) * 0.68 * contract;
+            const y0 = -Math.cos(u * Math.PI * 0.62) * 0.52 * (1 + 0.12 * squeeze);
+            const lap = Math.cos(th * 8);
+            r *= 1 + 0.06 * Math.pow(u, 3.5) * lap + 0.05 * Math.pow(u, 6);
+            const y = y0 + 0.04 * Math.pow(u, 4) * Math.sin(th * 8);
+            return [r * Math.cos(th), y, r * Math.sin(th)];
+          };
 
+          // Bell: lit like a translucent glass dome, bright at the rim, with radial canals
+          // and the four horseshoe-shaped gonads seen through the top.
+          const U_STEPS = Math.ceil(22 * dens);
+          const TH_STEPS = Math.ceil(96 * dens);
+          for (let iu = 0; iu <= U_STEPS; iu++) {
+            const u = 0.012 + 0.988 * (iu / U_STEPS);
             for (let ith = 0; ith < TH_STEPS; ith++) {
               const th = (ith / TH_STEPS) * Math.PI * 2 + rotY;
-              const lappet = 1 + 0.045 * Math.pow(u, 3) * Math.cos(th * 8);
-              const r = baseR * lappet;
+              const p0 = bellLocal(u, th);
+              const pu = bellLocal(u + 0.012, th);
+              const pt = bellLocal(u, th + 0.03);
 
-              const lx = r * Math.cos(th);
-              const lz = r * Math.sin(th);
-              const ly = baseY + 0.025 * Math.pow(u, 2) * Math.sin(th * 8);
+              const tux = pu[0] - p0[0];
+              const tuy = pu[1] - p0[1];
+              const tuz = pu[2] - p0[2];
+              const tvx = pt[0] - p0[0];
+              const tvy = pt[1] - p0[1];
+              const tvz = pt[2] - p0[2];
+              const n = rotVecJelly(tuy * tvz - tuz * tvy, tuz * tvx - tux * tvz, tux * tvy - tuy * tvx);
+              const q = rotVecJelly(p0[0], p0[1], p0[2]);
 
-              const p = rotateJelly(lx, ly, lz);
               const rib = Math.abs(Math.cos(th * 8));
-              const depthLum = clamp(0.72 - (p.z - ag.zOffset) * 0.55 + rib * 0.25, 0.32, 1.25);
+              const canal = rib > 0.9 ? 1 : 0;
 
-              let ch = ".";
-              if (u > 0.91) ch = "*";
-              else if (rib > 0.82) ch = "#";
-              else if (depthLum > 0.85) ch = "@";
-              else if (depthLum > 0.68) ch = "O";
-              else if (depthLum > 0.50) ch = "=";
-              else if (depthLum > 0.35) ch = ":";
+              let gon = 0;
+              if (u < 0.88) {
+                for (let k = 0; k < 4; k++) {
+                  const phi = k * (Math.PI / 2) + rotY * 0.5;
+                  const dx = p0[0] - 0.27 * Math.cos(phi);
+                  const dz = p0[2] - 0.27 * Math.sin(phi);
+                  const d = Math.abs(Math.sqrt(dx * dx + dz * dz) - 0.16);
+                  if (d < 0.06) {
+                    // the open side of each horseshoe faces the bell axis
+                    const ang = Math.atan2(dz, dx) - (phi + Math.PI);
+                    const wrapped = Math.abs(Math.atan2(Math.sin(ang), Math.cos(ang)));
+                    if (wrapped > 0.55) gon = Math.max(gon, Math.exp(-Math.pow(d / 0.024, 2)));
+                  }
+                }
+              }
 
-              const color = computeLitRGB(u * 0.65, depthLum, ta, oldPal, newPal, rib > 0.78);
-              if (plot3D(p.x, p.y, p.z, ch, color, scale, roamX, roamY)) {
+              let lum = lightSurface(n[0], n[1], n[2], 0.8, 0.55);
+              lum = lum * (0.82 + 0.18 * rib) + canal * 0.12 + gon * 0.55;
+              if (u > 0.9) lum += (u - 0.9) * 3.0;
+              lum *= depthDim;
+
+              const whiten = clamp((lum - 0.85) * 1.1, 0, 0.6) + gon * 0.25;
+              const color = computeLitRGB(
+                u * 0.65,
+                0.3 + clamp(lum, 0, 1.2) * 0.85,
+                ta,
+                oldPal,
+                newPal,
+                canal === 1 || gon > 0.3 || u > 0.9,
+                whiten
+              );
+              const rimChar = u > 0.955 ? (Math.cos(th * 8) > 0 ? "*" : "o") : undefined;
+              if (plotLit(q[0], q[1] + bobY, q[2] + ag.zOffset, lum, color, scale, roamX, roamY, rimChar)) {
                 charCount++;
               }
             }
           }
 
-          const N_TENT = 10;
-          const S_STEPS = 32;
-          for (let k = 0; k < N_TENT; k++) {
-            const isInner = k < 3;
-            const baseAngle = (k / N_TENT) * Math.PI * 2 + rotY * 0.7;
-            const ringR = isInner ? 0.18 : 0.44;
-            const length = isInner ? 1.25 : 1.08;
+          // Frilled oral arms in the middle (two strands each, ruffling as they trail)
+          const ARMS = 4;
+          const ARM_STEPS = Math.ceil(30 * dens);
+          for (let k = 0; k < ARMS; k++) {
+            const baseAngle = (k / ARMS) * Math.PI * 2 + rotY * 0.7 + 0.4;
+            for (const strand of [-1, 1]) {
+              for (let is = 0; is <= ARM_STEPS; is++) {
+                const s = is / ARM_STEPS;
+                const td = ta * 2.35 - s * 2.5 - k * 0.3;
+                const sq = Math.sin(td);
+                const ruffle = 0.075 * s * Math.sin(ta * 1.7 + s * 9 + k * 2.1 + strand * 0.9);
+                const rad =
+                  0.16 * (1 - 0.35 * s) * (1 - 0.15 * sq * Math.sqrt(s)) + strand * 0.03 * (0.4 + s) + ruffle;
+                const th = baseAngle + s * 0.9;
+                const swayX = -velX * s * 0.6 + 0.08 * s * Math.cos(ta * 1.2 + s * 3 + k);
+                const swayZ = 0.08 * s * Math.sin(ta * 1.0 + s * 3.4 + k);
 
-            for (let is = 0; is < S_STEPS; is++) {
-              const s = is / S_STEPS;
+                const lx = rad * Math.cos(th) + swayX;
+                const lz = rad * Math.sin(th) + swayZ;
+                const ly = -0.05 + s * 1.15 * (1 - 0.08 * sq);
+                const q = rotVecJelly(lx, ly, lz);
+
+                const lum = (1 - s * 0.45) * 0.95 * depthDim;
+                const ch = s < 0.72 ? ((is + k) % 2 === 0 ? "%" : "&") : ":";
+                const color = computeLitRGB(0.4 + s * 0.6, 0.3 + lum * 0.85, ta, oldPal, newPal, true, (1 - s) * 0.15);
+                if (plotLit(q[0], q[1] + bobY, q[2] + ag.zOffset, lum, color, scale, roamX, roamY, ch)) {
+                  charCount++;
+                }
+              }
+            }
+          }
+
+          // Fine tentacles hang from the scalloped rim and follow the pulse with a delay
+          const T_OUT = 14;
+          const T_STEPS = Math.ceil(34 * dens);
+          for (let k = 0; k < T_OUT; k++) {
+            const base = bellLocal(1, (k / T_OUT) * Math.PI * 2 + rotY + 0.11);
+            const length = 1.0 + 0.18 * Math.sin(k * 2.3);
+            let prevX = NaN;
+            let prevY = NaN;
+
+            for (let is = 0; is <= T_STEPS; is++) {
+              const s = is / T_STEPS;
               const td = ta * 2.35 - s * 2.9 - (k % 3) * 0.25;
               const sq = Math.sin(td);
 
-              const spiralTh = baseAngle + s * 0.55 + 0.14 * Math.sin(td * 0.7 + k);
-              const rad = ringR * (1 - 0.25 * s) * (1 - 0.18 * sq * Math.sqrt(s));
+              const gather = 1 - (0.2 * s + 0.1 * sq * Math.sqrt(s));
+              const swayX = -velX * s * 0.85 + 0.13 * s * Math.cos(ta * 1.3 + s * 4.1 + k * 1.7);
+              const swayZ = 0.13 * s * Math.sin(ta * 1.1 + s * 3.7 + k);
 
-              const dragX = -velX * s * 0.85;
-              const swayX = dragX + 0.14 * s * Math.cos(ta * 1.3 + s * 3.2 + k);
-              const swayZ = 0.14 * s * Math.sin(ta * 1.1 + s * 3.0 + k);
+              const lx = base[0] * gather + swayX;
+              const lz = base[2] * gather + swayZ;
+              const ly = base[1] + s * length * (1 - 0.08 * sq);
 
-              const lx = rad * Math.cos(spiralTh) + swayX;
-              const lz = rad * Math.sin(spiralTh) + swayZ;
-              const ly = 0.04 + s * length * (1 - 0.08 * sq);
+              const q = rotVecJelly(lx, ly, lz);
+              const px = q[0];
+              const py = q[1] + bobY;
+              const pz = q[2] + ag.zOffset;
+              const sx = projX(px, pz, scale, roamX);
+              const sy = projY(py, pz, scale, roamY);
 
-              const p = rotateJelly(lx, ly, lz);
-              const dx = Math.cos(spiralTh + s);
-              const ch = isInner
-                ? s < 0.7
-                  ? "%"
-                  : ":"
-                : Math.abs(dx) < 0.32
-                ? "|"
-                : dx > 0
-                ? "\\"
-                : "/";
+              if (is > 0) {
+                const ch = s > 0.84 ? "." : dirChar(sx - prevX, sy - prevY, "~");
+                const lum = (0.95 - s * 0.55) * depthDim;
+                const color = computeLitRGB(0.45 + s * 0.65, 0.3 + lum * 0.85, ta, oldPal, newPal, false, (1 - s) * 0.1);
+                if (plotLit(px, py, pz, lum, color, scale, roamX, roamY, ch)) {
+                  charCount++;
+                }
+              }
+              prevX = sx;
+              prevY = sy;
+            }
+          }
+        } else if (mode === "manta") {
+          // Local frame: x = forward (nose at +x), y = wingspan, z = depth (negative = toward the viewer / back of the ray)
+          const vy =
+            Math.cos(t * ag.freqY * 1.4 + ag.phase) * ag.ampY * ag.freqY * 1.4 -
+            Math.sin(t * 0.27 + ag.phase) * 0.06 * 0.27;
+          const swimPhase = Math.cos(t * ag.freqX + ag.phase);
 
-              const lum = clamp((1 - s * 0.50) * (0.82 - (p.z - ag.zOffset) * 0.4), 0.32, 1.15);
-              const color = computeLitRGB(0.45 + s * 0.65, lum, ta, oldPal, newPal, isInner);
-              if (plot3D(p.x, p.y, p.z, ch, color, scale, roamX, roamY)) {
+          // 0 = facing right, PI = facing left; the turn only happens near the screen edges
+          const turnK = clamp((0.35 - swimPhase) / 0.7, 0, 1);
+          const turnAngle = Math.PI * turnK * turnK * (3 - 2 * turnK);
+          const noseTilt = clamp(-vy * 1.8, -0.32, 0.32);
+          // mostly a top-down view with a slight bank, so the wing flap reads as a V opening and closing
+          const roll = 0.38 + 0.08 * Math.sin(ta * 0.45) + stateRef.current.mouseY * 0.10;
+          // keeps the nose a little closer to the viewer than the tail, in both swim directions
+          const yaw = turnAngle - 0.3 * Math.cos(turnAngle);
+
+          const cr = Math.cos(roll);
+          const sr = Math.sin(roll);
+          const ct = Math.cos(noseTilt);
+          const st = Math.sin(noseTilt);
+          const cyaw = Math.cos(yaw);
+          const syaw = Math.sin(yaw);
+
+          // rotation only (also used for surface normals)
+          const rotVecManta = (mx: number, my: number, mz: number): Vec3 => {
+            // roll around the body axis so we look at the ray from above at an angle
+            const ry = my * cr - mz * sr;
+            const rz = my * sr + mz * cr;
+            // nose up / down in the screen plane
+            const px = mx * ct + ry * st;
+            const py = ry * ct - mx * st;
+            // heading (face left or right)
+            return [px * cyaw - rz * syaw, py, px * syaw + rz * cyaw];
+          };
+          const transformManta = (mx: number, my: number, mz: number) => {
+            const v = rotVecManta(mx, my, mz);
+            return { x: v[0], y: v[1], z: v[2] + ag.zOffset };
+          };
+
+          const FLAP_SPEED = 2.2;
+          const domeAt = (a: number, c: number) =>
+            Math.exp(-Math.pow(a / 0.26, 2)) * Math.pow(Math.sin(clamp(c, 0, 1) * Math.PI), 0.7);
+
+          // Body + wings: one continuous surface, span `s` from tip to tip, chord `c` from trailing to leading edge
+          const mantaLocal = (s: number, c: number): Vec3 => {
+            const a = Math.abs(s);
+            const xLe = 0.4 - 0.44 * Math.pow(a, 1.3);
+            const xTe = -0.34 + 0.3 * Math.pow(a, 0.95);
+            const mx = lerp(xTe, xLe, c);
+
+            // each span station is rotated about the body axis: both wings swing up and down together
+            const flapAngle = Math.sin(ta * FLAP_SPEED - a * 1.7) * 0.62 * (0.15 + 0.85 * a);
+            const my = s * 0.95 * Math.cos(flapAngle);
+            const lift = a * 0.95 * Math.sin(flapAngle);
+
+            const edgeLag = Math.sin(ta * FLAP_SPEED - a * 1.7 - (1 - c) * 1.1) * 0.06 * (1 - c) * a;
+            const ripple = 0.02 * Math.sin(ta * FLAP_SPEED - mx * 2.5) * (1 - a);
+            const mz = -0.1 * domeAt(a, c) - lift - edgeLag + 0.05 * a * a + ripple;
+            return [mx, my, mz];
+          };
+
+          const S_STEPS = Math.ceil(80 * dens);
+          const C_STEPS = Math.ceil(30 * dens);
+          for (let is = 0; is <= S_STEPS; is++) {
+            const s = (is / S_STEPS) * 2 - 1;
+            const a = Math.abs(s);
+
+            for (let ic = 0; ic <= C_STEPS; ic++) {
+              const c = ic / C_STEPS;
+              const p0 = mantaLocal(s, c);
+              const ps = mantaLocal(s + 0.012, c);
+              const pc = mantaLocal(s, c + 0.02);
+
+              let nxl = (ps[1] - p0[1]) * (pc[2] - p0[2]) - (ps[2] - p0[2]) * (pc[1] - p0[1]);
+              let nyl = (ps[2] - p0[2]) * (pc[0] - p0[0]) - (ps[0] - p0[0]) * (pc[2] - p0[2]);
+              let nzl = (ps[0] - p0[0]) * (pc[1] - p0[1]) - (ps[1] - p0[1]) * (pc[0] - p0[0]);
+              // orient the local normal toward the dorsal (back) side
+              if (nzl > 0) {
+                nxl = -nxl;
+                nyl = -nyl;
+                nzl = -nzl;
+              }
+              const n = rotVecManta(nxl, nyl, nzl);
+              const q = rotVecManta(p0[0], p0[1], p0[2]);
+              // when the back faces the viewer we see the dark dorsal side, otherwise the pale belly
+              const dorsal = n[2] <= 0;
+
+              const rib = Math.abs(Math.cos(a * Math.PI * 9 + c * 1.4));
+              const dome = domeAt(a, c);
+
+              // pale shoulder patches on the back, gill slits and mouth on the belly
+              const onPatch = dorsal && Math.abs(a - 0.2) < 0.05 && c > 0.42 && c < 0.82;
+              const onSlit = !dorsal && a > 0.05 && a < 0.3 && c > 0.2 && c < 0.75 && Math.abs(Math.sin(c * Math.PI * 6)) > 0.93;
+              const onMouth = !dorsal && c > 0.88 && a < 0.07;
+
+              let lum = lightSurface(n[0], n[1], n[2], 0.45, 0.45);
+              lum = dorsal ? lum * 0.85 + rib * 0.06 + dome * 0.05 : lum * 0.95 + 0.14;
+              if (onPatch) lum = Math.max(lum, 0.85);
+              if (onSlit || onMouth) lum *= 0.45;
+
+              let ch: string | undefined;
+              if (a > 0.95) {
+                ch = "*";
+                lum = Math.max(lum, 0.9);
+              } else if (c > 0.94) {
+                ch = "#";
+                lum = Math.max(lum, 0.78);
+              } else if (c < 0.05) {
+                ch = ":";
+                lum = Math.max(lum, 0.45);
+              } else if (onSlit) {
+                ch = "=";
+              } else if (onMouth) {
+                ch = "-";
+              }
+              lum *= depthDim;
+
+              const whiten = dorsal
+                ? onPatch
+                  ? 0.7
+                  : clamp((lum - 0.9) * 1.0, 0, 0.5)
+                : 0.5 + clamp(lum - 0.8, 0, 0.3);
+              const color = computeLitRGB(
+                0.12 + a * 0.55 + (1 - c) * 0.12,
+                0.3 + clamp(lum, 0, 1.2) * 0.85,
+                ta,
+                oldPal,
+                newPal,
+                c > 0.9 || (dorsal && rib > 0.9),
+                whiten
+              );
+
+              if (plotLit(q[0], q[1], q[2] + ag.zOffset, lum, color, scale, roamX, roamY, ch)) {
                 charCount++;
               }
             }
+          }
+
+          // Cephalic fins (the little "horns" on each side of the mouth)
+          for (const side of [1, -1]) {
+            for (let ik = 0; ik <= 12; ik++) {
+              const k = ik / 12;
+              const mx = 0.4 + 0.22 * k;
+              const my = side * (0.075 + 0.045 * Math.sin(k * Math.PI * 0.9) - 0.02 * k);
+              const mz = -0.03 - 0.03 * k + 0.02 * Math.sin(ta * FLAP_SPEED - k * 2);
+
+              const p = transformManta(mx, my, mz);
+              const lum = clamp(0.8 - (p.z - ag.zOffset) * 0.38, 0.35, 1.15) * depthDim;
+              const ch = k > 0.8 ? "." : k > 0.45 ? "-" : "=";
+              const color = computeLitRGB(0.05 + k * 0.1, 0.3 + lum * 0.85, ta, oldPal, newPal, true, 0.2);
+              if (plotLit(p.x, p.y, p.z, lum, color, scale, roamX, roamY, ch, 0.02)) {
+                charCount++;
+              }
+            }
+          }
+
+          // Eyes
+          for (const side of [1, -1]) {
+            const p = transformManta(0.27, side * 0.17, -0.06);
+            if (plotLit(p.x, p.y, p.z, 1, "#ffffff", scale, roamX, roamY, "@", 0.05)) {
+              charCount++;
+            }
+          }
+
+          // Whip tail
+          const TAIL_STEPS = Math.ceil(64 * dens);
+          let tailPrevX = NaN;
+          let tailPrevY = NaN;
+          for (let it = 0; it <= TAIL_STEPS; it++) {
+            const r = it / TAIL_STEPS;
+            const wave = ta * 2.4 - r * 5.2;
+            const mx = -0.32 - 1.0 * r;
+            const my = Math.sin(wave) * 0.13 * r * (0.4 + r);
+            const mz = -0.01 + Math.cos(wave) * 0.04 * r;
+
+            const p = transformManta(mx, my, mz);
+            const sx = projX(p.x, p.z, scale, roamX);
+            const sy = projY(p.y, p.z, scale, roamY);
+            if (it > 0) {
+              const lum = clamp((1 - r * 0.45) * (0.8 - (p.z - ag.zOffset) * 0.38), 0.32, 1.1) * depthDim;
+              const ch = r < 0.3 ? "#" : dirChar(sx - tailPrevX, sy - tailPrevY, "~");
+              const color = computeLitRGB(0.45 + r * 0.55, 0.3 + lum * 0.85, ta, oldPal, newPal, r > 0.5, (1 - r) * 0.1);
+              if (plotLit(p.x, p.y, p.z, lum, color, scale, roamX, roamY, ch)) {
+                charCount++;
+              }
+            }
+            tailPrevX = sx;
+            tailPrevY = sy;
           }
         } else {
           const vy =
             Math.cos(t * ag.freqY * 1.4 + ag.phase) * ag.ampY * ag.freqY * 1.4 -
             Math.sin(t * 0.27 + ag.phase) * 0.06 * 0.27;
           const swimPhase = Math.cos(t * ag.freqX + ag.phase);
-          const turnAngle = (1 - (swimPhase * 0.5 + 0.5)) * Math.PI + Math.sin(ta * 0.6) * 0.22;
-          const pitchAngle = clamp(-vy * 1.4, -0.38, 0.38);
 
-          const transformFish = (fx: number, fy: number, fz: number) => {
+          // The head leads: the fish faces right while swimming right and turns around near the screen edges.
+          const turnK = clamp((0.35 - swimPhase) / 0.7, 0, 1);
+          const turnAngle = Math.PI - Math.PI * turnK * turnK * (3 - 2 * turnK) + Math.sin(ta * 0.6) * 0.22;
+          // nose pitches up while rising and down while sinking
+          const pitchAngle = clamp(vy * 1.4, -0.38, 0.38);
+
+          const cp = Math.cos(pitchAngle);
+          const sp = Math.sin(pitchAngle);
+          const cyw = Math.cos(turnAngle);
+          const syw = Math.sin(turnAngle);
+
+          // travelling body wave, strongest toward the tail
+          const waveLocal = (fx: number, fy: number, fz: number): Vec3 => {
             const spineLag = Math.max(0, fx + 0.25);
-            const waveZ = fz + Math.sin(ta * 4.6 - spineLag * 5.4) * (0.09 * Math.pow(spineLag, 1.25));
-            const py = fy * Math.cos(pitchAngle) - fx * Math.sin(pitchAngle);
-            const px = fy * Math.sin(pitchAngle) + fx * Math.cos(pitchAngle);
-            const rx = px * Math.cos(turnAngle) - waveZ * Math.sin(turnAngle);
-            const rz = px * Math.sin(turnAngle) + waveZ * Math.cos(turnAngle) + ag.zOffset;
-            return { x: rx, y: py, z: rz };
+            return [fx, fy, fz + Math.sin(ta * 4.6 - spineLag * 5.4) * (0.09 * Math.pow(spineLag, 1.25))];
+          };
+          // pitch, then heading (rotation only; also used for surface normals)
+          const rotFish = (x: number, y: number, z: number): Vec3 => {
+            const py = y * cp - x * sp;
+            const px = y * sp + x * cp;
+            return [px * cyw - z * syw, py, px * syw + z * cyw];
           };
 
-          for (let i = 0; i < bettaBodySamples.length; i++) {
-            const { u, th } = bettaBodySamples[i];
+          // Body: u runs snout (0) to tail base (1), th goes around the cross-section
+          const bodyLocal = (u: number, th: number): Vec3 => {
             const fx = -0.44 + u * 0.62;
             const archY = -0.04 * Math.sin(u * Math.PI);
             const halfH = 0.165 * Math.sin(Math.pow(u, 0.65) * Math.PI) * (1 - 0.2 * u);
             const halfW = halfH * 0.58;
+            return waveLocal(fx, archY + Math.sin(th) * halfH, Math.cos(th) * halfW);
+          };
 
-            const fy = archY + Math.sin(th) * halfH;
-            const fz = Math.cos(th) * halfW;
+          const BU = Math.ceil(52 * dens);
+          const BT = Math.ceil(36 * dens);
+          for (let iu = 0; iu <= BU; iu++) {
+            const u = 0.015 + 0.975 * (iu / BU);
+            for (let ith = 0; ith < BT; ith++) {
+              const th = (ith / BT) * Math.PI * 2;
+              const p0 = bodyLocal(u, th);
+              const pu = bodyLocal(u + 0.01, th);
+              const pt = bodyLocal(u, th + 0.05);
 
-            const p = transformFish(fx, fy, fz);
-            const lum = clamp(0.76 - (p.z - ag.zOffset) * 0.7 + Math.cos(th) * 0.22, 0.32, 1.22);
+              const tux = pu[0] - p0[0];
+              const tuy = pu[1] - p0[1];
+              const tuz = pu[2] - p0[2];
+              const tvx = pt[0] - p0[0];
+              const tvy = pt[1] - p0[1];
+              const tvz = pt[2] - p0[2];
+              const n = rotFish(tuy * tvz - tuz * tvy, tuz * tvx - tux * tvz, tux * tvy - tuy * tvx);
+              const q = rotFish(p0[0], p0[1], p0[2]);
 
-            const isEye = u > 0.08 && u < 0.15 && Math.abs(fy + 0.02) < 0.035 && Math.abs(fz) > 0.03;
-            const ch = isEye ? "@" : lum > 0.85 ? "#" : lum > 0.65 ? "@" : lum > 0.45 ? "+" : ".";
-            const color = isEye
-              ? "#ffffff"
-              : computeLitRGB(u * 0.35, lum, ta, oldPal, newPal, false);
+              // glossy scales and a dark gill crease behind the head
+              const tex = (0.5 + 0.5 * Math.sin(u * 68 + Math.sin(th * 2) * 1.4)) * Math.sin(th * 11 + u * 6);
+              let lum = lightSurface(n[0], n[1], n[2], 0.4, 0.65) + tex * 0.07;
+              if (Math.abs(u - 0.21) < 0.012) lum *= 0.55;
+              lum *= depthDim;
 
-            if (plot3D(p.x, p.y, p.z, ch, color, scale, roamX, roamY)) {
+              const color = computeLitRGB(
+                u * 0.35,
+                0.3 + clamp(lum, 0, 1.2) * 0.85,
+                ta,
+                oldPal,
+                newPal,
+                false,
+                clamp((lum - 0.95) * 1.2, 0, 0.6)
+              );
+              if (plotLit(q[0], q[1], q[2] + ag.zOffset, lum, color, scale, roamX, roamY)) {
+                charCount++;
+              }
+            }
+          }
+
+          // Eyes
+          for (const side of [1, -1]) {
+            const p = waveLocal(-0.385, -0.012, side * 0.06);
+            const q = rotFish(p[0], p[1], p[2]);
+            if (plotLit(q[0], q[1], q[2] + ag.zOffset, 1, "#ffffff", scale, roamX, roamY, "@", 0.05)) {
               charCount++;
             }
           }
 
-          const TAIL_RAYS = 32;
-          const RAY_STEPS = 24;
+          // Tail fin: a translucent veil with brighter rays and a glowing scalloped edge
+          const TAIL_RAYS = Math.ceil(40 * dens);
+          const RAY_STEPS = Math.ceil(28 * dens);
           for (let ir = 0; ir < TAIL_RAYS; ir++) {
             const a = (ir / (TAIL_RAYS - 1)) * 2 - 1;
             const spreadAngle = a * 1.28;
+            const isRay = ir % 3 === 0;
+            let prevX = NaN;
+            let prevY = NaN;
 
-            for (let is = 1; is <= RAY_STEPS; is++) {
+            for (let is = 0; is <= RAY_STEPS; is++) {
               const r = is / RAY_STEPS;
               const scallop = 1 + 0.06 * Math.cos(a * Math.PI * 12) * Math.pow(r, 2);
               const rayLen = 0.88 * r * scallop;
@@ -649,39 +1052,125 @@ export default function GlobalAsciiBackground() {
               const fy = Math.sin(spreadAngle) * rayLen * 0.78 + droop;
               const fz = flutter + Math.sin(a * 5 + r * 3) * 0.05 * r;
 
-              const p = transformFish(fx, fy, fz);
-              const rib = Math.abs(Math.cos(a * Math.PI * 14));
-              const lum = clamp((1.10 - r * 0.34) * (0.80 - (p.z - ag.zOffset) * 0.45 + rib * 0.22), 0.30, 1.18);
+              const p = waveLocal(fx, fy, fz);
+              const q = rotFish(p[0], p[1], p[2]);
+              const pz = q[2] + ag.zOffset;
+              const sx = projX(q[0], pz, scale, roamX);
+              const sy = projY(q[1], pz, scale, roamY);
 
-              let ch = ":";
-              if (r > 0.92) ch = "*";
-              else if (rib > 0.75) ch = Math.abs(a) < 0.35 ? "=" : a > 0 ? "\\" : "/";
-              else if (lum > 0.75) ch = "+";
+              if (is > 0) {
+                const rib = Math.abs(Math.cos(a * Math.PI * 14));
+                const depthTerm = clamp(0.95 - (pz - ag.zOffset) * 0.3, 0.55, 1.2);
+                const edge = r > 0.93;
+                const base = isRay ? 0.92 - r * 0.3 : 0.34 + 0.3 * (1 - r) + 0.1 * rib;
+                const lum = (edge ? 0.95 : base) * depthTerm * depthDim;
 
-              const color = computeLitRGB(0.32 + r * 0.68, lum, ta, oldPal, newPal, r > 0.50);
-              if (plot3D(p.x, p.y, p.z, ch, color, scale, roamX, roamY)) {
-                charCount++;
+                const ch = edge ? "*" : isRay ? dirChar(sx - prevX, sy - prevY) : undefined;
+                const color = computeLitRGB(
+                  0.32 + r * 0.68,
+                  0.3 + lum * 0.9,
+                  ta,
+                  oldPal,
+                  newPal,
+                  r > 0.5,
+                  edge ? 0.35 : 0
+                );
+                if (plotLit(q[0], q[1], pz, lum, color, scale, roamX, roamY, ch)) {
+                  charCount++;
+                }
               }
+              prevX = sx;
+              prevY = sy;
             }
           }
 
+          // Dorsal and anal fins
           for (const up of [1, -1]) {
-            const RAYS = 18;
-            const STEPS = 15;
+            const RAYS = Math.ceil(22 * dens);
+            const STEPS = Math.ceil(16 * dens);
             for (let ir = 0; ir < RAYS; ir++) {
               const s = ir / (RAYS - 1);
-              for (let is = 1; is <= STEPS; is++) {
+              const isRay = ir % 3 === 0;
+              let prevX = NaN;
+              let prevY = NaN;
+
+              for (let is = 0; is <= STEPS; is++) {
                 const r = is / STEPS;
                 const finLen = (up === 1 ? 0.52 : 0.58) * Math.sin(Math.pow(s, 0.7) * Math.PI) * r;
                 const sweepX = -0.15 + s * 0.38 + r * (0.28 + s * 0.22);
                 const sweepY = -up * (0.11 + finLen * 0.85) + 0.06 * r * r;
                 const sweepZ = Math.sin(ta * 4.4 - (s + r) * 4.2 + up) * 0.12 * r;
 
-                const p = transformFish(sweepX, sweepY, sweepZ);
-                const lum = clamp((1 - r * 0.30) * (0.80 - (p.z - ag.zOffset) * 0.4), 0.30, 1.15);
-                const ch = r > 0.88 ? "." : up === 1 ? "/" : "\\";
-                const color = computeLitRGB(0.25 + (s + r) * 0.38, lum, ta, oldPal, newPal, true);
-                if (plot3D(p.x, p.y, p.z, ch, color, scale, roamX, roamY)) {
+                const p = waveLocal(sweepX, sweepY, sweepZ);
+                const q = rotFish(p[0], p[1], p[2]);
+                const pz = q[2] + ag.zOffset;
+                const sx = projX(q[0], pz, scale, roamX);
+                const sy = projY(q[1], pz, scale, roamY);
+
+                if (is > 0) {
+                  const depthTerm = clamp(0.95 - (pz - ag.zOffset) * 0.3, 0.55, 1.2);
+                  const edge = r > 0.9;
+                  const base = isRay ? 0.9 - r * 0.28 : 0.34 + 0.26 * (1 - r);
+                  const lum = (edge ? 0.9 : base) * depthTerm * depthDim;
+                  const ch = edge ? "." : isRay ? dirChar(sx - prevX, sy - prevY) : undefined;
+                  const color = computeLitRGB(0.25 + (s + r) * 0.38, 0.3 + lum * 0.9, ta, oldPal, newPal, true, edge ? 0.3 : 0);
+                  if (plotLit(q[0], q[1], pz, lum, color, scale, roamX, roamY, ch)) {
+                    charCount++;
+                  }
+                }
+                prevX = sx;
+                prevY = sy;
+              }
+            }
+          }
+
+          // Pelvic streamers: two long thin filaments trailing from the belly
+          for (const side of [1, -1]) {
+            const ST = Math.ceil(26 * dens);
+            let prevX = NaN;
+            let prevY = NaN;
+            for (let is = 0; is <= ST; is++) {
+              const s = is / ST;
+              const fx = -0.22 + 0.6 * s + 0.03 * Math.sin(ta * 3.0 - s * 5);
+              const fy = 0.11 + 0.26 * s - 0.08 * s * s + 0.03 * Math.sin(ta * 3.2 - s * 6) * s;
+              const fz = side * (0.05 + 0.04 * s) + 0.05 * Math.sin(ta * 3.6 - s * 7) * s;
+
+              const p = waveLocal(fx, fy, fz);
+              const q = rotFish(p[0], p[1], p[2]);
+              const pz = q[2] + ag.zOffset;
+              const sx = projX(q[0], pz, scale, roamX);
+              const sy = projY(q[1], pz, scale, roamY);
+              if (is > 0) {
+                const lum = (0.9 - s * 0.4) * depthDim;
+                const ch = s > 0.9 ? "." : dirChar(sx - prevX, sy - prevY);
+                const color = computeLitRGB(0.3 + s * 0.4, 0.3 + lum * 0.9, ta, oldPal, newPal, true, 0.2);
+                if (plotLit(q[0], q[1], pz, lum, color, scale, roamX, roamY, ch)) {
+                  charCount++;
+                }
+              }
+              prevX = sx;
+              prevY = sy;
+            }
+          }
+
+          // Pectoral fins: small fans that flutter just behind the gills
+          for (const side of [1, -1]) {
+            const RAYS_P = 7;
+            const STEPS_P = Math.ceil(9 * dens);
+            for (let ir = 0; ir < RAYS_P; ir++) {
+              const ang = -0.55 + (ir / (RAYS_P - 1)) * 1.5;
+              for (let is = 1; is <= STEPS_P; is++) {
+                const r = is / STEPS_P;
+                const flutter = Math.sin(ta * 9 - r * 3 + ir * 0.4) * 0.05 * r;
+                const fx = -0.2 + Math.cos(ang) * 0.17 * r;
+                const fy = 0.035 + Math.sin(ang) * 0.17 * r;
+                const fz = side * (0.085 + 0.1 * r + flutter);
+
+                const p = waveLocal(fx, fy, fz);
+                const q = rotFish(p[0], p[1], p[2]);
+                const lum = (0.5 + 0.35 * (1 - r)) * depthDim;
+                const color = computeLitRGB(0.2 + r * 0.2, 0.3 + lum * 0.9, ta, oldPal, newPal, true, r > 0.85 ? 0.3 : 0);
+                if (plotLit(q[0], q[1], q[2] + ag.zOffset, lum, color, scale, roamX, roamY)) {
                   charCount++;
                 }
               }
@@ -770,6 +1259,25 @@ export default function GlobalAsciiBackground() {
         }
       }
 
+      // Soft glow: a faint dot in every empty cell touching a creature (creatures are the only
+      // things drawn with z < 20; stars and rain sit further back).
+      for (let r = 1; r < rows - 1; r++) {
+        for (let c = 1; c < cols - 1; c++) {
+          const idx = r * cols + c;
+          if (charBuffer[idx]) continue;
+          let src = -1;
+          if (zBuffer[idx - 1] < 20) src = idx - 1;
+          else if (zBuffer[idx + 1] < 20) src = idx + 1;
+          else if (zBuffer[idx - cols] < 20) src = idx - cols;
+          else if (zBuffer[idx + cols] < 20) src = idx + cols;
+          if (src < 0) continue;
+          const m = colorBuffer[src].match(/\d+/g);
+          if (!m || m.length < 3) continue;
+          charBuffer[idx] = ".";
+          colorBuffer[idx] = `rgba(${m[0]},${m[1]},${m[2]},0.30)`;
+        }
+      }
+
       ctx.font = "bold 13px 'JetBrains Mono', 'Fira Code', Consolas, monospace";
       ctx.textBaseline = "top";
       for (let r = 0; r < rows; r++) {
@@ -830,9 +1338,12 @@ export default function GlobalAsciiBackground() {
           right: 18,
           zIndex: 9999,
           display: "flex",
+          flexWrap: "wrap",
+          justifyContent: "flex-end",
+          maxWidth: "calc(100vw - 36px)",
           gap: 6,
           padding: "5px 10px",
-          borderRadius: 9999,
+          borderRadius: 18,
           background: "rgba(8, 12, 22, 0.85)",
           backdropFilter: "blur(14px)",
           border: "1px solid rgba(255,255,255,0.16)",
@@ -874,6 +1385,23 @@ export default function GlobalAsciiBackground() {
           }}
         >
           ● 3D Betta (x5)
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setAutoRoute(false);
+            setManualPreset("manta");
+          }}
+          style={{
+            padding: "3px 9px",
+            borderRadius: 999,
+            background: preset === "manta" ? "rgba(45, 212, 191, 0.22)" : "transparent",
+            color: preset === "manta" ? "#5eead4" : "#94a3b8",
+            border: preset === "manta" ? "1px solid rgba(45,212,191,0.45)" : "1px solid transparent",
+            cursor: "pointer",
+          }}
+        >
+          ● 3D Manta (x5)
         </button>
         <button
           type="button"
