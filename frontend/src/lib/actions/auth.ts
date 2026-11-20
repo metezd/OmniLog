@@ -1,5 +1,6 @@
 "use server";
 
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { BackendError, backendFetch } from "@/lib/server/backend";
@@ -52,10 +53,19 @@ function failureState(error: unknown, values: NonNullable<AuthFormState>["values
   return { values, message: error.message };
 }
 
+/**
+ * The address of the browser, as the proxy wrote it. The backend limits logins and registrations
+ * per address (#217). Without it, every user would share the address of this server.
+ */
+async function forwardedFor(): Promise<string | null> {
+  return (await headers()).get("x-forwarded-for");
+}
+
 async function logIn(username: string, password: string): Promise<void> {
   const token = await backendFetch<Token>("/auth/login", {
     method: "POST",
     body: { username, password },
+    forwardedFor: await forwardedFor(),
   });
   await createSession(token.access_token);
 }
@@ -81,7 +91,11 @@ export async function registerAction(_previous: AuthFormState, formData: FormDat
   const password = field(formData, "password");
 
   try {
-    await backendFetch("/auth/register", { method: "POST", body: { username, email, password } });
+    await backendFetch("/auth/register", {
+      method: "POST",
+      body: { username, email, password },
+      forwardedFor: await forwardedFor(),
+    });
   } catch (error) {
     return failureState(error, { username, email });
   }

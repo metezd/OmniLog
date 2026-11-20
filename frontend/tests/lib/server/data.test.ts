@@ -160,6 +160,16 @@ describe("journal", () => {
     ]);
   });
 
+  it("reads a page of the diary with limit and offset", async () => {
+    const { seen } = fakeBackend([]);
+    await getDiary({ limit: 50 });
+    await getDiary({ limit: 50, offset: 100 });
+    expect(seen.map((s) => [s.method, s.path])).toEqual([
+      ["GET", "/diary?limit=50"],
+      ["GET", "/diary?limit=50&offset=100"],
+    ]);
+  });
+
   it("creates a list and adds a title to it", async () => {
     const { seen } = fakeBackend();
     await createList("Best narrative games");

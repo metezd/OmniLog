@@ -1,5 +1,9 @@
-﻿from fastapi import FastAPI
+﻿from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
 
 from app.api.auth import router as auth_router
 from app.api.catalog import router as catalog_router
@@ -7,16 +11,42 @@ from app.api.chapters import router as chapters_router
 from app.api.journal import router as journal_router
 from app.api.recommendations import router as recommendations_router
 from app.api.stats import router as stats_router
+from app.api import lists
 from app.core.errors import register_exception_handlers
 from app.api.library import router as library_router
 from app.api.media import router as media_router
-from app.core.config import CORS_ORIGINS
+from app.core import cache
+from app.core.config import CORS_ORIGINS, ENABLE_DOCS
+from app.core.database import get_db
 
 app = FastAPI(
     title="OmniLog API",
     description="Video Game & TV Series Tracking API",
     version="1.0.0",
+    docs_url="/docs" if ENABLE_DOCS else None,
+    redoc_url="/redoc" if ENABLE_DOCS else None,
+    openapi_url="/openapi.json" if ENABLE_DOCS else None,
 )
+
+SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+}
+
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    """Add the security headers to every answer. The proxy (Caddy) does not set them, and on
+    Render there is no proxy of ours, so the API sets them itself.
+
+    Answers of /auth/* can hold a token or user data, so they must never be cached.
+    """
+    response = await call_next(request)
+    for name, value in SECURITY_HEADERS.items():
+        response.headers.setdefault(name, value)
+    if request.url.path.startswith("/auth/") or request.url.path == "/auth":
+        response.headers["Cache-Control"] = "no-store"
+    return response
 
 app.add_middleware(
     CORSMiddleware,
@@ -36,6 +66,7 @@ app.include_router(chapters_router)
 app.include_router(journal_router)
 app.include_router(recommendations_router)
 app.include_router(stats_router)
+app.include_router(lists.router)
 
 
 @app.get("/")
@@ -45,4 +76,26 @@ def read_root():
 
 @app.get("/health")
 def health_check():
+    """Liveness: the process answers. Use this for the health check of the host (Docker, Render)."""
     return {"status": "healthy"}
+
+
+@app.get("/health/ready")
+def readiness_check(db: Session = Depends(get_db)):
+    """Readiness: the parts that the API needs. Use this for an uptime monitor, not for restarts.
+
+    The database is required. Redis is optional, because the API works without it (NFR-04), so
+    Redis down only shows as "down" and the answer stays 200. No error details are returned.
+    """
+    try:
+        db.execute(text("SELECT 1"))
+        database = "ok"
+    except SQLAlchemyError:
+        database = "down"
+    ready = database == "ok"
+    body = {
+        "status": "ready" if ready else "unavailable",
+        "database": database,
+        "cache": "ok" if cache.is_available() else "down",
+    }
+    return JSONResponse(body, status_code=200 if ready else 503)

@@ -1,0 +1,3 @@
+# uv for the lock file check in ci.yml ("Security lint (Ruff)" job). Dependabot (pip, directory
+# /.github) opens a pull request when a new version is released.
+uv==0.13.9
