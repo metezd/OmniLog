@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.models.entities import MediaItem, User, UserLibrary
 from app.schemas.library import UserLibraryCreate, UserLibraryUpdate
+from app.services import catalog_service
 from app.services.diary_service import DiaryAction, record_event
 from app.services.stats_service import invalidate_stats_cache
 
@@ -26,7 +27,8 @@ class LibraryEntryNotFoundError(Exception):
 
 
 def add_entry(db: Session, user: User, data: UserLibraryCreate) -> UserLibrary:
-    if db.get(MediaItem, data.media_item_id) is None:
+    item = db.get(MediaItem, data.media_item_id)
+    if item is None:
         raise MediaNotFoundError("Media item not found")
 
     entry = UserLibrary(
@@ -53,6 +55,7 @@ def add_entry(db: Session, user: User, data: UserLibraryCreate) -> UserLibrary:
         )
 
     db.commit()
+    catalog_service.ensure_title_details(db, item)
     db.refresh(entry)
     invalidate_stats_cache(user.id)
     return entry
