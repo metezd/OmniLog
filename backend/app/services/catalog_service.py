@@ -250,29 +250,97 @@ def ensure_title_details(db: Session, item: MediaItem) -> None:
         )
 
 
-def sync_missing_details(db: Session) -> int:
-    """Load details and genres for all titles with an external_api_id that have not been synced.
+@dataclass(frozen=True)
+class SyncReport:
+    """What a manual sync did (UC-EP3-03)."""
 
-    Option 2 companion utility: one-time backfill for existing catalog entries.
-    Returns the count of successfully synced titles.
+    selected: int  # titles that were unsynced and matched the filters
+    synced: int  # titles that now have their details saved
+    unsynced: int  # no data was saved: the outside service failed or does not know the id
+    errors: int  # titles for which loading raised an error (the log has the reason)
+    not_selected: int  # asked for by id, but unknown, added by hand or already synced
+
+
+def sync_titles(
+    db: Session,
+    *,
+    media_type: Optional[MediaType] = None,
+    media_ids: Optional[list[int]] = None,
+    limit: Optional[int] = None,
+) -> SyncReport:
+    """Load details and genres for the titles that have an outside id and were never synced.
+
+    This is the manual sync (UC-EP3-03). It is the same load as when a title is opened, so the
+    cache, the retries and the "an empty value never replaces a saved one" rule are the same.
+    Titles that are already synced are left alone. One failing title never stops the others.
+
+    media_type and media_ids narrow the choice, and limit stops after that many titles (oldest id
+    first). A title that the outside service does not know stays unsynced and is tried again by the
+    next run.
     """
-    items = (
-        db.query(MediaItem)
-        .filter(MediaItem.external_api_id.isnot(None), MediaItem.last_synced.is_(None))
-        .all()
+    query = db.query(MediaItem).filter(
+        MediaItem.external_api_id.isnot(None), MediaItem.last_synced.is_(None)
     )
-    count = 0
-    for item in items:
+    if media_type is not None:
+        query = query.filter(MediaItem.media_type == media_type)
+    if media_ids:
+        query = query.filter(MediaItem.id.in_(media_ids))
+    query = query.order_by(MediaItem.id)
+    if limit is not None:
+        query = query.limit(limit)
+    items = query.all()
+    item_ids = [item.id for item in items]
+
+    synced = unsynced = errors = 0
+    for item_id in item_ids:
+        item = db.get(MediaItem, item_id)
         try:
             if item.media_type == MediaType.SERIES:
                 _refresh_series(db, item)
             else:
                 _refresh_details(db, item)
-            count += 1
         except Exception as exc:
             db.rollback()
-            logger.warning("Failed to sync details for media %s: %s", item.id, exc)
-    return count
+            errors += 1
+            logger.warning("Failed to sync details for media %s: %s", item_id, exc)
+            continue
+        db.refresh(item)
+        if item.last_synced is not None:
+            synced += 1
+        else:
+            unsynced += 1
+
+    not_selected = len(set(media_ids)) - len(item_ids) if media_ids else 0
+    return SyncReport(
+        selected=len(item_ids),
+        synced=synced,
+        unsynced=unsynced,
+        errors=errors,
+        not_selected=max(not_selected, 0),
+    )
+
+
+def count_unsynced(
+    db: Session, *, media_type: Optional[MediaType] = None, media_ids: Optional[list[int]] = None
+) -> int:
+    """How many titles a sync with the same filters would try (used by the dry run)."""
+    query = db.query(func.count(MediaItem.id)).filter(
+        MediaItem.external_api_id.isnot(None), MediaItem.last_synced.is_(None)
+    )
+    if media_type is not None:
+        query = query.filter(MediaItem.media_type == media_type)
+    if media_ids:
+        query = query.filter(MediaItem.id.in_(media_ids))
+    return query.scalar() or 0
+
+
+def sync_missing_details(db: Session) -> int:
+    """Sync every unsynced title with an outside id. Returns how many now have their details.
+
+    Kept for the callers of issue #125. New code uses sync_titles, which also reports the titles
+    that could not be synced.
+    """
+    return sync_titles(db).synced
 
 
 def get_title_details(db: Session, media_id: int) -> MediaItem:
