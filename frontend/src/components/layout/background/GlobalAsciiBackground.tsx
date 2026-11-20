@@ -108,10 +108,17 @@ export default function GlobalAsciiBackground() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const pathname = usePathname();
 
-  const [preset, setPreset] = useState<PresetKey>("jellyfish");
+  const [manualPreset, setManualPreset] = useState<PresetKey>("jellyfish");
   const [ambient, setAmbient] = useState<AmbientMode>("both");
   const [autoRoute, setAutoRoute] = useState<boolean>(true);
   const [paletteIdx, setPaletteIdx] = useState<number>(0);
+
+  // Derived during render (no effect + setState): route picks the preset unless the user chose one.
+  const routePreset: PresetKey =
+    pathname?.includes("/login") || pathname?.includes("/register") || pathname?.includes("/search")
+      ? "jellyfish"
+      : "betta";
+  const preset: PresetKey = autoRoute ? routePreset : manualPreset;
 
   const stateRef = useRef({
     preset: "jellyfish" as PresetKey,
@@ -133,15 +140,6 @@ export default function GlobalAsciiBackground() {
   useEffect(() => {
     stateRef.current.paletteIdx = paletteIdx;
   }, [paletteIdx]);
-
-  useEffect(() => {
-    if (!autoRoute) return;
-    if (pathname?.includes("/login") || pathname?.includes("/register") || pathname?.includes("/search")) {
-      setPreset("jellyfish");
-    } else {
-      setPreset("betta");
-    }
-  }, [pathname, autoRoute]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -847,7 +845,7 @@ export default function GlobalAsciiBackground() {
           type="button"
           onClick={() => {
             setAutoRoute(false);
-            setPreset("jellyfish");
+            setManualPreset("jellyfish");
           }}
           style={{
             padding: "3px 9px",
@@ -864,7 +862,7 @@ export default function GlobalAsciiBackground() {
           type="button"
           onClick={() => {
             setAutoRoute(false);
-            setPreset("betta");
+            setManualPreset("betta");
           }}
           style={{
             padding: "3px 9px",
