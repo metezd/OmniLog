@@ -51,7 +51,7 @@ Statistics (Epic 6) need no tables of their own. They are computed from the othe
 ### 3.1 User
 A person with an account. The user owns a library, lists, an activity diary, progress records and reviews.
 - Key fields: `id`, `username`, `email`, `hashed_password`, `created_at`.
-- Not built: the field `is_admin` of the design. It would let the Operator start a manual sync (UC-EP3-03). There is no manual sync and no Operator role in the code.
+- Not built: the field `is_admin` of the design. It would let the Operator start a manual sync (UC-EP3-03). The manual sync is a command (`python -m app.sync`) that needs no role. There is no Operator role in the code.
 - Rules: username and email are unique. The password is only stored as a hash. A username never contains `@` (BR-18), so a login value with `@` can only be an email.
 
 ### 3.2 MediaItem

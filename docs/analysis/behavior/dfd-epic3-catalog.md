@@ -99,9 +99,11 @@ The sync flows of the design (the Operator, process 3.6 and the sync job log D10
 
 **Implementation note (US-08).** The code asks the outside API right after a cache miss. It does not read D5 first, because saved titles can be incomplete and a search should show the newest outside results. When a source has no keys, or the outside API fails, D5 is read: saved titles that match are returned, and when there are none the answer is 503. Each result is saved in D5 (one row for each media type and outside id) and has the internal `id`, so it can be added to the library. The cache holds outside data only, not row ids.
 
-### 4.3 Manual or scheduled sync (UC-EP3-03), not built
+### 4.3 Manual sync (UC-EP3-03), built as a command
 
-The design has a manual and a scheduled bulk sync, a job log (D10) and a feed of every changed title to process 5.1 for embedding (flow F-03). None of this is in the code. There is no scheduler, no sync endpoint and no job table. Details are loaded one title at a time when the details of that title are opened (section 4.1).
+The operator runs `python -m app.sync` (in the backend container). It selects the titles that have an outside id and no `last_synced`, and loads each one with the same code as the details of a title (cache, then IGDB or TMDB, then D5), so the same rules apply. Options: `--type`, `--id`, `--limit` and `--dry-run`. A title that fails does not stop the others. The command prints the counts and exits with 1 when loading raised an error for a title. See `sync_titles` in `catalog_service.py`.
+
+Not built: a scheduled sync, a sync endpoint, a job log (D10) and the feed of changed titles to process 5.1 for embedding (flow F-03). The result of a run is printed and written to the application log only.
 
 ### 4.4 Rate limit and errors (UC-EP3-04, NFR-04)
 
@@ -128,8 +130,9 @@ The design has a manual and a scheduled bulk sync, a job log (D10) and a feed of
 | `GET /catalog/search?q=&type=` | Search titles | Implemented (US-08). Needs a token |
 | `GET /catalog/{id}` | Title details with seasons or chapters | Implemented (US-09). Needs a token |
 | `GET /catalog/{source}/{external_id}` | Lookup by outside id. Starts a fetch when needed | Not built (R-EP3-01) |
-| `POST /admin/sync` | Start a manual sync | Not built (UC-EP3-03) |
-| `GET /admin/sync/status` | Show the last sync jobs | Not built (UC-EP3-03) |
+| `python -m app.sync` | Start a manual sync (a command, not an endpoint) | Implemented (UC-EP3-03) |
+| `POST /admin/sync` | Start a manual sync over HTTP | Not built. Needs the Operator role |
+| `GET /admin/sync/status` | Show the last sync jobs | Not built. Needs a job table |
 
 No `/api` prefix is used, because the tests call the paths without it.
 
@@ -139,7 +142,7 @@ No `/api` prefix is used, because the tests call the paths without it.
 |---|---|
 | UC-EP3-01 | Client asks for a title, cache hit, serve |
 | UC-EP3-02 | Client asks for a title, cache miss, fetch, normalize, save, cache, serve |
-| UC-EP3-03 | Operator starts a manual sync, bulk fetch, log. Not built |
+| UC-EP3-03 | Operator starts a manual sync, bulk fetch. Built as `python -m app.sync`. The log is the application log (no D10) |
 | UC-EP3-04 | Outside API is rate limited, backoff and retry, log the failure (to the application log only) |
 | UC-EP3-05 | Client searches the catalog (new in this version) |
 | UC-EP3-06 | Client opens title details with seasons or chapters (new in this version) |

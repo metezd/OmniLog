@@ -81,7 +81,7 @@ Each step builds on the one before. A step is done when its tests pass.
 | 2 | Authentication: register, login, JWT, protected endpoints | US-02, US-03 | Done |
 | 3 | Catalog base and library: media tables, add, rate and update titles | US-04, US-05 | Done |
 | 4 | Journal: custom lists and activity diary | US-06, US-07 | Done |
-| 5 | External catalog: IGDB and TMDB, Redis cache, search, details | US-08, US-09 | Done, except the manual sync. No endpoint or job syncs titles by hand |
+| 5 | External catalog: IGDB and TMDB, Redis cache, search, details | US-08, US-09 | Done. The manual sync is a command (`python -m app.sync`). There is no sync endpoint and no job log |
 | 6 | Episodic logging: chapter ratings, playtime, decisions | US-10 to US-12 | Done |
 | 7 | Analytics: personal statistics with a Redis cache | US-15 | Done |
 | 8 | AI engine: spoiler detection, embeddings, recommendations | US-13, US-14 | US-14 done. US-13 is partly done: the recommendations rank by genre and nothing creates or stores embeddings (no `media_embeddings` table) |
@@ -104,9 +104,8 @@ The backend is built for every story except the parts listed at the end of this 
 
 Not built yet:
 
-- The manual sync of step 5.
 - Embeddings. The OpenAI client has a function for them, but nothing in the API calls it and there is no `media_embeddings` table. The recommendations rank the titles that the user does not own by the genres of the library, weighted by the ratings.
-- The Operator role (`is_admin`), the sync job log and the admin endpoints of the design.
+- The Operator role (`is_admin`), the sync job log, the scheduled sync and the admin endpoints of the design. The manual sync is a command and needs none of them.
 - Loading the details of a title when it is added to the library. The genres and the description are loaded when the details are opened, so a title that goes straight from a search into the library has no genres until someone opens it.
 
 The frontend calls the backend from its server code (see [Frontend](#frontend)). The friends page still shows sample data.
@@ -153,6 +152,19 @@ python -m app.seed                 # the file next to the code
 python -m app.seed path/to/other.json
 # production: docker compose -f docker-compose.prod.yml exec backend python -m app.seed
 ```
+
+**Manual sync.** `python -m app.sync` loads the description, genres and (for a series) seasons and episodes of every title that has an outside id and was never synced, for example titles that went from a search into the library without being opened (issue #125). It uses the same load as `GET /catalog/{id}`, so the cache, the retries and the rule that an empty value never replaces a saved one are the same. Titles that are already synced are left alone, and one failing title does not stop the others.
+
+```bash
+cd backend
+python -m app.sync --dry-run          # only count the titles
+python -m app.sync                    # sync all of them
+python -m app.sync --type GAME --limit 50
+python -m app.sync --id 12 --id 15    # only these catalog ids
+# production: docker compose -f docker-compose.prod.yml exec backend python -m app.sync
+```
+
+It prints how many titles were selected and synced. A title that the outside service does not know, or that failed while the service was down, stays unsynced and is tried again by the next run. The exit code is 0 when the run finished, 1 when loading raised an error for a title, and 2 for a wrong option.
 
 A game is joined to the catalog by its IGDB id (`external_api_id`). To find it, search the title with `GET /catalog/search?type=GAME` and read `external_api_id` in the result. The file is checked before anything is written, and a file with an error saves nothing. The load is one transaction and can be run again: a row is found by its key (chapter number, position of the decision point, label of the option) and only changed when a value differs. Nothing is ever deleted, because the choices of users point to these rows. Rows that are in the database but not in the file are listed as warnings. A game that a search has already saved keeps its title and poster, and a warning appears when the title in the file is different, which usually means a wrong id. Each decision point needs at least two options with different labels.
 
