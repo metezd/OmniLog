@@ -81,7 +81,7 @@ Each step builds on the one before. A step is done when its tests pass.
 | 2 | Authentication: register, login, JWT, protected endpoints | US-02, US-03 | Done |
 | 3 | Catalog base and library: media tables, add, rate and update titles | US-04, US-05 | Done |
 | 4 | Journal: custom lists and activity diary | US-06, US-07 | Done |
-| 5 | External catalog: IGDB and TMDB, Redis cache, search, details | US-08, US-09 | Done, except the manual sync. No endpoint or job syncs titles by hand |
+| 5 | External catalog: IGDB and TMDB, Redis cache, search, details | US-08, US-09 | Done. The manual sync is a command (`python -m app.sync`). There is no sync endpoint and no job log |
 | 6 | Episodic logging: chapter ratings, playtime, decisions | US-10 to US-12 | Done |
 | 7 | Analytics: personal statistics with a Redis cache | US-15 | Done |
 | 8 | AI engine: spoiler detection, embeddings, recommendations | US-13, US-14 | US-14 done. US-13 is partly done: the recommendations rank by genre and nothing creates or stores embeddings (no `media_embeddings` table) |
@@ -104,10 +104,8 @@ The backend is built for every story except the parts listed at the end of this 
 
 Not built yet:
 
-- The manual sync of step 5.
 - Embeddings. The OpenAI client has a function for them, but nothing in the API calls it and there is no `media_embeddings` table. The recommendations rank the titles that the user does not own by the genres of the library, weighted by the ratings.
-- The Operator role (`is_admin`), the sync job log and the admin endpoints of the design.
-- Loading the details of a title when it is added to the library. The genres and the description are loaded when the details are opened, so a title that goes straight from a search into the library has no genres until someone opens it.
+- The Operator role (`is_admin`), the sync job log, the scheduled sync and the admin endpoints of the design. The manual sync is a command and needs none of them.
 
 The frontend calls the backend from its server code (see [Frontend](#frontend)). The friends page still shows sample data.
 
@@ -143,7 +141,7 @@ The API runs at `http://localhost:8000`. Interactive docs are at `http://localho
 
 **Catalog search keys.** `GET /catalog/search` needs keys for the outside services: `IGDB_CLIENT_ID` and `IGDB_CLIENT_SECRET` for games (a Twitch application, see the comments in `.env.example`) and `TMDB_API_KEY` for series and movies. A source without keys is turned off and its searches return 503. Search results are cached in Redis (`REDIS_URL`, `CACHE_TTL_SECONDS`). If Redis is down, an in-process cache is used. Calls to IGDB and TMDB time out after `EXTERNAL_API_TIMEOUT_SECONDS` and are tried again up to `EXTERNAL_API_MAX_RETRIES` times when they time out or answer 429 or 5xx, with a wait that starts at `EXTERNAL_API_BACKOFF_SECONDS` and doubles (a `Retry-After` header is used when the service sends one). Never commit real keys. **Keyless mode for demos.** Set `IGDB_CLIENT_ID=public` (with any value in `IGDB_CLIENT_SECRET`, because the source counts as set up only when both are filled) to search and load games from the Steam Store instead of IGDB. Set `TMDB_API_KEY=public` to use TVMaze for series and iTunes for movies instead of TMDB. No keys are needed then, but the ids are the ids of those services (a Steam app id, a TVMaze id, an iTunes id), not IGDB or TMDB ids. A database should therefore be filled in one mode only, and the IGDB id of the seed file does not match a game that was saved in the Steam mode.
 
-**Title details.** `GET /catalog/{id}` returns a title with its seasons and episodes (series) or its chapters (games). The seasons of a series are loaded from TMDB the first time the title is opened, then saved in the database and cached in Redis for `DETAILS_CACHE_TTL_SECONDS` (default 24 hours). While TMDB is down, the saved copy is returned, or 503 when the series was never loaded. IGDB has no chapter list, so the chapters of a game are read from the database only. No endpoint creates them. They come from a seed file, described below. The team chose this source (point 3 in [`docs/analysis/data/domain-model.md`](docs/analysis/data/domain-model.md)). Every title has `genres` (names, sorted), and the details answer also has the `description`. Both are loaded from IGDB or TMDB when the details are opened, so a title that was only found in a search has no genres yet, and adding it to the library does not load them either. Every chapter and episode in the answer has `decision_points`, each with its `options` (id, label and text), so a client can show the choices of US-12 without another call.
+**Title details.** `GET /catalog/{id}` returns a title with its seasons and episodes (series) or its chapters (games). The seasons of a series are loaded from TMDB the first time the title is opened, then saved in the database and cached in Redis for `DETAILS_CACHE_TTL_SECONDS` (default 24 hours). While TMDB is down, the saved copy is returned, or 503 when the series was never loaded. IGDB has no chapter list, so the chapters of a game are read from the database only. No endpoint creates them. They come from a seed file, described below. The team chose this source (point 3 in [`docs/analysis/data/domain-model.md`](docs/analysis/data/domain-model.md)). Every title has `genres` (names, sorted), and the details answer also has the `description`. Both are loaded from IGDB or TMDB when the details are opened and when the title is added to the library (`ensure_title_details`, a failure there never blocks the addition). A title that was only found in a search has no genres until one of these happens, and the manual sync (`python -m app.sync`) loads them for such titles in bulk. Every chapter and episode in the answer has `decision_points`, each with its `options` (id, label and text), so a client can show the choices of US-12 without another call.
 
 **Chapters and decision points of games.** IGDB has no chapter list and no source has decision points, so they are kept in [`backend/app/seed/game_chapters.json`](backend/app/seed/game_chapters.json) and loaded with:
 
@@ -153,6 +151,19 @@ python -m app.seed                 # the file next to the code
 python -m app.seed path/to/other.json
 # production: docker compose -f docker-compose.prod.yml exec backend python -m app.seed
 ```
+
+**Manual sync.** `python -m app.sync` loads the description, genres and (for a series) seasons and episodes of every title that has an outside id and was never synced, for example titles that went from a search into the library without being opened (issue #125). It uses the same load as `GET /catalog/{id}`, so the cache, the retries and the rule that an empty value never replaces a saved one are the same. Titles that are already synced are left alone, and one failing title does not stop the others.
+
+```bash
+cd backend
+python -m app.sync --dry-run          # only count the titles
+python -m app.sync                    # sync all of them
+python -m app.sync --type GAME --limit 50
+python -m app.sync --id 12 --id 15    # only these catalog ids
+# production: docker compose -f docker-compose.prod.yml exec backend python -m app.sync
+```
+
+It prints how many titles were selected and synced. A title that the outside service does not know, or that failed while the service was down, stays unsynced and is tried again by the next run. The exit code is 0 when the run finished, 1 when loading raised an error for a title, and 2 for a wrong option.
 
 A game is joined to the catalog by its IGDB id (`external_api_id`). To find it, search the title with `GET /catalog/search?type=GAME` and read `external_api_id` in the result. The file is checked before anything is written, and a file with an error saves nothing. The load is one transaction and can be run again: a row is found by its key (chapter number, position of the decision point, label of the option) and only changed when a value differs. Nothing is ever deleted, because the choices of users point to these rows. Rows that are in the database but not in the file are listed as warnings. A game that a search has already saved keeps its title and poster, and a warning appears when the title in the file is different, which usually means a wrong id. Each decision point needs at least two options with different labels.
 
