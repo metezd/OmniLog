@@ -827,3 +827,157 @@ def test_search_does_not_mark_a_series_as_loaded(client, auth_headers, db, monke
 
     assert db.get(MediaItem, series_id).last_synced is None
     assert db.get(MediaItem, series_id).media_type == MediaType.SERIES
+
+# ---------------------------------------------------------------- issue #125 (ensure_title_details & sync_missing_details)
+def test_adding_unsynced_search_title_loads_description_and_genres(client, auth_headers, fake_external_apis, db, monkeypatch):
+    """Issue #125: adding an unsynced title from search populates description and genres."""
+    title = unique("movie")
+    outside_id = next(_outside_ids)
+    fake_external_apis.movies[outside_id] = {
+        "title": title,
+        "overview": "Loaded on library add.",
+        "genres": [{"id": 28, "name": "Action"}],
+    }
+    monkeypatch.setattr(
+        fake_apis_module,
+        "MOVIES",
+        [
+            *fake_apis_module.MOVIES,
+            {"id": outside_id, "title": title, "poster_path": None, "release_date": "2026-01-01"},
+        ],
+    )
+
+    found = client.get("/catalog/search", params={"q": title, "type": "MOVIE"}, headers=auth_headers)
+    assert found.status_code == 200
+    media_id = next(item["id"] for item in found.json() if item["title"] == title)
+    assert db.get(MediaItem, media_id).last_synced is None
+
+    added = client.post("/library", json={"media_item_id": media_id}, headers=auth_headers)
+    assert added.status_code in (200, 201), added.text
+
+    body = open_title(client, auth_headers, media_id).json()
+    assert body["description"] == "Loaded on library add."
+    assert "Action" in body["genres"]
+
+
+def test_adding_unsynced_title_updates_stats_genre_breakdown(client, auth_headers, fake_external_apis, monkeypatch):
+    """Issue #125: genres fetched when adding from search appear in GET /stats."""
+    title = unique("movie")
+    outside_id = next(_outside_ids)
+    fake_external_apis.movies[outside_id] = {
+        "title": title,
+        "overview": "Stats genre test.",
+        "genres": [{"id": 878, "name": "Sci-Fi"}],
+    }
+    monkeypatch.setattr(
+        fake_apis_module,
+        "MOVIES",
+        [
+            *fake_apis_module.MOVIES,
+            {"id": outside_id, "title": title, "poster_path": None, "release_date": "2026-02-02"},
+        ],
+    )
+
+    found = client.get("/catalog/search", params={"q": title, "type": "MOVIE"}, headers=auth_headers)
+    media_id = next(item["id"] for item in found.json() if item["title"] == title)
+
+    added = client.post("/library", json={"media_item_id": media_id}, headers=auth_headers)
+    assert added.status_code in (200, 201), added.text
+
+    stats_resp = client.get("/stats", headers=auth_headers)
+    assert stats_resp.status_code == 200
+    breakdown = {row["genre"]: row["count"] for row in stats_resp.json()["genre_breakdown"]}
+    assert breakdown.get("Sci-Fi", 0) >= 1
+
+
+def test_adding_unsynced_series_to_library_loads_seasons(client, auth_headers, fake_external_apis, db, monkeypatch):
+    """Issue #125: adding an unsynced series from search loads its seasons and genres."""
+    title = unique("series")
+    outside_id = next(_outside_ids)
+    fake_external_apis.series[outside_id] = copy.deepcopy(SERIES_DETAILS[70001])
+    monkeypatch.setattr(
+        fake_apis_module,
+        "SERIES",
+        [
+            *fake_apis_module.SERIES,
+            {
+                "id": outside_id,
+                "name": title,
+                "poster_path": None,
+                "first_air_date": "2025-05-05",
+            },
+        ],
+    )
+
+    found = client.get("/catalog/search", params={"q": title, "type": "SERIES"}, headers=auth_headers)
+    assert found.status_code == 200
+    series_id = next(item["id"] for item in found.json() if item["title"] == title)
+    assert db.get(MediaItem, series_id).last_synced is None
+
+    added = client.post("/library", json={"media_item_id": series_id}, headers=auth_headers)
+    assert added.status_code in (200, 201), added.text
+
+    assert db.query(Season).filter(Season.media_item_id == series_id).count() > 0
+    assert db.get(MediaItem, series_id).last_synced is not None
+
+
+def test_library_add_succeeds_when_external_service_returns_503(client, auth_headers, fake_external_apis, monkeypatch):
+    """Issue #125 / NFR-04: external 503 failure does not block POST /library."""
+    title = unique("movie")
+    outside_id = next(_outside_ids)
+    fake_external_apis.movies[outside_id] = {
+        "title": title,
+        "overview": "Should still be added on 503.",
+        "genres": [{"id": 18, "name": "Drama"}],
+    }
+    monkeypatch.setattr(
+        fake_apis_module,
+        "MOVIES",
+        [
+            *fake_apis_module.MOVIES,
+            {"id": outside_id, "title": title, "poster_path": None, "release_date": "2026-03-03"},
+        ],
+    )
+
+    found = client.get("/catalog/search", params={"q": title, "type": "MOVIE"}, headers=auth_headers)
+    media_id = next(item["id"] for item in found.json() if item["title"] == title)
+
+    def _fail(*args, **kwargs):
+        raise RuntimeError("503 Service Unavailable")
+
+    monkeypatch.setattr(catalog_service, "_refresh_details", _fail)
+
+    added = client.post("/library", json={"media_item_id": media_id}, headers=auth_headers)
+    assert added.status_code in (200, 201), added.text
+
+    lib = client.get("/library", headers=auth_headers)
+    assert lib.status_code == 200
+    assert any(entry["media_item_id"] == media_id for entry in lib.json())
+
+
+def test_sync_missing_details_backfills_unsynced_external_titles(client, auth_headers, fake_external_apis, db, monkeypatch):
+    """Issue #125: sync_missing_details syncs unsynced titles that have an external_api_id."""
+    title = unique("movie")
+    outside_id = next(_outside_ids)
+    fake_external_apis.movies[outside_id] = {
+        "title": title,
+        "overview": "Backfilled.",
+        "genres": [{"id": 35, "name": "Comedy"}],
+    }
+    monkeypatch.setattr(
+        fake_apis_module,
+        "MOVIES",
+        [
+            *fake_apis_module.MOVIES,
+            {"id": outside_id, "title": title, "poster_path": None, "release_date": "2026-04-04"},
+        ],
+    )
+
+    found = client.get("/catalog/search", params={"q": title, "type": "MOVIE"}, headers=auth_headers)
+    media_id = next(item["id"] for item in found.json() if item["title"] == title)
+    item = db.get(MediaItem, media_id)
+    assert item.last_synced is None
+
+    assert catalog_service.sync_missing_details(db) >= 1
+    db.refresh(item)
+    assert item.last_synced is not None
