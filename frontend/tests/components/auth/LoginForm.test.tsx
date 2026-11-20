@@ -19,12 +19,12 @@ async function fillAndSubmit(username: string, password: string, mode: FillMode 
 }
 
 describe("LoginForm", () => {
-  it("shows the two fields, the Forgot? link and the button", () => {
+  it("shows the two fields and the Sign In button without non-functional links", () => {
     render(<LoginForm />);
 
     expect(screen.getByLabelText("Username or Email")).toHaveAttribute("name", "username");
     expect(screen.getByLabelText("Password")).toHaveAttribute("type", "password");
-    expect(screen.getByRole("link", { name: "Forgot?" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Forgot?" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Sign In" })).toBeEnabled();
   });
 
