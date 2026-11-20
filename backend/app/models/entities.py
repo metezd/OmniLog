@@ -280,6 +280,13 @@ class DiaryEntry(Base):
     details = Column(String(255), nullable=True)  # e.g. "Rated 9"
     created_at = Column(DateTime, default=utc_now, nullable=False)
 
+    __table_args__ = (
+        # GET /diary: the events of one user, newest first
+        Index("ix_diary_entries_user_id_created_at", "user_id", created_at.desc()),
+        # The delete cascade of a title looks up its events by this column
+        Index("ix_diary_entries_media_item_id", "media_item_id"),
+    )
+
     # Relationships
     user = relationship("User", back_populates="diary_entries")
     media_item = relationship("MediaItem")

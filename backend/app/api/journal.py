@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
+from app.api.pagination import Page, diary_page, lists_page
 from app.core.database import get_db
 from app.models.entities import User
 from app.schemas.journal import (
@@ -41,11 +42,16 @@ def create_custom_list(
 
 @router.get("/lists", response_model=List[CustomListResponse])
 def get_custom_lists(
+    page: Page = Depends(lists_page),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Get all lists of the logged-in user."""
-    return journal_service.list_lists(db, current_user)
+    """Get the lists of the logged-in user, oldest first.
+
+    `limit` (1 to 500, default 200) and `offset` (default 0) page the answer. The answer stays a
+    plain list. A limit above 500 gives 422.
+    """
+    return journal_service.list_lists(db, current_user, limit=page.limit, offset=page.offset)
 
 
 @router.get("/lists/{list_id}", response_model=CustomListResponse)
@@ -109,8 +115,14 @@ def delete_custom_list(
 # ---------------------------------------------------------------- US-07: Activity diary
 @router.get("/diary", response_model=List[DiaryEntryResponse])
 def get_activity_diary(
+    page: Page = Depends(diary_page),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Get the activity events of the logged-in user, newest first."""
-    return journal_service.diary_for_user(db, current_user)
+    """Get the activity events of the logged-in user, newest first.
+
+    `limit` (1 to 500, default 100) and `offset` (default 0) page the answer. The answer stays a
+    plain list. A limit above 500 gives 422. To read the next page, add the number of rows you
+    got to the `offset`.
+    """
+    return journal_service.diary_for_user(db, current_user, limit=page.limit, offset=page.offset)

@@ -61,13 +61,18 @@ def add_entry(db: Session, user: User, data: UserLibraryCreate) -> UserLibrary:
     return entry
 
 
-def list_entries(db: Session, user: User) -> List[UserLibrary]:
+def list_entries(
+    db: Session, user: User, limit: int | None = None, offset: int = 0
+) -> List[UserLibrary]:
+    """The user's entries, oldest first. `limit=None` returns all of them."""
     # Load the media item in the same query. Without this, the response runs one query per entry.
     return (
         db.query(UserLibrary)
         .options(joinedload(UserLibrary.media_item))
         .filter(UserLibrary.user_id == user.id)
         .order_by(UserLibrary.id)
+        .limit(limit)
+        .offset(offset)
         .all()
     )
 

@@ -4,7 +4,9 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
+
 from app.api.deps import get_current_user, limit_per_user
+from app.api.pagination import Page, library_page
 from app.core.database import get_db
 from app.models.entities import User
 from app.schemas.library import UserLibraryCreate, UserLibraryResponse, UserLibraryUpdate
@@ -36,11 +38,16 @@ def add_to_library(
 
 @router.get("", response_model=List[UserLibraryResponse])
 def get_library(
+    page: Page = Depends(library_page),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Get the library entries of the logged-in user only."""
-    return library_service.list_entries(db, current_user)
+    """Get the library entries of the logged-in user only, oldest first.
+
+    `limit` (1 to 500, default 200) and `offset` (default 0) page the answer. The answer stays a
+    plain list. A limit above 500 gives 422.
+    """
+    return library_service.list_entries(db, current_user, limit=page.limit, offset=page.offset)
 
 
 @router.patch("/{entry_id}", response_model=UserLibraryResponse)
