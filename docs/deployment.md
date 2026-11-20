@@ -127,6 +127,14 @@ The migrations run by themselves before the new backend starts. The data stays i
 
 To go back to an older version, check out the older commit and run the same command. A migration that was already applied is not undone. Restore a backup if the database also has to go back.
 
+### Backend dependencies
+
+`backend/requirements.txt` is a lock file. It holds every package of the backend with an exact version and the hashes of its files. The Docker image, CI and Render install it with `pip install --require-hashes`, so they all get the versions that the tests checked, and pip refuses a file that does not match a hash. `pip-audit` in CI checks the same file.
+
+Do not change `requirements.txt` by hand. Change `backend/requirements.in` (the direct dependencies) and make the lock again with the command at the top of that file. The tools for the tests have their own lock, `tests/requirements-test.txt`, made from `tests/requirements-test.in` on top of the backend lock.
+
+The lock is made for Linux and the Python version of `backend/Dockerfile`. When the base image moves to a new Python version, make both locks again with the new `--python-version`. The job "Security lint (Ruff)" in CI makes both locks again and fails when the result differs from the committed files, so a forgotten step shows up in the pull request.
+
 ## 6. Backup and restore
 
 ```bash

@@ -27,7 +27,7 @@ flowchart LR
     API["FastAPI Routers (backend/app/api)\nauth.py (/auth), media.py (/media), catalog.py (/catalog),\nlibrary.py (/library, /library/{entry_id}/review), chapters.py (/library/{entry_id}/chapters),\njournal.py (/lists, /diary), recommendations.py (/recommendations), stats.py (/stats), deps.py"]
     SVC["Services Layer (backend/app/services)\nauth_service.py, media_service.py, catalog_service.py, library_service.py,\nchapter_service.py, journal_service.py, diary_service.py, review_service.py, stats_service.py"]
     INT["Integration Layer (backend/app/integrations)\nigdb.py, tmdb.py, common.py, genres.py"]
-    CORE["Core Layer (backend/app/core)\nconfig.py, security.py (PyJWT, passlib/bcrypt), cache.py, database.py, errors.py, usernames.py"]
+    CORE["Core Layer (backend/app/core)\nconfig.py, security.py (PyJWT, bcrypt), cache.py, database.py, errors.py, usernames.py"]
   end
 
   subgraph DataLayer["Data & Cache Layer"]
