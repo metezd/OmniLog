@@ -1,5 +1,4 @@
 import enum
-from datetime import datetime
 from sqlalchemy import (
     Boolean,
     Column,
@@ -20,6 +19,7 @@ from sqlalchemy import (
     text as sql_text,
 )
 from sqlalchemy.orm import relationship
+from app.core.clock import utc_now
 from app.core.database import Base
 
 
@@ -57,7 +57,7 @@ class User(Base):
     username = Column(String(50), unique=True, index=True, nullable=False)
     email = Column(String(100), unique=True, index=True, nullable=False)
     hashed_password = Column(String(255), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
 
     # A username never has an @, so a login value with @ can only be an email (BR-18)
     __table_args__ = (
@@ -181,7 +181,7 @@ class UserLibrary(Base):
     )
     rating = Column(Float, nullable=True)  # Rating between 1 and 10
     updated_at = Column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+        DateTime, default=utc_now, onupdate=utc_now
     )
 
     # Relationships
@@ -228,7 +228,7 @@ class CustomList(Base):
         Integer, ForeignKey(_FK_USERS_ID, ondelete="CASCADE"), nullable=False
     )
     name = Column(String(200), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
 
     __table_args__ = (
         UniqueConstraint("user_id", "name", name="uq_user_list_name"),
@@ -252,7 +252,7 @@ class CustomListItem(Base):
     media_item_id = Column(
         Integer, ForeignKey(_FK_MEDIA_ITEMS_ID, ondelete="CASCADE"), nullable=False
     )
-    added_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    added_at = Column(DateTime, default=utc_now, nullable=False)
 
     # Relationships
     custom_list = relationship("CustomList", back_populates="items")
@@ -278,7 +278,14 @@ class DiaryEntry(Base):
     # One of the DiaryAction values in app/services/diary_service.py
     action = Column(String(50), nullable=False)
     details = Column(String(255), nullable=True)  # e.g. "Rated 9"
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
+
+    __table_args__ = (
+        # GET /diary: the events of one user, newest first
+        Index("ix_diary_entries_user_id_created_at", "user_id", created_at.desc()),
+        # The delete cascade of a title looks up its events by this column
+        Index("ix_diary_entries_media_item_id", "media_item_id"),
+    )
 
     # Relationships
     user = relationship("User", back_populates="diary_entries")
@@ -402,9 +409,9 @@ class ChapterProgress(Base):
     updated_at = Column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
+        default=utc_now,
         server_default=text(_UTC_NOW_SQL),
-        onupdate=datetime.utcnow,
+        onupdate=utc_now,
     )
 
     # The joins use the single id columns. media_item_id is not copied by these relationships,
@@ -474,7 +481,7 @@ class PlaytimeLog(Base):
     logged_at = Column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
+        default=utc_now,
         server_default=text(_UTC_NOW_SQL),
     )
 
@@ -556,9 +563,9 @@ class UserDecision(Base):
     decided_at = Column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
+        default=utc_now,
         server_default=text(_UTC_NOW_SQL),
-        onupdate=datetime.utcnow,
+        onupdate=utc_now,
     )
 
     __table_args__ = (
@@ -603,14 +610,14 @@ class Review(Base):
     created_at = Column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
+        default=utc_now,
         server_default=sql_text(_UTC_NOW_SQL),
     )
     updated_at = Column(
         DateTime,
         nullable=True,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=utc_now,
+        onupdate=utc_now,
     )
 
     library_entry = relationship("UserLibrary", back_populates="review")

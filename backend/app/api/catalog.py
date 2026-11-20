@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.exceptions import RequestValidationError
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, limit_per_user
 from app.core.database import get_db
 from app.models.entities import MediaType, User
 from app.schemas.media import MediaDetailResponse, MediaItemResponse
@@ -19,7 +19,11 @@ from app.services.catalog_service import (
 router = APIRouter(prefix="/catalog", tags=["Catalog"])
 
 
-@router.get("/search", response_model=List[MediaItemResponse])
+@router.get(
+    "/search",
+    response_model=List[MediaItemResponse],
+    dependencies=[Depends(limit_per_user("search"))],
+)
 def search_catalog(
     q: str = Query(..., min_length=1, max_length=100, description="Title to search for"),
     media_type: MediaType = Query(..., alias="type", description="GAME, SERIES or MOVIE"),

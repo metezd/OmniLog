@@ -51,7 +51,7 @@ Statistics (Epic 6) need no tables of their own. They are computed from the othe
 ### 3.1 User
 A person with an account. The user owns a library, lists, an activity diary, progress records and reviews.
 - Key fields: `id`, `username`, `email`, `hashed_password`, `created_at`.
-- Not built: the field `is_admin` of the design. It would let the Operator start a manual sync (UC-EP3-03). There is no manual sync and no Operator role in the code.
+- Not built: the field `is_admin` of the design. It would let the Operator start a manual sync (UC-EP3-03). The manual sync is a command (`python -m app.sync`) that needs no role. There is no Operator role in the code.
 - Rules: username and email are unique. The password is only stored as a hash. A username never contains `@` (BR-18), so a login value with `@` can only be an email.
 
 ### 3.2 MediaItem
@@ -74,7 +74,7 @@ A named list that a user builds, for example "Best narrative games". The item ta
 ### 3.5 DiaryEntry (earlier called ActivityEvent)
 One entry of the activity diary. It records an action of the user. The table is `diary_entries`, with the columns `action` and `details` (a short text) in place of the planned `event_type` and `payload`.
 - Event types (the values of `action`): `LIBRARY_ADDED`, `STATUS_CHANGED`, `RATED`, `CHAPTER_RATED`, `PLAYTIME_LOGGED`, `DECISION_RECORDED`, `LIST_CREATED`, `LIST_ITEM_ADDED`, `LIBRARY_REMOVED`, `LIST_ITEM_REMOVED`, `LIST_DELETED`, `REVIEW_POSTED`.
-- Rules: events are only appended. They are never edited or deleted. A removal is a new event and the older events about the same title stay. The diary shows them newest first.
+- Rules: events are only appended. They are never edited or deleted. A removal is a new event and the older events about the same title stay. The diary shows them newest first. The table has an index on `(user_id, created_at DESC)` for this list and one on `media_item_id` for the delete cascade of a title (migration 0013). The diary is read in pages with `limit` and `offset` (default 100, at most 500).
 
 ### 3.6 ExternalSource (not built)
 An outside data provider. The values are `IGDB` and `TMDB`.
@@ -203,5 +203,5 @@ Each point was checked against the code on 19.11.2026.
 | 4 | Decision points per chapter | **Answered and built.** The request has an optional `decision_point_id`. It can be left out for a chapter with one decision point and is required when the chapter has several. |
 | 5 | Reviews per library entry | **Answered and built.** One review for each entry, and posting again replaces the old one. |
 | 6 | Admin role | **Not built.** There is no `is_admin` column, no Operator role and no admin endpoint. |
-| 7 | Genres and descriptions for unopened titles (#125) | **Not built.** The earlier text said that details are loaded when a title is added to the library and that a utility `sync_missing_details` exists. Neither is in the code. Details load only when the details of a title are opened (`GET /catalog/{id}`). A title that goes from a search into the library has no genres until someone opens it, so it is missing from the genre statistics (US-15) and does not help the recommendations (US-13) until then. |
+| 7 | Genres and descriptions for unopened titles (#125) | **Answered and built.** Details load when the details of a title are opened (`GET /catalog/{id}`) and when a title is added to the library (`ensure_title_details` in `catalog_service.py`, called by `library_service`). A failure of the outside service is logged and never blocks the addition (NFR-04). The manual sync (`python -m app.sync`, UC-EP3-03) loads the details of titles that were never opened or added, using `sync_titles`. |
 | 8 | Embeddings and vector tables | **Not built.** `media_embeddings` and `user_taste_vectors` have no tables. The recommendations rank by genre. The model (`text-embedding-3-small`, 1536) is only a setting. |

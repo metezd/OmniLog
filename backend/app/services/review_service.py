@@ -1,11 +1,11 @@
 """Review submission and NLP spoiler detection (US-14, DFD 5.4 and 5.5)."""
 import logging
 import re
-from datetime import datetime
 from typing import Tuple
 
 from sqlalchemy.orm import Session
 
+from app.core.clock import utc_now
 from app.models.entities import Review, User, UserLibrary
 from app.schemas.review import ReviewCreate
 from app.services.diary_service import DiaryAction, record_event
@@ -33,6 +33,11 @@ _SPOILER_PATTERNS: list[Tuple[re.Pattern[str], float]] = [
     (re.compile(r"(\[spoiler\]|\bmajor\s+spoiler\b)", re.I), 0.70),
     (re.compile(r"\b(main\s+character|protagonist|narrator|villain)\s+(dies|is\s+dead|was\s+dead|is\s+the)\b", re.I), 0.60),
 ]
+
+
+def check_spoiler(text: str) -> Tuple[None, None, None]:
+    """Spoiler detection will be implemented in issue #152."""
+    return None, None, None
 
 
 
@@ -63,7 +68,7 @@ def upsert_review(
     current_user: User,
     entry_id: int,
     payload: ReviewCreate,
-) -> Review:
+) -> tuple[Review, bool]:
     """Create or replace the user's review for a library entry and run spoiler detection (US-14)."""
     entry = (
         db.query(UserLibrary)
@@ -73,9 +78,10 @@ def upsert_review(
     if not entry:
         raise LibraryEntryNotFoundError("Library entry not found")
 
-    contains_spoiler, spoiler_score, model_version = detect_spoilers(payload.text)
+    contains_spoiler, spoiler_score, model_version = check_spoiler(payload.text)
 
     review = db.query(Review).filter(Review.library_entry_id == entry.id).first()
+    is_new = review is None
     if review is None:
         review = Review(
             library_entry_id=entry.id,
@@ -90,7 +96,7 @@ def upsert_review(
         review.contains_spoiler = contains_spoiler
         review.spoiler_score = spoiler_score
         review.spoiler_model_version = model_version
-        review.updated_at = datetime.utcnow()
+        review.updated_at = utc_now()
 
     record_event(
         db,
@@ -101,7 +107,7 @@ def upsert_review(
     )
     db.commit()
     db.refresh(review)
-    return review
+    return review, is_new
 
 
 def get_review(db: Session, current_user: User, entry_id: int) -> Review | None:

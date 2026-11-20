@@ -21,8 +21,11 @@ from app.models.entities import (
 )
 from app.schemas.stats import GenreCount, PlaytimeBucket, PlaytimeStats, StatsResponse
 
-# A bucket of the playtime histogram is 5 hours wide
+# A bucket of the playtime histogram is 5 hours wide, capped at 100h with a final `100+h` bucket
 BUCKET_MINUTES = 5 * 60
+MAX_HISTOGRAM_HOURS = 100
+MAX_BUCKET_INDEX = (MAX_HISTOGRAM_HOURS * 60) // BUCKET_MINUTES  # 20 -> at most 21 buckets (0..20)
+OVERFLOW_BUCKET_LABEL = f"{MAX_HISTOGRAM_HOURS}+h"
 MIN_RATING, MAX_RATING = 1, 10
 
 # Cache TTL: 24 hours. The key is always deleted on write, so staleness is not a concern.
@@ -134,19 +137,25 @@ def _playtime_stats(totals: List[int]) -> PlaytimeStats:
     """Total minutes of the library and a histogram of the titles by their own total (rule 6.4).
 
     A title with no playtime is in the first bucket. A bucket includes its lower edge, so exactly
-    5 hours is in `5-10h`. Buckets between the first and the last are listed even when they are
-    empty, so a chart has no gaps.
+    5 hours is in `5-10h`. Buckets up to the highest active bucket are listed even when empty so
+    a chart has no gaps, capped at `100+h` (at most 21 buckets). `total_minutes` is never capped.
     """
     if not totals:
         return PlaytimeStats(total_minutes=0, histogram=[])
 
-    counts = [0] * (max(totals) // BUCKET_MINUTES + 1)
-    for minutes in totals:
-        counts[minutes // BUCKET_MINUTES] += 1
+    raw_indices = [min(max(minutes, 0) // BUCKET_MINUTES, MAX_BUCKET_INDEX) for minutes in totals]
+    last_index = max(raw_indices)
+    counts = [0] * (last_index + 1)
+    for idx in raw_indices:
+        counts[idx] += 1
 
     hours = BUCKET_MINUTES // 60
-    histogram = [
-        PlaytimeBucket(bucket=f"{index * hours}-{(index + 1) * hours}h", count=count)
-        for index, count in enumerate(counts)
-    ]
+    histogram: List[PlaytimeBucket] = []
+    for index, count in enumerate(counts):
+        if index == MAX_BUCKET_INDEX:
+            label = OVERFLOW_BUCKET_LABEL
+        else:
+            label = f"{index * hours}-{(index + 1) * hours}h"
+        histogram.append(PlaytimeBucket(bucket=label, count=count))
+
     return PlaytimeStats(total_minutes=sum(totals), histogram=histogram)

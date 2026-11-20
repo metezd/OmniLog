@@ -71,6 +71,30 @@ EXTERNAL_API_TIMEOUT_SECONDS = float(os.getenv("EXTERNAL_API_TIMEOUT_SECONDS", "
 EXTERNAL_API_MAX_RETRIES = int(os.getenv("EXTERNAL_API_MAX_RETRIES", "3"))
 EXTERNAL_API_BACKOFF_SECONDS = float(os.getenv("EXTERNAL_API_BACKOFF_SECONDS", "0.5"))
 
+# - Rate limits (#217)
+# Each limit is "<count>/<period>", where the period is second, minute, hour or day. Login and
+# register are counted per client address, search and review per user. RATE_LIMIT_ENABLED=false
+# turns all of them off (the tests do this, and the rate limit tests turn them on again).
+_RATE_LIMIT_PERIODS = {"second": 1, "minute": 60, "hour": 3600, "day": 86400}
+
+
+def _rate_limit(name: str, default: str) -> tuple[int, int]:
+    """Read a limit such as "10/minute" and return (count, period in seconds)."""
+    text = os.getenv(name, default).strip().lower()
+    count, _, period = text.partition("/")
+    if not count.isdigit() or int(count) < 1 or period not in _RATE_LIMIT_PERIODS:
+        raise RuntimeError(
+            f"{name} must look like 10/minute (a count of 1 or more, then second, minute, hour or day)"
+        )
+    return int(count), _RATE_LIMIT_PERIODS[period]
+
+
+RATE_LIMIT_ENABLED = os.getenv("RATE_LIMIT_ENABLED", "true").strip().lower() in ("1", "true", "yes", "on")
+RATE_LIMIT_LOGIN = _rate_limit("RATE_LIMIT_LOGIN", "10/minute")
+RATE_LIMIT_REGISTER = _rate_limit("RATE_LIMIT_REGISTER", "5/hour")
+RATE_LIMIT_SEARCH = _rate_limit("RATE_LIMIT_SEARCH", "30/minute")
+RATE_LIMIT_REVIEW = _rate_limit("RATE_LIMIT_REVIEW", "20/minute")
+
 # OpenAI integration (AI-powered embeddings and spoiler detection).
 # Leave OPENAI_API_KEY empty to disable OpenAI-backed features.
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()

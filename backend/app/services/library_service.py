@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.models.entities import MediaItem, User, UserLibrary
 from app.schemas.library import UserLibraryCreate, UserLibraryUpdate
+from app.services import catalog_service
 from app.services.diary_service import DiaryAction, record_event
 from app.services.stats_service import invalidate_stats_cache
 
@@ -26,7 +27,8 @@ class LibraryEntryNotFoundError(Exception):
 
 
 def add_entry(db: Session, user: User, data: UserLibraryCreate) -> UserLibrary:
-    if db.get(MediaItem, data.media_item_id) is None:
+    item = db.get(MediaItem, data.media_item_id)
+    if item is None:
         raise MediaNotFoundError("Media item not found")
 
     entry = UserLibrary(
@@ -53,18 +55,24 @@ def add_entry(db: Session, user: User, data: UserLibraryCreate) -> UserLibrary:
         )
 
     db.commit()
+    catalog_service.ensure_title_details(db, item)
     db.refresh(entry)
     invalidate_stats_cache(user.id)
     return entry
 
 
-def list_entries(db: Session, user: User) -> List[UserLibrary]:
+def list_entries(
+    db: Session, user: User, limit: int | None = None, offset: int = 0
+) -> List[UserLibrary]:
+    """The user's entries, oldest first. `limit=None` returns all of them."""
     # Load the media item in the same query. Without this, the response runs one query per entry.
     return (
         db.query(UserLibrary)
         .options(joinedload(UserLibrary.media_item))
         .filter(UserLibrary.user_id == user.id)
         .order_by(UserLibrary.id)
+        .limit(limit)
+        .offset(offset)
         .all()
     )
 
