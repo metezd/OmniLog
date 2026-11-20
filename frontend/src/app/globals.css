@@ -11,9 +11,9 @@
 
 :root {
   --horizon-aura-opacity: 0.35;
-  --glass-blur: 20px;
-  --glass-bg-alpha: 0.05;
-  --glass-border-alpha: 0.16;
+  --glass-blur: 28px;
+  --glass-bg-alpha: 0.92;
+  --glass-border-alpha: 0.22;
 }
 
 body {
@@ -109,17 +109,52 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #009bb9;
 }
-/* === LIQUID GLASS READABILITY PATCH === */
+/* === LIQUID GLASS HIGH-CONTRAST READABILITY PATCH === */
 .liquid-glass,
 .glass-card,
 .glass-panel,
 [class*="backdrop-blur"] {
-  background-color: rgba(8, 12, 22, 0.78) !important;
-  backdrop-filter: blur(22px) saturate(165%) !important;
-  -webkit-backdrop-filter: blur(22px) saturate(165%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.14) !important;
-  box-shadow: 0 12px 36px -6px rgba(0, 0, 0, 0.7), inset 0 1px 0 0 rgba(255, 255, 255, 0.12) !important;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+  background-color: rgba(7, 11, 20, 0.93) !important;
+  background-image: linear-gradient(
+    180deg,
+    rgba(17, 25, 42, 0.94) 0%,
+    rgba(7, 11, 20, 0.95) 100%
+  ) !important;
+  backdrop-filter: blur(28px) saturate(170%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(170%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+  box-shadow:
+    0 16px 42px -6px rgba(0, 0, 0, 0.85),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.18) !important;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95);
+}
+
+/* High-contrast titles, links, and secondary text inside liquid glass & main content */
+main h1,
+main h2,
+main h3,
+.liquid-glass h1,
+.liquid-glass h2,
+.liquid-glass h3,
+.liquid-glass a,
+.liquid-glass strong {
+  color: #ffffff;
+  text-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.95),
+    0 1px 2px rgba(0, 0, 0, 1);
+}
+
+.liquid-glass .text-slate-300,
+.liquid-glass .text-zinc-300 {
+  color: #f1f5f9 !important;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95);
+}
+
+.liquid-glass .text-slate-400,
+.liquid-glass .text-zinc-400,
+main > div > div > p.text-slate-400 {
+  color: #e2e8f0 !important;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.95);
 }
 
 /* Keep form inputs, buttons, and inner cards extra crisp */
@@ -129,14 +164,22 @@ body {
 main input,
 main select,
 main textarea {
-  background-color: rgba(4, 6, 12, 0.90) !important;
-  border-color: rgba(255, 255, 255, 0.16) !important;
-  color: #f8fafc !important;
+  background-color: rgba(4, 6, 12, 0.95) !important;
+  border-color: rgba(255, 255, 255, 0.24) !important;
+  color: #ffffff !important;
   text-shadow: none;
 }
 
-/* Ensure main content always sits cleanly above the zIndex 0 ASCII canvas */
-header, nav, [role="dialog"], form, .liquid-glass, .glass-card { position: relative; z-index: 10; } main { position: relative; z-index: 2; background: transparent !important; }
+/* Ensure main content always sits cleanly above the zIndex 1 ASCII canvas */
+header, nav, [role="dialog"], form, .liquid-glass, .glass-card {
+  position: relative;
+  z-index: 10;
+}
+main {
+  position: relative;
+  z-index: 30;
+  background: transparent !important;
+}
 
 
 /* === ASCII CANVAS STACKING OVERRIDE === */

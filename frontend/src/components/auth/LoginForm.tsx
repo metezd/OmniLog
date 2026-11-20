@@ -36,11 +36,6 @@ export default function LoginForm({ registered = false }: LoginFormProps) {
         placeholder="••••••••"
         autoComplete="current-password"
         error={state?.fieldErrors?.password}
-        labelAside={
-          <a href="#" className="text-[11px] text-horizon-cyan hover:underline">
-            Forgot?
-          </a>
-        }
       />
 
       <button

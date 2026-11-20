@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import AuthBanner from "@/components/auth/AuthBanner";
-import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 import LoginForm from "@/components/auth/LoginForm";
 
 export const metadata: Metadata = {
@@ -31,16 +30,6 @@ export default async function LoginPage({
         {expired === "1" && (
           <AuthBanner variant="info">Your session has ended. Please sign in again.</AuthBanner>
         )}
-
-        <GoogleSignInButton />
-
-        <div className="flex items-center gap-3 my-2">
-          <div className="flex-1 h-px bg-white/10" />
-          <span className="text-[10px] text-slate-400 uppercase tracking-wider">
-            or sign in with email
-          </span>
-          <div className="flex-1 h-px bg-white/10" />
-        </div>
 
         <LoginForm registered={registered === "1"} />
 
