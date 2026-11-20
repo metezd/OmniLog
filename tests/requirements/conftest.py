@@ -83,10 +83,12 @@ def fast_password_hashing():
     about 0.65 s of hashing per test. Cost 4 is the minimum bcrypt allows and takes a few
     milliseconds. The hash format and the verify logic stay the same.
     """
-    from app.core.security import pwd_context
+    from app.core import security
 
-    pwd_context.update(bcrypt__rounds=4)
+    production_rounds = security.BCRYPT_ROUNDS
+    security.BCRYPT_ROUNDS = 4
     yield
+    security.BCRYPT_ROUNDS = production_rounds
 
 
 @pytest.fixture(scope="session", autouse=True)
