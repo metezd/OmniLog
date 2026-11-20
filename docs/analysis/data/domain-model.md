@@ -74,7 +74,7 @@ A named list that a user builds, for example "Best narrative games". The item ta
 ### 3.5 DiaryEntry (earlier called ActivityEvent)
 One entry of the activity diary. It records an action of the user. The table is `diary_entries`, with the columns `action` and `details` (a short text) in place of the planned `event_type` and `payload`.
 - Event types (the values of `action`): `LIBRARY_ADDED`, `STATUS_CHANGED`, `RATED`, `CHAPTER_RATED`, `PLAYTIME_LOGGED`, `DECISION_RECORDED`, `LIST_CREATED`, `LIST_ITEM_ADDED`, `LIBRARY_REMOVED`, `LIST_ITEM_REMOVED`, `LIST_DELETED`, `REVIEW_POSTED`.
-- Rules: events are only appended. They are never edited or deleted. A removal is a new event and the older events about the same title stay. The diary shows them newest first.
+- Rules: events are only appended. They are never edited or deleted. A removal is a new event and the older events about the same title stay. The diary shows them newest first. The table has an index on `(user_id, created_at DESC)` for this list and one on `media_item_id` for the delete cascade of a title (migration 0013). The diary is read in pages with `limit` and `offset` (default 100, at most 500).
 
 ### 3.6 ExternalSource (not built)
 An outside data provider. The values are `IGDB` and `TMDB`.

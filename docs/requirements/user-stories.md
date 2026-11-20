@@ -75,6 +75,7 @@ Acceptance criteria:
 Acceptance criteria:
 - Given I added and rated a title, when I `GET /diary`, then both events are returned, newest first.
 - Given I am a new user with no activity, when I `GET /diary`, then I receive an empty list with status 200.
+- Given I have more than 100 events, when I `GET /diary`, then I receive the 100 newest events. With `limit` (1 to 500) and `offset` I can read the older ones, and the order stays newest first. A `limit` above 500 returns 422.
 
 ---
 
