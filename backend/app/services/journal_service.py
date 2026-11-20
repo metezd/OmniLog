@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.models.entities import CustomList, CustomListItem, DiaryEntry, MediaItem, User
 from app.services.diary_service import DiaryAction, record_event
+from app.services.stats_service import invalidate_stats_cache
 
 
 class ListNotFoundError(Exception):
@@ -59,12 +60,17 @@ def _get_own_list(db: Session, user: User, list_id: int) -> CustomList:
     return custom_list
 
 
-def list_lists(db: Session, user: User) -> List[CustomList]:
+def list_lists(
+    db: Session, user: User, limit: int | None = None, offset: int = 0
+) -> List[CustomList]:
+    """The user's lists, oldest first. `limit=None` returns all of them."""
     return (
         db.query(CustomList)
         .options(selectinload(CustomList.items))
         .filter(CustomList.user_id == user.id)
         .order_by(CustomList.id)
+        .limit(limit)
+        .offset(offset)
         .all()
     )
 
@@ -131,6 +137,7 @@ def remove_item(db: Session, user: User, list_id: int, media_item_id: int) -> No
         f"Removed from list {custom_list.name}",
     )
     db.commit()
+    invalidate_stats_cache(user.id)
 
 
 def delete_list(db: Session, user: User, list_id: int) -> None:
@@ -142,13 +149,22 @@ def delete_list(db: Session, user: User, list_id: int) -> None:
     db.delete(custom_list)
     record_event(db, user.id, DiaryAction.LIST_DELETED, None, f"Deleted list {name}")
     db.commit()
+    invalidate_stats_cache(user.id)
 
 
-def diary_for_user(db: Session, user: User) -> List[DiaryEntry]:
-    """Newest events first. Only the user's own events."""
+def diary_for_user(
+    db: Session, user: User, limit: int | None = None, offset: int = 0
+) -> List[DiaryEntry]:
+    """Newest events first. Only the user's own events. `limit=None` returns all of them.
+
+    The `id` is the tie breaker, so two events with the same time keep a stable order and a
+    page never repeats or skips a row.
+    """
     return (
         db.query(DiaryEntry)
         .filter(DiaryEntry.user_id == user.id)
         .order_by(DiaryEntry.created_at.desc(), DiaryEntry.id.desc())
+        .limit(limit)
+        .offset(offset)
         .all()
     )

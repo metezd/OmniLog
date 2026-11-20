@@ -1,6 +1,6 @@
 # DFD Level 2: Epic 2, User Management and Social Journal
 
-This document is the detailed view (Level 2) of process **2.0 User and Journal Management**. The parent diagram is in [dfd-level0-1.md](dfd-level0-1.md).
+This document is the detailed view (Level 2) of process **2.0 User and Journal Management**. The parent diagram is in [dfd-level0-1.md](dfd-level0-1.md). It was checked against the code on 19.11.2026.
 
 ## 1. Scope
 
@@ -19,17 +19,17 @@ This document is the detailed view (Level 2) of process **2.0 User and Journal M
 | Type | Items |
 |---|---|
 | External entities | Visitor, User |
-| Neighbor processes | 1.0 API Gateway (token check), 3.0 Catalog (title lookup) |
-| Data stores | D1 Users, D2 Library, D3 Lists, D4 Activity Log, D5 Catalog (read only) |
+| Neighbor processes | 1.0 API Gateway (token check) |
+| Data stores | D1 Users, D2 Library, D3 Lists, D4 Activity Log (table `diary_entries`), D5 Catalog (read only), D9 Redis Cache (statistics are deleted after a change) |
 
 ### Process list
 
 | ID | Process | Input | Output | Stores |
 |---|---|---|---|---|
 | 2.1 | Register Account | Username, email, password | Account without password data (201), 409 or 422 | D1 write |
-| 2.2 | Authenticate User | Username, password | Access token (200) or 401 | D1 read |
-| 2.3 | Manage Library | Media id, status, rating | Library entry (201 or 200), 409, 404 or 422 | D2 read and write, D5 read |
-| 2.4 | Manage Custom Lists | List name, media id | List or list item (201 or 200), 422 | D3 read and write, D5 read |
+| 2.2 | Authenticate User | Username or email, password. `GET /auth/me` has the token | Access token (200) or 401. The logged-in user for `/auth/me` | D1 read |
+| 2.3 | Manage Library | Media id, status, rating | Library entry (201 or 200), 204 for a removal, 409, 404 or 422 | D2 read and write, D5 read, D9 delete |
+| 2.4 | Manage Custom Lists | List name, media id | List or list item (201 or 200), 204 for a removal, 404, 409 or 422 | D3 read and write, D5 read, D9 delete |
 | 2.5 | Record Activity | Event from 2.3, 2.4 or other processes | Stored event | D4 write |
 | 2.6 | Serve Diary | Request of a user | List of events, newest first (200) | D4 read |
 
@@ -40,7 +40,6 @@ flowchart TB
     Visitor[Visitor]
     User[User]
     GW("1.0 API Gateway and Access Control")
-    P3("3.0 Catalog Aggregation")
 
     P21("2.1 Register Account")
     P22("2.2 Authenticate User")
@@ -53,6 +52,7 @@ flowchart TB
     D2[("D2 Library")]
     D3[("D3 Lists")]
     D4[("D4 Activity Log")]
+    D5[("D5 Catalog")]
     D9[("D9 Redis Cache")]
 
     Visitor -->|"registration data"| GW
@@ -72,16 +72,17 @@ flowchart TB
     D1 -->|"user and password hash"| P22
     P22 -->|"access token or 401"| Visitor
 
-    P23 -->|"title lookup"| P3
-    P3 -->|"title found or not"| P23
+    P23 -->|"title lookup"| D5
+    D5 -->|"title found or not"| P23
     P23 <-->|"library entries"| D2
-    P23 -->|"added, rated or status changed event"| P25
+    P23 -->|"added, rated, status changed or removed event"| P25
     P23 -->|"delete cached statistics"| D9
     P23 -->|"entry or error"| User
 
-    P24 -->|"title lookup"| P3
+    P24 -->|"title lookup"| D5
     P24 <-->|"lists and items"| D3
-    P24 -->|"list created or item added event"| P25
+    P24 -->|"list and item events"| P25
+    P24 -->|"delete cached statistics after a removal"| D9
     P24 -->|"list or error"| User
 
     P25 -->|"append event"| D4
@@ -92,46 +93,48 @@ flowchart TB
 ## 4. Process rules
 
 ### 2.1 Register Account (US-02)
-1. Check that the username is not empty and the email has a valid format. If not, answer 422.
+1. Check that the username is not empty and has no `@` (BR-18), and that the email has a valid format. If not, answer 422.
 2. Check that the username and email are not used. If they are, answer 409.
 3. Hash the password. Save the user in D1.
 4. Answer 201 with the user data. The answer never contains the password or the hash (NFR-03).
 
 ### 2.2 Authenticate User (US-03)
-1. Find the user by username in D1.
+1. Find the user in D1 by the value of the field `username`. A value with `@` is read as an email, any other value as a username (BR-18).
 2. Compare the password with the stored hash.
 3. If they match, create a signed access token (JWT) and answer 200.
-4. If they do not match, answer 401. No token is sent.
+4. If they do not match, or the user does not exist, answer 401 with the same message in both cases. No token is sent.
+5. `GET /auth/me` returns the logged-in user (without the password hash). The token holds only the user id.
 
 ### 2.3 Manage Library (US-04 and US-05)
 - **Add a title (`POST /library`):**
-  1. Ask process 3.0 if the title exists.
+  1. Read D5 to check that the title exists. If it does not, answer 404. Process 2.3 does not load the details of the title at this point.
   2. If the user already has the title, answer 409.
   3. Create the entry in D2. The default status is `PLAN_TO_WATCH`. Answer 201.
-  4. Send a `LIBRARY_ADDED` event to 2.5.
+  4. Send a `LIBRARY_ADDED` event to 2.5, and a `RATED` event too when the request has a rating.
 - **List the library (`GET /library`):** return the entries of the logged-in user only.
 - **Update an entry (`PATCH /library/{id}`):**
-  1. Find the entry. If it does not exist or belongs to another user, answer 404 (or 403).
+  1. Find the entry. If it does not exist or belongs to another user, answer 404.
   2. If the rating is not from 1 to 10, answer 422. The entry stays unchanged.
-  3. Save the new status or rating.
-  4. Send a `RATED` event when the rating changed and a `STATUS_CHANGED` event when the status changed.
+  3. Save the new status or rating. A rating of `null` clears the rating.
+  4. Send a `RATED` event when the rating changed (the text is "Rating removed" after a clear) and a `STATUS_CHANGED` event when the status changed. Sending the same value again writes no event.
 - **Remove an entry (`DELETE /library/{id}`, extension, not a story of the Charter):**
   1. Find the entry. If it does not exist or belongs to another user, answer 404. A second delete of the same entry is also a 404.
   2. Delete the entry. The chapter ratings, playtime and decisions of the user for this title are deleted with it (`ON DELETE CASCADE`). The title stays in the catalog. The client is expected to ask the user for confirmation first.
   3. Send a `LIBRARY_REMOVED` event to 2.5, in the same transaction as the delete. Answer 204.
-- After every change, delete the cached statistics of the user (`omni:stats:{user_id}`).
+- After every add, update and removal, delete the cached statistics of the user (`omni:stats:{user_id}`).
 
 ### 2.4 Manage Custom Lists (US-06)
 1. `POST /lists`: if the name is empty, answer 422. If the user already has a list with this name, answer 409. Otherwise create the list and answer 201.
 2. `POST /lists/{id}/items`: check that the list belongs to the user and that the title exists. Add the item. A title that is already in the list is not added a second time: answer 201 when it is added, 200 when it was already there.
 3. `GET /lists`: return all lists of the user. `GET /lists/{id}`: return the list with its items.
-4. Send `LIST_CREATED` and `LIST_ITEM_ADDED` events to 2.5.
+4. Send `LIST_CREATED` and `LIST_ITEM_ADDED` events to 2.5. An item that was already in the list writes no event.
 5. `DELETE /lists/{id}/items/{media_item_id}` (extension): take a title out of a list that belongs to the user. If the list is not the user's or the title is not in it, answer 404. Send a `LIST_ITEM_REMOVED` event. Answer 204. The title stays in the catalog and in the library.
 6. `DELETE /lists/{id}` (extension): delete a list of the user with its items. If the list is not the user's, answer 404. Send a `LIST_DELETED` event (no title). Answer 204. The name can be used again.
+7. After the two removals of steps 5 and 6, delete the cached statistics of the user.
 
 ### 2.5 Record Activity (US-07)
-- Receives an event with the user id, the type, the title and a small payload.
-- Appends the event to D4. Events are never edited and never deleted. A removal is a new event, and the older events about the same title stay.
+- Receives an event with the user id, the type, the title and a short text (`details`, cut at 255 characters).
+- Adds the event in the same transaction as the change it describes, so an event is never stored without its change. It is appended to D4 (`diary_entries`). Events are never edited and never deleted. A removal is a new event, and the older events about the same title stay.
 
 ### 2.6 Serve Diary (US-07)
 - Reads the events of the logged-in user from D4. The newest event comes first.

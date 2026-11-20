@@ -1,8 +1,8 @@
 # Domain Model
 
-> **Note:** this document describes the baseline that is already implemented. The full analysis model for all six epics is in [data/domain-model.md](data/domain-model.md).
+> **Note:** this document is the record of the first slice of the code: users, titles and the library. It is no longer the full picture. The code now has more tables, and `media_items` has more columns than shown here (`description` and `last_synced`). The current model for all six epics is in [data/domain-model.md](data/domain-model.md).
 
-This document summarizes the current domain model for OmniLog as represented in the backend data model and aligned with the project requirements. The scope is intentionally limited to the entities that already exist in the codebase and the relationships needed to support media tracking and personal library management.
+This document summarizes the first slice of the domain model of OmniLog. The scope is limited to the entities that existed at that time and the relationships needed to support media tracking and personal library management.
 
 ## Core entities
 
@@ -55,6 +55,7 @@ Rules / assumptions:
 - `media_type` is required
 - Title is required for catalog identity
 - External IDs are optional and may be null when the item is not linked to an external source
+- When a title with an external ID is added to a user's library and its details have not been synced yet, its description and genres are automatically fetched and saved (issue #125).
 
 ---
 
@@ -83,6 +84,7 @@ Rules / assumptions:
 - A user cannot add the same media item twice to the same library
 - `rating` must be between 1 and 10 when provided
 - Status defaults to `PLAN_TO_WATCH` when no explicit value is provided
+- Adding a catalog title to the library ensures its genres and description are populated from external sources (Option 1 for issue #125) so that statistics (US-15) and recommendations (US-13) have complete data. Failure of external services does not block library addition (NFR-04).
 
 ---
 
@@ -110,4 +112,4 @@ This pattern keeps the catalog clean while storing all personal tracking state i
 
 ## Design notes
 
-The current implementation is intentionally simple and domain-focused. It supports the project's minimum viable media-tracking workflow without introducing more advanced concepts such as custom lists, chapter-level tracking, review moderation, or AI recommendations. Those features can be layered on top of this structure later.
+This first slice was intentionally simple. It supported the minimum media-tracking workflow without custom lists, chapter-level tracking, review moderation or recommendations. Those features were layered on top of this structure later and are described in [data/domain-model.md](data/domain-model.md).

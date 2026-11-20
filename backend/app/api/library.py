@@ -1,10 +1,12 @@
 """Library endpoints: add a title, list my library, rate, update and remove an entry (US-04, US-05)."""
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
+
+from app.api.deps import get_current_user, limit_per_user
+from app.api.pagination import Page, library_page
 from app.core.database import get_db
 from app.models.entities import User
 from app.schemas.library import UserLibraryCreate, UserLibraryResponse, UserLibraryUpdate
@@ -36,11 +38,16 @@ def add_to_library(
 
 @router.get("", response_model=List[UserLibraryResponse])
 def get_library(
+    page: Page = Depends(library_page),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Get the library entries of the logged-in user only."""
-    return library_service.list_entries(db, current_user)
+    """Get the library entries of the logged-in user only, oldest first.
+
+    `limit` (1 to 500, default 200) and `offset` (default 0) page the answer. The answer stays a
+    plain list. A limit above 500 gives 422.
+    """
+    return library_service.list_entries(db, current_user, limit=page.limit, offset=page.offset)
 
 
 @router.patch("/{entry_id}", response_model=UserLibraryResponse)
@@ -72,16 +79,28 @@ def remove_library_entry(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
 
 
-@router.post("/{entry_id}/review", response_model=ReviewResponse, status_code=status.HTTP_201_CREATED)
+
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+
+
+@router.post(
+    "/{entry_id}/review",
+    response_model=ReviewResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(limit_per_user("review"))],
+)
 def submit_review(
     entry_id: int,
     payload: ReviewCreate,
+    response: Response,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Submit or replace the user's review for a library entry with spoiler detection (US-14)."""
     try:
-        return review_service.upsert_review(db, current_user, entry_id, payload)
+        review, is_new = review_service.upsert_review(db, current_user, entry_id, payload)
+        response.status_code = status.HTTP_201_CREATED if is_new else status.HTTP_200_OK
+        return review
     except LibraryEntryNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
 
@@ -94,6 +113,9 @@ def get_review(
 ):
     """Get the user's review for a library entry, or null when no review has been posted yet."""
     try:
-        return review_service.get_review(db, current_user, entry_id)
+        review = review_service.get_review(db, current_user, entry_id)
+        if review is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Review not found")
+        return review
     except LibraryEntryNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))

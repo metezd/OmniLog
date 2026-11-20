@@ -1,14 +1,15 @@
 """Personal statistics of a user's library (US-15, process 6.1 to 6.5).
 
 Everything is computed from the library of the user on each request. Epic 6 has no tables of its
-own. The Redis cache of the design (`omni:stats:{user_id}`) is not used yet: a cache needs the
-clearing after every change of the library and of the playtime, and the two come together.
+own. The result is cached in Redis under `omni:stats:{user_id}` and is invalidated whenever the
+user changes their library, ratings, playtime or decisions (US-15).
 """
 from typing import Dict, List
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.core import cache
 from app.models.entities import (
     ChapterProgress,
     Genre,
@@ -20,12 +21,37 @@ from app.models.entities import (
 )
 from app.schemas.stats import GenreCount, PlaytimeBucket, PlaytimeStats, StatsResponse
 
-# A bucket of the playtime histogram is 5 hours wide
+# A bucket of the playtime histogram is 5 hours wide, capped at 100h with a final `100+h` bucket
 BUCKET_MINUTES = 5 * 60
+MAX_HISTOGRAM_HOURS = 100
+MAX_BUCKET_INDEX = (MAX_HISTOGRAM_HOURS * 60) // BUCKET_MINUTES  # 20 -> at most 21 buckets (0..20)
+OVERFLOW_BUCKET_LABEL = f"{MAX_HISTOGRAM_HOURS}+h"
 MIN_RATING, MAX_RATING = 1, 10
+
+# Cache TTL: 24 hours. The key is always deleted on write, so staleness is not a concern.
+_STATS_TTL_SECONDS = 24 * 60 * 60
+_STATS_KEY_PREFIX = "omni:stats:"
+
+
+def _stats_key(user_id: int) -> str:
+    return f"{_STATS_KEY_PREFIX}{user_id}"
+
+
+def invalidate_stats_cache(user_id: int) -> None:
+    """Delete the cached statistics for one user.
+
+    Called by every service that changes library entries, ratings, playtime or decisions so
+    that the next GET /stats recomputes fresh numbers.
+    """
+    cache.clear_prefix(_stats_key(user_id))
 
 
 def get_stats(db: Session, user: User) -> StatsResponse:
+    key = _stats_key(user.id)
+    cached = cache.get_json(key)
+    if cached is not None:
+        return StatsResponse(**cached)
+
     # 6.1 Collect the data. Only the library of the logged-in user is read (BR-16).
     rows = (
         db.query(UserLibrary.id, MediaItem.media_type, UserLibrary.rating)
@@ -48,13 +74,15 @@ def get_stats(db: Session, user: User) -> StatsResponse:
     for _, media_type, _ in rows:
         type_counts[media_type] += 1
 
-    return StatsResponse(
+    result = StatsResponse(
         total_items=len(rows),
         media_split=_media_split(type_counts),
         rating_distribution=_rating_distribution([rating for _, _, rating in rows]),
         genre_breakdown=_genre_breakdown(genre_rows),
         playtime=_playtime_stats([playtime_by_entry.get(entry_id, 0) for entry_id, _, _ in rows]),
     )
+    cache.set_json(key, result.model_dump(mode="json"), _STATS_TTL_SECONDS)
+    return result
 
 
 def _playtime_by_entry(db: Session, user: User) -> Dict[int, int]:
@@ -109,19 +137,25 @@ def _playtime_stats(totals: List[int]) -> PlaytimeStats:
     """Total minutes of the library and a histogram of the titles by their own total (rule 6.4).
 
     A title with no playtime is in the first bucket. A bucket includes its lower edge, so exactly
-    5 hours is in `5-10h`. Buckets between the first and the last are listed even when they are
-    empty, so a chart has no gaps.
+    5 hours is in `5-10h`. Buckets up to the highest active bucket are listed even when empty so
+    a chart has no gaps, capped at `100+h` (at most 21 buckets). `total_minutes` is never capped.
     """
     if not totals:
         return PlaytimeStats(total_minutes=0, histogram=[])
 
-    counts = [0] * (max(totals) // BUCKET_MINUTES + 1)
-    for minutes in totals:
-        counts[minutes // BUCKET_MINUTES] += 1
+    raw_indices = [min(max(minutes, 0) // BUCKET_MINUTES, MAX_BUCKET_INDEX) for minutes in totals]
+    last_index = max(raw_indices)
+    counts = [0] * (last_index + 1)
+    for idx in raw_indices:
+        counts[idx] += 1
 
     hours = BUCKET_MINUTES // 60
-    histogram = [
-        PlaytimeBucket(bucket=f"{index * hours}-{(index + 1) * hours}h", count=count)
-        for index, count in enumerate(counts)
-    ]
+    histogram: List[PlaytimeBucket] = []
+    for index, count in enumerate(counts):
+        if index == MAX_BUCKET_INDEX:
+            label = OVERFLOW_BUCKET_LABEL
+        else:
+            label = f"{index * hours}-{(index + 1) * hours}h"
+        histogram.append(PlaytimeBucket(bucket=label, count=count))
+
     return PlaytimeStats(total_minutes=sum(totals), histogram=histogram)

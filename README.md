@@ -16,7 +16,7 @@ CMPE 331 Software Engineering Concepts, Fall 2026-2027
 - Custom lists & history: Organize content your way and view your activity log.
 - All in one search: Find games and shows instantly with cached IGDB and TMDB data.
 - Episode & chapter tracking: Log playtimes, rate individual chapters, and save choice paths.
-- Cross media recommendations: Get show suggestions based on games you play, and vice versa.
+- Cross media recommendations: Titles you do not own yet, ranked by the genres of your library and your ratings.
 - Automatic spoiler shield: Plot-revealing reviews are flagged automatically.
 - Insights dashboard: Track genre breakdowns, rating trends, and total playtime stats.
 
@@ -31,14 +31,14 @@ flowchart LR
     subgraph Backend["FastAPI Backend"]
         GW["API Gateway and Auth<br/>JWT"]
         J["Journal<br/>library, lists, diary"]
-        C["Catalog<br/>search, details, sync"]
+        C["Catalog<br/>search, details"]
         E["Episodic Logging<br/>chapters, playtime, decisions"]
         AI["AI Engine<br/>recommendations, spoilers"]
         S["Analytics<br/>statistics"]
     end
 
     subgraph Data
-        PG[("PostgreSQL<br/>+ pgvector")]
+        PG[("PostgreSQL")]
         R[("Redis<br/>cache")]
     end
 
@@ -62,32 +62,30 @@ flowchart LR
     C --> PG
     C --> R
     AI --> PG
-    AI --> R
 
     C --> IGDB
     C --> TMDB
-    AI --> EMB
-    C -->|"new or changed titles"| AI
+    AI -->|"spoiler check"| EMB
 ```
 
-The backend is a single FastAPI application. It is split into modules that match the six epics. The detailed data flow diagrams are in [`docs/analysis/behavior`](docs/analysis/behavior/dfd-level0-1.md).
+The backend is a single FastAPI application. It is split into modules that match the six epics. The recommendations do not use the embedding service yet. They read the genres in PostgreSQL. Only the spoiler check calls OpenAI. The detailed data flow diagrams are in [`docs/analysis/behavior`](docs/analysis/behavior/dfd-level0-1.md).
 
 ## Roadmap
 
 Each step builds on the one before. A step is done when its tests pass.
 
-| Step | Goal | Stories |
-|---|---|---|
-| 0 | Decisions: database (PostgreSQL), rating scales (library 1 to 10, chapters 1 to 5) and chapter data source (seed file) are made. The embedding model is still open | - |
-| 1 | Infrastructure: Docker Compose, migrations, settings, test database, health check | US-01 |
-| 2 | Authentication: register, login, JWT, protected endpoints | US-02, US-03 |
-| 3 | Catalog base and library: media tables, add, rate and update titles | US-04, US-05 |
-| 4 | Journal: custom lists and activity diary | US-06, US-07 |
-| 5 | External catalog: IGDB and TMDB, Redis cache, search, details, sync | US-08, US-09 |
-| 6 | Episodic logging: chapter ratings, playtime, decisions | US-10 to US-12 |
-| 7 | Analytics: personal statistics | US-15 |
-| 8 | AI engine: spoiler detection, embeddings, recommendations | US-13, US-14 |
-| 9 | Hardening: non-functional tests, 70% coverage, test report, code freeze | NFR-01 to NFR-05 |
+| Step | Goal | Stories | State |
+|---|---|---|---|
+| 0 | Decisions: database (PostgreSQL), rating scales (library 1 to 10, chapters 1 to 5), chapter data source (seed file) and embedding model (`text-embedding-3-small`, 1536 dimensions, set in `backend/app/core/config.py`) | - | Done |
+| 1 | Infrastructure: Docker Compose, migrations, settings, test database, health check | US-01 | Done |
+| 2 | Authentication: register, login, JWT, protected endpoints | US-02, US-03 | Done |
+| 3 | Catalog base and library: media tables, add, rate and update titles | US-04, US-05 | Done |
+| 4 | Journal: custom lists and activity diary | US-06, US-07 | Done |
+| 5 | External catalog: IGDB and TMDB, Redis cache, search, details | US-08, US-09 | Done, except the manual sync. No endpoint or job syncs titles by hand |
+| 6 | Episodic logging: chapter ratings, playtime, decisions | US-10 to US-12 | Done |
+| 7 | Analytics: personal statistics with a Redis cache | US-15 | Done |
+| 8 | AI engine: spoiler detection, embeddings, recommendations | US-13, US-14 | US-14 done. US-13 is partly done: the recommendations rank by genre and nothing creates or stores embeddings (no `media_embeddings` table) |
+| 9 | Hardening: non-functional tests, 70% coverage, test report, code freeze | NFR-01 to NFR-05 | Partly done. The NFR tests exist and the coverage gate of 70% is in CI (the last local run measured 91%). The Software Testing Report and the code freeze are not in the repository |
 
 ### Milestones
 
@@ -102,7 +100,16 @@ Each step builds on the one before. A step is done when its tests pass.
 
 ## Project status
 
-The project is in the analysis phase. Requirements, tests and analysis documents are ready. Roadmap steps 1 to 4 and the stories of step 5 (US-08 and US-09) are in place: Docker Compose services, settings, migrations, a PostgreSQL test database, registration and login with JWT (`POST /auth/register`, `POST /auth/login`), catalog entries (`POST /media`), the library (`GET /library`, `POST /library`, `PATCH /library/{id}`), custom lists and the activity diary (`/lists`, `/diary`) catalog search in IGDB and TMDB (`GET /catalog/search`) title details with seasons, episodes and chapters (`GET /catalog/{id}`) chapter ratings (`PUT /library/{id}/chapters/{chapter_id}/rating`, US-10 of step 6) and playtime per chapter (`POST /library/{id}/chapters/{chapter_id}/playtime`, `GET /library/{id}/chapters/{chapter_id}`, US-11) and personal statistics (`GET /stats`, US-15 of step 7). The manual sync of step 5, decisions (US-12) and recommendations are not implemented yet. The requirement-level tests are written first, so most of them fail on purpose until the features are built.
+The backend is built for every story except the parts listed at the end of this paragraph. All six epics have endpoints and tests: registration and login (`POST /auth/register`, `POST /auth/login`, `GET /auth/me`), the catalog (`POST /media`, `GET /catalog/search`, `GET /catalog/{id}`), the library (`/library`), custom lists and the activity diary (`/lists`, `/diary`), chapter ratings, playtime and decisions (`/library/{id}/chapters/{chapter_id}/...`, US-10 to US-12), personal statistics with a Redis cache (`GET /stats`, US-15), reviews with spoiler detection (`POST` and `GET /library/{id}/review`, US-14) and recommendations (`GET /recommendations`, US-13). The tests pass: the last full run of the suite gave 735 passed and 7 skipped (the live API tests), with 91% line coverage of `backend/app`.
+
+Not built yet:
+
+- The manual sync of step 5.
+- Embeddings. The OpenAI client has a function for them, but nothing in the API calls it and there is no `media_embeddings` table. The recommendations rank the titles that the user does not own by the genres of the library, weighted by the ratings.
+- The Operator role (`is_admin`), the sync job log and the admin endpoints of the design.
+- Loading the details of a title when it is added to the library. The genres and the description are loaded when the details are opened, so a title that goes straight from a search into the library has no genres until someone opens it.
+
+The frontend calls the backend from its server code (see [Frontend](#frontend)). The friends page still shows sample data.
 
 ## Getting started
 
@@ -123,18 +130,20 @@ cp .env.example .env
 python -c "import secrets; print(secrets.token_urlsafe(32))"
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install --require-hashes -r requirements.txt
 alembic upgrade head
 uvicorn app.main:app --reload
 ```
 
+`requirements.txt` is a lock file for Linux and the Python version of the production image (see `backend/requirements.in`). On Windows, or on another Python version, use `pip install -r requirements.in` instead. You then get the newest allowed versions, not the locked ones.
+
 The API runs at `http://localhost:8000`. Interactive docs are at `http://localhost:8000/docs`.
 
-`DATABASE_URL` and `SECRET_KEY` are required, and the app stops with a clear error if either is missing. `DATABASE_URL` must point to PostgreSQL and `SECRET_KEY` must be at least 32 characters. `ACCESS_TOKEN_EXPIRE_MINUTES` is optional and defaults to 60. It sets how long a login token stays valid. The settings are read from `backend/.env` (see `backend/.env.example`).
+`DATABASE_URL` and `SECRET_KEY` are required, and the app stops with a clear error if either is missing. `DATABASE_URL` must point to PostgreSQL and `SECRET_KEY` must be at least 32 characters. `ACCESS_TOKEN_EXPIRE_MINUTES` is optional and defaults to 90. It sets how long a login token stays valid. The settings are read from `backend/.env` (see `backend/.env.example`). Start PostgreSQL before the API. When nothing listens on `localhost:5432`, `backend/app/core/database.py` falls back to a local SQLite file for development and drops the CHECK constraints of the models. This is a leftover and the team decision is PostgreSQL only, so the tests and the migrations are written for PostgreSQL.
 
-**Catalog search keys.** `GET /catalog/search` needs keys for the outside services: `IGDB_CLIENT_ID` and `IGDB_CLIENT_SECRET` for games (a Twitch application, see the comments in `.env.example`) and `TMDB_API_KEY` for series and movies. A source without keys is turned off and its searches return 503. Search results are cached in Redis (`REDIS_URL`, `CACHE_TTL_SECONDS`). If Redis is down, an in-process cache is used. Never commit real keys.
+**Catalog search keys.** `GET /catalog/search` needs keys for the outside services: `IGDB_CLIENT_ID` and `IGDB_CLIENT_SECRET` for games (a Twitch application, see the comments in `.env.example`) and `TMDB_API_KEY` for series and movies. A source without keys is turned off and its searches return 503. Search results are cached in Redis (`REDIS_URL`, `CACHE_TTL_SECONDS`). If Redis is down, an in-process cache is used. Calls to IGDB and TMDB time out after `EXTERNAL_API_TIMEOUT_SECONDS` and are tried again up to `EXTERNAL_API_MAX_RETRIES` times when they time out or answer 429 or 5xx, with a wait that starts at `EXTERNAL_API_BACKOFF_SECONDS` and doubles (a `Retry-After` header is used when the service sends one). Never commit real keys. **Keyless mode for demos.** Set `IGDB_CLIENT_ID=public` (with any value in `IGDB_CLIENT_SECRET`, because the source counts as set up only when both are filled) to search and load games from the Steam Store instead of IGDB. Set `TMDB_API_KEY=public` to use TVMaze for series and iTunes for movies instead of TMDB. No keys are needed then, but the ids are the ids of those services (a Steam app id, a TVMaze id, an iTunes id), not IGDB or TMDB ids. A database should therefore be filled in one mode only, and the IGDB id of the seed file does not match a game that was saved in the Steam mode.
 
-**Title details.** `GET /catalog/{id}` returns a title with its seasons and episodes (series) or its chapters (games). The seasons of a series are loaded from TMDB the first time the title is opened, then saved in the database and cached in Redis for `DETAILS_CACHE_TTL_SECONDS` (default 24 hours). While TMDB is down, the saved copy is returned, or 503 when the series was never loaded. IGDB has no chapter list, so the chapters of a game are read from the database only. No endpoint creates them. They come from a seed file, described below. The team chose this source (point 3 in [`docs/analysis/data/domain-model.md`](docs/analysis/data/domain-model.md)). Every title has `genres` (names, sorted), and the details answer also has the `description`. Both are loaded from IGDB or TMDB when the details are opened, so a title that was only found in a search has no genres yet. Every chapter and episode in the answer has `decision_points`, each with its `options` (id, label and text), so a client can show the choices of US-12 without another call.
+**Title details.** `GET /catalog/{id}` returns a title with its seasons and episodes (series) or its chapters (games). The seasons of a series are loaded from TMDB the first time the title is opened, then saved in the database and cached in Redis for `DETAILS_CACHE_TTL_SECONDS` (default 24 hours). While TMDB is down, the saved copy is returned, or 503 when the series was never loaded. IGDB has no chapter list, so the chapters of a game are read from the database only. No endpoint creates them. They come from a seed file, described below. The team chose this source (point 3 in [`docs/analysis/data/domain-model.md`](docs/analysis/data/domain-model.md)). Every title has `genres` (names, sorted), and the details answer also has the `description`. Both are loaded from IGDB or TMDB when the details are opened, so a title that was only found in a search has no genres yet, and adding it to the library does not load them either. Every chapter and episode in the answer has `decision_points`, each with its `options` (id, label and text), so a client can show the choices of US-12 without another call.
 
 **Chapters and decision points of games.** IGDB has no chapter list and no source has decision points, so they are kept in [`backend/app/seed/game_chapters.json`](backend/app/seed/game_chapters.json) and loaded with:
 
@@ -147,15 +156,24 @@ python -m app.seed path/to/other.json
 
 A game is joined to the catalog by its IGDB id (`external_api_id`). To find it, search the title with `GET /catalog/search?type=GAME` and read `external_api_id` in the result. The file is checked before anything is written, and a file with an error saves nothing. The load is one transaction and can be run again: a row is found by its key (chapter number, position of the decision point, label of the option) and only changed when a value differs. Nothing is ever deleted, because the choices of users point to these rows. Rows that are in the database but not in the file are listed as warnings. A game that a search has already saved keeps its title and poster, and a warning appears when the title in the file is different, which usually means a wrong id. Each decision point needs at least two options with different labels.
 
-The shipped file holds a draft for one game. Its `external_api_id` is `0` on purpose: the command refuses it until the real IGDB id is filled in, and the chapter titles and decisions should be checked against the game first.
+The shipped file holds one game: Life is Strange (`external_api_id` 7599), with 5 chapters and 6 decision points. The chapter titles and decisions are written by the team and no data source confirms them, so check them against the game before a demo. The command refuses a game with `external_api_id` 0. To change the content, edit the file and run the command again. There is no command for embeddings, because the API does not create them.
 
 **Rating scales.** The team chose two scales (point 2 in [`docs/analysis/data/domain-model.md`](docs/analysis/data/domain-model.md)). A rating of a library entry is a whole number from 1 to 10 (`POST /library`, `PATCH /library/{id}`). A rating of a chapter or episode is a whole number from 1 to 5 (`PUT /library/{id}/chapters/{chapter_id}/rating`). A value outside the range, or a value that is not a JSON number, is refused with 422. Sending `null` for the rating of a library entry in `PATCH` clears it.
+**Reviews.** `POST /library/{entry_id}/review` creates or updates a review for a library entry owned by the authenticated user. The request body is `{"text": "Your review text"}`. A new review returns 201, and updating an existing review returns 200. Review text must not be blank or longer than 5000 characters (422). Requests without authentication return 401, and entries that do not exist or belong to another user return 404. `GET /library/{entry_id}/review` returns the review, or 404 if no review exists. Posting a review adds a `REVIEW_POSTED` diary event. Spoiler detection is not implemented yet; the spoiler fields remain `null` until it is implemented.
+
+**Paging of long lists.** `GET /diary`, `GET /library` and `GET /lists` take two optional query parameters: `limit` (1 to 500) and `offset` (0 or more, the number of rows to skip). The default `limit` is 100 for `/diary` and 200 for `/library` and `/lists`, so a client that sends nothing gets a first page and no screen has to change for a user with fewer rows. A `limit` above 500, a `limit` below 1 and a negative `offset` answer 422. The answer stays a plain JSON list, and the order does not change: `/diary` is newest first (ties are ordered by `id`, newest first), `/library` and `/lists` are oldest first. An `offset` after the last row gives an empty list. To read the next page, add the number of rows you got to the `offset`; a page with fewer rows than `limit` is the last one. A client that must show everything reads pages until it gets a short page. The diary has two indexes, `(user_id, created_at DESC)` for this list and `media_item_id` for the delete cascade of a title (migration `0013`).
 
 **Removal.** This goes beyond the stories of the Charter. `DELETE /library/{id}` removes a title from the library, and the chapter ratings, playtime and decisions that the user logged for it are deleted with it, so a client should ask for confirmation first. `DELETE /lists/{id}/items/{media_item_id}` takes a title out of a list, and `DELETE /lists/{id}` deletes a list with its items. All three answer 204, and 404 when the thing does not exist, is not the user's, or was already removed. Titles are never deleted from the catalog. Each removal adds a diary event (`LIBRARY_REMOVED`, `LIST_ITEM_REMOVED`, `LIST_DELETED`), and the older events stay.
 
-**Statistics.** `GET /stats` needs a token and returns the numbers of the logged-in user's library only: `total_items`, `media_split` (whole percents of `GAME`, `SERIES` and `MOVIE` that add up to 100), `rating_distribution` (the keys `"1"` to `"10"`), `genre_breakdown` (largest first) and `playtime` (`total_minutes` and a `histogram` of the titles in buckets of 5 hours). An empty library gives zeros and an empty list, not an error. The numbers are computed on every request, so a change shows at once. The Redis cache of the design (`omni:stats:{user_id}`) is not built yet.
+**Statistics.** `GET /stats` needs a token and returns the numbers of the logged-in user's library only: `total_items`, `media_split` (whole percents of `GAME`, `SERIES` and `MOVIE` that add up to 100), `rating_distribution` (the keys `"1"` to `"10"`), `genre_breakdown` (largest first) and `playtime` (`total_minutes` and a `histogram` of the titles in buckets of 5 hours). An empty library gives zeros and an empty list, not an error. The answer is cached in Redis under `omni:stats:{user_id}` for 24 hours. The cache is cleared when the user adds, changes or removes a library entry, rates a chapter, logs playtime, makes a decision, or removes a list item or a list. If Redis is down, an in-process cache is used. The genres of a title that is opened for the first time do not clear the cache, so the `genre_breakdown` can be up to 24 hours old in that case.
 
-The tests do not call IGDB or TMDB. They use a fake at the HTTP level (`tests/requirements/fake_external_apis.py`), so no keys are needed. To check the real services once, put real keys in `backend/.env` and run:
+**Reviews and spoiler detection (US-14).** `POST /library/{id}/review` takes `{"text": "..."}` (1 to 5000 characters, not blank) and answers 201 with the review: `contains_spoiler`, `spoiler_score` (0 to 1) and `spoiler_model_version`. A library entry has one review, so a second `POST` replaces the first one. `GET /library/{id}/review` returns the review or `null`. Both answer 404 for an entry that is not the user's. With `OPENAI_API_KEY` set, the text goes to the model in `SPOILER_MODEL`. The review is flagged when the model says it has a spoiler and its score is `SPOILER_THRESHOLD` or more. Without a key, or when OpenAI does not answer, the review is still saved and checked with a list of local patterns (the model version is then `omnilog-nlp-spoiler-v1`). Each review adds a `REVIEW_POSTED` diary event.
+
+**Recommendations (US-13).** `GET /recommendations` needs a token and returns every title in the catalog that the user does not own, best first. The score of a title is the sum of the weights of its genres. A genre weighs the rating of the library entry that has it (5 when the entry has no rating), added up over the library. Titles with the same score are sorted by id. The optional `target` parameter (`GAME`, `SERIES` or `MOVIE`) keeps one media type. The answer is not cached and has no embeddings.
+
+**OpenAI settings.** `OPENAI_API_KEY` (empty turns OpenAI off), `SPOILER_MODEL` (default `gpt-4o-mini`), `SPOILER_THRESHOLD` (default 0.5), `OPENAI_TIMEOUT_SECONDS` (8) and `OPENAI_MAX_RETRIES` (2) are used by the spoiler check. `EMBEDDING_MODEL` (`text-embedding-3-small`) and `EMBEDDING_DIMENSIONS` (1536) are read by the OpenAI client, but no endpoint uses them yet.
+
+The tests do not call IGDB, TMDB or OpenAI. They use fakes at the HTTP level (`tests/requirements/fake_external_apis.py` and `tests/requirements/fake_openai.py`), so no keys are needed. To check the real services once, put real keys in `backend/.env` and run:
 
 ```bash
 RUN_LIVE_API_TESTS=1 python -m pytest tests/requirements/test_epic3_catalog_live.py -v
@@ -175,18 +193,18 @@ npm install
 npm run dev
 ```
 
-The app runs at `http://localhost:3000`.
+The app runs at `http://localhost:3000`. The server code of Next.js (Server Components and Server Actions) calls the backend, and the JWT is kept in a cookie that the browser cannot read. The address of the backend is `BACKEND_URL` (default `http://localhost:8000` in development, required in production, see `frontend/.env.example`). `NEXT_PUBLIC_API_URL` is only for the Axios client in `src/lib/api.ts` and the production Docker build needs it. The friends page uses sample data.
 
 ### Tests
 
 The tests use the separate `omnilog_test` database, so `docker compose up -d` must be running. From the repository root, with the virtual environment active:
 
 ```bash
-python -m pip install -r tests/requirements-test.txt
-python -m pytest tests/requirements -v --tb=short
+python -m pip install --require-hashes -r tests/requirements-test.txt
+python -m pytest tests -v --tb=short
 ```
 
-The frontend tests run with Vitest in happy-dom (`cd frontend && npm test`). The settings that keep happy-dom from running code of a page are in `frontend/vitest.config.mts` and are checked by `frontend/tests/security/happy-dom.test.ts`.
+CI runs the same suite with `--cov-fail-under=70`. The stories are linked to the test functions in [`docs/analysis/data/traceability.md`](docs/analysis/data/traceability.md). The frontend tests run with Vitest in happy-dom (`cd frontend && npm test`). The settings that keep happy-dom from running code of a page are in `frontend/vitest.config.mts` and are checked by `frontend/tests/security/happy-dom.test.ts`.
 
 ### Dependency security
 

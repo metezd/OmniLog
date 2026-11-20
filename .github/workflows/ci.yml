@@ -30,10 +30,24 @@ jobs:
         with:
           persist-credentials: false
 
+      # The tests run on the Python version of the production image, so the version that we ship is
+      # the version that we test. The version is read from the FROM line of backend/Dockerfile, so a
+      # Dependabot update of the base image is tested on the new version in its own pull request.
+      - name: Read the Python version of the production image
+        id: python
+        run: |
+          version="$(sed -n 's/^FROM python:\([0-9][0-9.]*\)-.*/\1/p' backend/Dockerfile)"
+          if [ -z "$version" ]; then
+            echo "::error file=backend/Dockerfile::No 'FROM python:<version>-...' line found"
+            exit 1
+          fi
+          echo "Python $version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
       - name: Set up Python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
         with:
-          python-version: "3.11"
+          python-version: ${{ steps.python.outputs.version }}
 
       # The version is pinned in .github/requirements-ruff.txt, which Dependabot keeps up to date
       - name: Install Ruff
@@ -41,6 +55,27 @@ jobs:
 
       - name: Ruff security rules (S / Bandit)
         run: ruff check backend
+
+      # backend/requirements.txt and tests/requirements-test.txt are lock files made from the .in
+      # files. This makes them again with the commands written in the .in files, for the Python
+      # version of the image, and fails when the result is not the committed file. It finds a
+      # change of a .in file without a new lock, a lock that was changed by hand, and a lock that
+      # was made for another Python version (after an update of the base image).
+      # The version of uv is pinned in .github/requirements-uv.txt, which Dependabot keeps up to date.
+      - name: Install uv
+        run: python -m pip install -r .github/requirements-uv.txt
+
+      - name: Check that the lock files match the .in files
+        env:
+          PYTHON_VERSION: ${{ steps.python.outputs.version }}
+        run: |
+          common=(--generate-hashes --python-platform x86_64-manylinux_2_28 --python-version "$PYTHON_VERSION" --quiet)
+          (cd backend && uv pip compile requirements.in -o requirements.txt "${common[@]}")
+          uv pip compile tests/requirements-test.in -o tests/requirements-test.txt "${common[@]}"
+          if ! git diff --exit-code -- backend/requirements.txt tests/requirements-test.txt; then
+            echo "::error::A lock file does not match its .in file. Make it again with the command in backend/requirements.in or tests/requirements-test.in and commit it."
+            exit 1
+          fi
 
   backend:
     name: Backend tests
@@ -83,24 +118,40 @@ jobs:
         with:
           persist-credentials: false
 
+      # The tests run on the Python version of the production image, so the version that we ship is
+      # the version that we test. The version is read from the FROM line of backend/Dockerfile, so a
+      # Dependabot update of the base image is tested on the new version in its own pull request.
+      - name: Read the Python version of the production image
+        id: python
+        run: |
+          version="$(sed -n 's/^FROM python:\([0-9][0-9.]*\)-.*/\1/p' backend/Dockerfile)"
+          if [ -z "$version" ]; then
+            echo "::error file=backend/Dockerfile::No 'FROM python:<version>-...' line found"
+            exit 1
+          fi
+          echo "Python $version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
       - name: Set up Python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
         with:
-          python-version: "3.11"
+          python-version: ${{ steps.python.outputs.version }}
           cache: pip
           cache-dependency-path: |
             backend/requirements.txt
             tests/requirements-test.txt
 
+      # Only the locked versions, and only files with the hashes of the lock files
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install \
+          python -m pip install --require-hashes \
             -r backend/requirements.txt \
             -r tests/requirements-test.txt
 
+      # The lock file holds every package with its exact version, so pip-audit checks it as it is,
+      # without resolving or installing anything
       - name: Audit backend dependencies
-        run: pip-audit -r backend/requirements.txt
+        run: pip-audit --require-hashes --disable-pip -r backend/requirements.txt
 
       - name: Check database migrations
         working-directory: backend
@@ -185,15 +236,29 @@ jobs:
       - name: Check Redis
         run: docker compose exec -T redis redis-cli ping | grep PONG
 
+      # The tests run on the Python version of the production image, so the version that we ship is
+      # the version that we test. The version is read from the FROM line of backend/Dockerfile, so a
+      # Dependabot update of the base image is tested on the new version in its own pull request.
+      - name: Read the Python version of the production image
+        id: python
+        run: |
+          version="$(sed -n 's/^FROM python:\([0-9][0-9.]*\)-.*/\1/p' backend/Dockerfile)"
+          if [ -z "$version" ]; then
+            echo "::error file=backend/Dockerfile::No 'FROM python:<version>-...' line found"
+            exit 1
+          fi
+          echo "Python $version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
       - name: Set up Python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
         with:
-          python-version: "3.11"
+          python-version: ${{ steps.python.outputs.version }}
           cache: pip
           cache-dependency-path: backend/requirements.txt
 
       - name: Install dependencies
-        run: python -m pip install -r backend/requirements.txt
+        run: python -m pip install --require-hashes -r backend/requirements.txt
 
       - name: Run migrations on the Compose database
         working-directory: backend
