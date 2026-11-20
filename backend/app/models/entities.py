@@ -633,6 +633,15 @@ class Review(Base):
 class MediaEmbedding(Base):
     __tablename__ = "media_embeddings"
 
+    __table_args__ = (
+        Index(
+            "ix_media_embeddings_embedding",
+            "embedding",
+            postgresql_using="hnsw",
+            postgresql_ops={"embedding": "vector_cosine_ops"},
+        ),
+    )
+
     media_item_id = Column(
         Integer,
         ForeignKey(_FK_MEDIA_ITEMS_ID, ondelete="CASCADE"),
