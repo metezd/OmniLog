@@ -4,7 +4,20 @@ from sqlalchemy import create_engine, CheckConstraint, event
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./omnilog_local.db")
+def normalize_database_url(url: str) -> str:
+    """Give a PostgreSQL URL without a driver the driver of this app (psycopg2).
+
+    Hosts such as Render hand out "postgresql://..." (some "postgres://..."). SQLAlchemy 2.1 would
+    pick psycopg (version 3) for it, which is not installed, and the start fails with
+    "No module named 'psycopg'". A URL that names a driver is left as it is.
+    """
+    parsed = make_url(url)
+    if parsed.drivername in ("postgres", "postgresql"):
+        return parsed.set(drivername="postgresql+psycopg2").render_as_string(hide_password=False)
+    return url
+
+
+DATABASE_URL = normalize_database_url(os.getenv("DATABASE_URL", "sqlite:///./omnilog_local.db"))
 
 # Fall back to SQLite only for a PostgreSQL on this machine that is not running (local development).
 # A remote host (a Docker service such as "db", a managed database) is never replaced: a wrong or
