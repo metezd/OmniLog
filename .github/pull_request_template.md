@@ -22,6 +22,7 @@ Closes #
 ## Checklist
 
 - [ ] The description matches the files that changed
+- [ ] `CHANGELOG.md` has a line under `[Unreleased]` when users or teammates can notice the change
 - [ ] README and docs are updated when setup, commands, environment variables, endpoints or the data model change
 - [ ] New endpoints have tests for success and for the main errors (401, 404, 409, 422)
 - [ ] Migrations have a working `downgrade`
