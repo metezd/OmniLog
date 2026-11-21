@@ -1,4 +1,4 @@
-﻿"""Edge cases for registration and login (US-02, US-03).
+"""Edge cases for registration and login (US-02, US-03).
 
 These guard against inputs the user stories do not list explicitly but that
 used to cause server errors (500): NUL bytes, the bcrypt 72-byte limit, and

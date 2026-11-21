@@ -1,4 +1,4 @@
-﻿"""Security unit tests for JWT verification edge cases."""
+"""Security unit tests for JWT verification edge cases."""
 from datetime import datetime, timedelta, timezone
 import jwt
 import pytest
