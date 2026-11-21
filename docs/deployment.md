@@ -27,6 +27,7 @@ flowchart LR
 | `docker/Caddyfile` | The proxy settings |
 | `env.prod.example` | A list of all settings. Copy it to `.env.prod` |
 | `.github/workflows/docker-build.yml` | Builds the images and tests the stack on every change |
+| `.github/workflows/release.yml` | Creates the GitHub Release when a version tag is pushed |
 
 `docker-compose.yml` (without `.prod`) is not changed. It is still the small stack for development, with only PostgreSQL and Redis.
 
@@ -141,6 +142,30 @@ Do not change `requirements.txt` by hand. Change `backend/requirements.in` (the 
 
 The lock is made for Linux and the Python version of `backend/Dockerfile`. When the base image moves to a new Python version, make both locks again with the new `--python-version`. The job "Security lint (Ruff)" in CI makes both locks again and fails when the result differs from the committed files, so a forgotten step shows up in the pull request.
 
+### Deployment pipeline
+
+A change reaches the running app in these steps. Only the first one is done by a person.
+
+```mermaid
+flowchart LR
+    PR[Pull request] --> CI[Checks: CI, Docker build, Security]
+    CI --> R[Review and Rebase and merge into main]
+    R --> RD[Render builds main after the checks pass]
+    RD --> MG[alembic upgrade head]
+    MG --> HC[Health check /health]
+    R -.->|version tag| REL[GitHub Release]
+```
+
+1. **Pull request.** The checks of `.github/workflows` run: `ci.yml` (tests, coverage gate, migrations, dependency audit, lock files, Compose smoke test, frontend lint, types, tests and build), `docker-build.yml` (the production images and the whole stack) and `security.yml` (secrets, vulnerabilities, workflow audit). The ruleset of `main` needs the required checks and one approval before the merge (see [CONTRIBUTING.md](../CONTRIBUTING.md#code-review)).
+2. **Merge.** The pull request is merged into `main` with Rebase and merge. The same checks run again on `main`.
+3. **Deploy.** `render.yaml` sets `autoDeployTrigger: checksPass` for both web services, so Render builds and starts a new version of `main` only after its GitHub checks have passed. A red commit is never deployed.
+4. **Migrations and health.** The start command of the backend runs `alembic upgrade head` before `uvicorn`. Render keeps the old version running until the new one answers the health check `/health`, so a version that does not start does not replace the running one.
+5. **Release.** A version tag (`v0.8.0`) on `main` starts `release.yml`, which creates the GitHub Release from `CHANGELOG.md`. The tag deploys nothing. It marks the version that was deployed (see [CONTRIBUTING.md](../CONTRIBUTING.md#versioning-and-releases)).
+
+The deployment with Docker on your own server (sections 3 and 5) is done by hand with `git pull` and `docker compose up -d --build`, from a tagged version if you want a fixed version.
+
+**Rollback.** On Render, open the service, choose an earlier deploy in the list of events and select **Rollback**. The code goes back at once. A migration that was already applied is not undone (see above), so a change with a migration is rolled forward with a fix instead. Then make a patch release.
+
 ## 6. Backup and restore
 
 ```bash
@@ -232,7 +257,7 @@ A client cannot choose the counted address by sending its own `X-Forwarded-For`:
 ## 10. What is not included yet
 
 - The images are not pushed to a registry. The server builds them itself.
-- There is no automatic deployment to a server or a hosting platform. The workflow only checks that the stack starts and answers.
+- There is no automatic deployment to your own server. Render deploys `main` by itself (see the deployment pipeline in section 5), but the Docker stack on a server is updated by hand. The workflow `docker-build.yml` only checks that the stack starts and answers.
 - There are no automatic backups, no monitoring and no alerts.
 - The stack runs one copy of each service. Running more copies of the backend is not set up and not tested.
 - Rate limits on Render: the backend there runs behind the proxy of Render, whose address is not fixed, and `render.yaml` does not set `FORWARDED_ALLOW_IPS`. Check which address is counted before you rely on the per-address limits there. `RATE_LIMIT_ENABLED=false` turns them off.
