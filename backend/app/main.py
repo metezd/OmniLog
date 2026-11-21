@@ -1,4 +1,4 @@
-﻿from fastapi import Depends, FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
@@ -22,7 +22,7 @@ from app.core.database import get_db
 app = FastAPI(
     title="OmniLog API",
     description="Video Game & TV Series Tracking API",
-    version="1.0.0",
+    version="0.8.0",
     docs_url="/docs" if ENABLE_DOCS else None,
     redoc_url="/redoc" if ENABLE_DOCS else None,
     openapi_url="/openapi.json" if ENABLE_DOCS else None,
