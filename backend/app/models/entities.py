@@ -1,3 +1,5 @@
+from pgvector.sqlalchemy import Vector
+
 import enum
 from sqlalchemy import (
     Boolean,
@@ -625,3 +627,42 @@ class Review(Base):
     __table_args__ = (
         UniqueConstraint("library_entry_id", name="uq_review_library_entry"),
     )
+
+
+# 15. MEDIA EMBEDDINGS: vector representations of title details (issue #151)
+class MediaEmbedding(Base):
+    __tablename__ = "media_embeddings"
+
+    __table_args__ = (
+        Index(
+            "ix_media_embeddings_embedding",
+            "embedding",
+            postgresql_using="hnsw",
+            postgresql_ops={"embedding": "vector_cosine_ops"},
+        ),
+    )
+
+    media_item_id = Column(
+        Integer,
+        ForeignKey(_FK_MEDIA_ITEMS_ID, ondelete="CASCADE"),
+        primary_key=True,
+    )
+    model_name = Column(String(100), primary_key=True)
+    embedding = Column(Vector(1536), nullable=False)
+    dimension = Column(Integer, nullable=False)
+    source_text_hash = Column(String(64), nullable=False)
+    created_at = Column(
+        DateTime,
+        nullable=False,
+        default=utc_now,
+        server_default=sql_text(_UTC_NOW_SQL),
+    )
+    updated_at = Column(
+        DateTime,
+        nullable=False,
+        default=utc_now,
+        onupdate=utc_now,
+        server_default=sql_text(_UTC_NOW_SQL),
+    )
+
+    media_item = relationship("MediaItem")

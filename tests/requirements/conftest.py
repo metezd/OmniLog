@@ -97,6 +97,9 @@ def database_schema():
     from app.core.database import Base, engine
     import app.models.entities  # noqa: F401  (registers the tables on Base)
 
+    with engine.begin() as conn:
+        conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     yield

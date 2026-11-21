@@ -11,6 +11,7 @@ from app.models.entities import (
     Chapter,
     ChapterKind,
     Review,
+    MediaEmbedding,
 )
 
 __all__ = [
@@ -26,4 +27,5 @@ __all__ = [
     "Chapter",
     "ChapterKind",
     "Review",
+    "MediaEmbedding",
 ]
