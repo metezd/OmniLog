@@ -6,10 +6,11 @@ databases:
     plan: free
 
 services:
-  - type: redis
+  - type: keyvalue
     name: omnilog-redis
     region: frankfurt
     plan: free
+    maxmemoryPolicy: allkeys-lru
     ipAllowList: []
 
   - type: web
@@ -19,7 +20,7 @@ services:
     rootDir: backend
     plan: free
     buildCommand: pip install --require-hashes -r requirements.txt
-    startCommand: alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    startCommand: alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips="*"
     healthCheckPath: /health
     envVars:
       - key: PYTHON_VERSION
@@ -30,7 +31,7 @@ services:
           property: connectionString
       - key: REDIS_URL
         fromService:
-          type: redis
+          type: keyvalue
           name: omnilog-redis
           property: connectionString
       - key: SECRET_KEY
