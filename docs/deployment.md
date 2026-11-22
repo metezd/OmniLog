@@ -94,7 +94,7 @@ All settings are in `.env.prod`. The file holds secrets and is ignored by Git. C
 | `OPENAI_API_KEY` | no | OpenAI API key. Without it, OpenAI-backed features are disabled |
 | `EMBEDDING_MODEL`, `EMBEDDING_DIMENSIONS`, `SPOILER_MODEL`, `SPOILER_THRESHOLD`, `OPENAI_TIMEOUT_SECONDS`, `OPENAI_MAX_RETRIES` | no | Models, spoiler confidence threshold, request timeout in seconds and retry count |
 | `IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET`, `TMDB_API_KEY` | no | Keys of the catalog services. Without them the catalog search cannot reach the outside services. For a demo without keys, set `IGDB_CLIENT_ID=public` (and any value in `IGDB_CLIENT_SECRET`) for games from the Steam Store, and `TMDB_API_KEY=public` for series from TVMaze and movies from iTunes. Their ids are not IGDB or TMDB ids, so fill one database in one mode only |
-| `OPENAI_API_KEY` | no | OpenAI API key. Without it, the spoiler check of a review uses local patterns instead of OpenAI. The review is saved in both cases |
+| `OPENAI_API_KEY` | no | OpenAI API key. Without it, the spoiler check of a review uses local patterns instead of OpenAI. The review is saved first in both cases. When the key is set and OpenAI fails, the spoiler fields of the review stay NULL (not checked) |
 | `SPOILER_MODEL` | no | Model that classifies a review. Default `gpt-4o-mini` |
 | `SPOILER_THRESHOLD` | no | Score from 0 to 1 at which a review is flagged. Default `0.5` |
 | `OPENAI_TIMEOUT_SECONDS`, `OPENAI_MAX_RETRIES` | no | Time limit of one OpenAI call in seconds (default `8`) and number of retries (default `2`) |
@@ -264,7 +264,7 @@ A client cannot choose the counted address by sending its own `X-Forwarded-For`:
 - Only login, register, search and review have a rate limit.
 - The friends page of the frontend shows sample data. The login, register, library, search, title, lists, diary, statistics and recommendations screens call the backend through the server code of Next.js (`BACKEND_URL`).
 - Embeddings are not built. There is no `media_embeddings` table and no embeddings command. The recommendations (US-13) rank the catalog by the genres of the library, so they work without any key.
-- The spoiler check (US-14) uses OpenAI only when `OPENAI_API_KEY` is set. Without the key, or when OpenAI does not answer, the review is saved and checked with local patterns.
+- The spoiler check (US-14) uses OpenAI only when `OPENAI_API_KEY` is set. Without the key, the review is checked with local patterns. When the key is set and OpenAI does not answer, the review is saved and not checked (the spoiler fields stay NULL). The check runs after the review is committed, so no database connection is held during the OpenAI call.
 - The manual sync is the command `python -m app.sync`. The catalog has no sync endpoint, no scheduled sync and no admin endpoints. Title details also load from IGDB and TMDB when a title is opened.
 - The migrations and the tests need PostgreSQL. If the backend finds nothing at `localhost:5432` outside Docker, `app/core/database.py` falls back to a SQLite file. The production stack always has PostgreSQL, so this does not apply there.
 

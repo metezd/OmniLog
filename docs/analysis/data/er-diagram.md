@@ -410,9 +410,9 @@ Unique on (`decision_options.decision_point_id`, `decision_options.label`) and o
 | `id` | INTEGER | PK | Identifier |
 | `library_entry_id` | INTEGER | FK, UK, NN, cascade | The library entry. One review for each entry |
 | `text` | TEXT | NN | Review text. The API accepts 1 to 5000 characters |
-| `contains_spoiler` | BOOLEAN | NULL | True or false. The API always sets it |
+| `contains_spoiler` | BOOLEAN | NULL | True or false. NULL when the review was not checked (OpenAI failed) |
 | `spoiler_score` | FLOAT | NULL | Classifier score from 0 to 1 |
-| `spoiler_model_version` | VARCHAR(50) | NULL | The model that classified the text, for example `gpt-4o-mini`, or `omnilog-nlp-spoiler-v1` for the local patterns |
+| `spoiler_model_version` | VARCHAR(50) | NULL | The model that classified the text, for example `gpt-4o-mini`, or `omnilog-nlp-spoiler-v1` for the local patterns. NULL when the review was not checked |
 | `created_at` | DATETIME | NN, default now (UTC) | Creation time |
 | `updated_at` | DATETIME | NULL | Empty until the review is replaced. The service sets it, the database does not |
 

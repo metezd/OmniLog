@@ -104,7 +104,7 @@ A decision point is a branching moment inside a chapter. It has two or more opti
 ### 3.11 Review
 The written review of a user for a library entry.
 - Key fields: `text`, `contains_spoiler`, `spoiler_score`, `spoiler_model_version`.
-- Rules: `contains_spoiler` is set by the spoiler classifier. The column allows NULL, but the API always sets it. A library entry has one review, and posting again replaces it (`updated_at` is then set). The classifier is OpenAI (model `SPOILER_MODEL`) when `OPENAI_API_KEY` is set. Without a key, or when OpenAI does not answer, a list of local patterns is used and the review is still saved.
+- Rules: `contains_spoiler` is set by the spoiler classifier. The column allows NULL: NULL means "not checked" (OpenAI failed). A library entry has one review, and posting again replaces it (`updated_at` is then set). The classifier is OpenAI (model `SPOILER_MODEL`) when `OPENAI_API_KEY` is set. Without a key, a list of local patterns is used. When OpenAI does not answer, the review is still saved and the three spoiler fields stay NULL.
 
 ### 3.12 MediaEmbedding and UserTasteVector (not built)
 These two entities are in the design only. There are no tables, no models and no migrations. The OpenAI client has a function that asks for embeddings, but nothing calls it. The recommendations (US-13) rank the titles that the user does not own by the genres of the library, weighted by the ratings. The text below is the design.
