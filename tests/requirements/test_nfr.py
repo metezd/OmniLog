@@ -193,7 +193,10 @@ def test_nfr04_recommendations_survive_openai_down(
 def test_nfr04_review_survives_openai_down_and_is_saved(
     openai_down, lenient_client, auth_headers, library_entry
 ):
-    """NFR-04: a review gets 201 or 503 when OpenAI is down, never 500, and is still saved."""
+    """NFR-04: a review gets 201 when OpenAI is down (never 503 or 500) and is still saved.
+
+    The spoiler fields stay NULL: the review was not checked (US-14, #152, #155).
+    """
     text = "In the final chapter the main character dies."
 
     response = lenient_client.post(
@@ -202,7 +205,10 @@ def test_nfr04_review_survives_openai_down_and_is_saved(
         headers=auth_headers,
     )
 
-    assert response.status_code in (200, 201, 503)
+    assert response.status_code == 201
+    assert response.json()["contains_spoiler"] is None
+    assert response.json()["spoiler_score"] is None
+    assert response.json()["spoiler_model_version"] is None
     saved = lenient_client.get(
         f"/library/{library_entry['id']}/review", headers=auth_headers
     )

@@ -188,7 +188,7 @@ All analysis documents were compared with each other, with the user stories, wit
 | 3 | Source of chapters, decision points and options for episodic games. **Resolved and built:** a seed file loaded with `python -m app.seed`. | Product Owner, API Integration |
 | 4 | Embedding model and its dimension. Decided: OpenAI `text-embedding-3-small`, 1536 dimensions. It is a setting only. Embeddings are not built. | ML Engineer |
 | 5 | Collaborative filtering is excluded from version 1. Recommendations use the genres of the library. | ML Engineer |
-| 6 | Spoiler detection uses OpenAI `gpt-4o-mini` with a threshold of `0.5` (both are settings). Local patterns are used when there is no key or OpenAI is down. Built. | ML Engineer |
+| 6 | Spoiler detection uses OpenAI `gpt-4o-mini` with a threshold of `0.5` (both are settings). Local patterns are used when there is no key. When OpenAI is down, the review is saved and not checked (the spoiler fields stay NULL). Built. | ML Engineer |
 | 7 | One or many decision points for each chapter in the API. **Resolved and built:** many, with an optional `decision_point_id`. | Backend |
 | 8 | Add a user story for user profiles, or remove profiles from the Epic 2 scope. | Product Owner |
 
