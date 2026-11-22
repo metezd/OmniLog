@@ -19,6 +19,8 @@ services:
     region: frankfurt
     rootDir: backend
     plan: free
+    # Deploy main only after its GitHub checks pass (see docs/deployment.md, section 5)
+    autoDeployTrigger: checksPass
     buildCommand: pip install --require-hashes -r requirements.txt
     startCommand: alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips="*"
     healthCheckPath: /health
@@ -53,6 +55,7 @@ services:
     region: frankfurt
     rootDir: frontend
     plan: free
+    autoDeployTrigger: checksPass
     buildCommand: npm ci && npm run build
     startCommand: npm run start -- -p $PORT
     envVars:

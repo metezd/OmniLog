@@ -1,4 +1,4 @@
-﻿import AtmosphericHero from "@/components/layout/dashboard/AtmosphericHero";
+import AtmosphericHero from "@/components/layout/dashboard/AtmosphericHero";
 import { getLibrary } from "@/lib/server/library";
 import { getCurrentUser } from "@/lib/server/user";
 import type { LibraryEntry } from "@/types/api";
