@@ -1,4 +1,4 @@
-﻿import os
+import os
 import socket
 from sqlalchemy import create_engine, CheckConstraint, event
 from sqlalchemy.engine import make_url

@@ -1,4 +1,4 @@
-﻿"""The login token lasts 90 minutes by default (US-03). The frontend reads the end time from the
+"""The login token lasts 90 minutes by default (US-03). The frontend reads the end time from the
 token (the exp claim) and gives its session cookie the same lifetime, so the two always agree."""
 import os
 import subprocess
