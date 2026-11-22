@@ -85,15 +85,16 @@ The design averages the vectors of the titles that the user liked. It is not bui
 ### 5.4 Submit Review (US-14)
 1. Request: `POST /library/{id}/review` with `text`. The text is 1 to 5000 characters and not blank, or the answer is 422.
 2. The library entry must belong to the user, or the answer is 404.
-3. Process 5.5 classifies the text.
-4. A library entry has one review. If it exists, its text and spoiler fields are replaced and `updated_at` is set. If not, a review is created.
-5. Send a `REVIEW_POSTED` event to 2.5 in the same transaction. Its text is "Spoiler flagged" or "Review posted".
+3. Create or replace the review first. A library entry has one review. If it exists, its text is replaced, its spoiler fields are set to NULL and `updated_at` is set. If not, a review is created. Send a `REVIEW_POSTED` event to 2.5 ("Review posted") in the same transaction and commit.
+4. Process 5.5 classifies the text. No transaction is open and no database connection is held while it runs.
+5. Write the result (`contains_spoiler`, `spoiler_score`, `spoiler_model_version`) in a second short transaction. The result is dropped when the review was deleted or its text changed in the meantime.
 6. Answer 201 with the review. `GET /library/{id}/review` returns the review, or `null` when there is none.
 7. The review does not change the statistics, so the cache of the statistics is not deleted.
 
 ### 5.5 Detect Spoilers (US-14)
 1. When `OPENAI_API_KEY` is set, ask the model in `SPOILER_MODEL` for a JSON answer with `contains_spoiler` and a `score` from 0 to 1. The review is flagged when the model says it contains a spoiler and the score is at least `SPOILER_THRESHOLD` (default 0.5). The model name is stored as the model version.
-2. When there is no key, or OpenAI is down, times out or answers something that is not valid, the review is still saved. A list of local patterns decides instead: each pattern that matches adds its weight, the sum is cut at 1, and a sum of 0.5 or more is a spoiler. The model version is `omnilog-nlp-spoiler-v1` (NFR-04).
+2. When there is no key, a list of local patterns decides instead: each pattern that matches adds its weight, the sum is cut at 1, and a sum of `SPOILER_THRESHOLD` or more is a spoiler. The model version is `omnilog-nlp-spoiler-v1`.
+3. When a key is set and OpenAI is down, times out or answers something that is not valid, the review is not checked: `contains_spoiler`, `spoiler_score` and `spoiler_model_version` stay NULL. The review is still saved and the answer is a normal 201 or 200, never 503 or 500 (NFR-04).
 
 ## 5. Data store usage (CRUD)
 

@@ -1,10 +1,12 @@
 """Review submission and NLP spoiler detection (US-14, DFD 5.4 and 5.5)."""
 import logging
 import re
-from typing import Tuple
+from typing import Optional, Tuple
 
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from app.core import config
 from app.core.clock import utc_now
 from app.models.entities import Review, User, UserLibrary
 from app.schemas.review import ReviewCreate
@@ -16,7 +18,6 @@ from app.integrations.openai_client import classify_spoiler
 logger = logging.getLogger(__name__)
 
 SPOILER_MODEL_VERSION = "omnilog-nlp-spoiler-v1"
-SPOILER_THRESHOLD = 0.5
 
 # Weighted plot-revelation patterns used by the local NLP spoiler classifier when an external
 # LLM/transformer endpoint is not configured.
@@ -35,23 +36,28 @@ _SPOILER_PATTERNS: list[Tuple[re.Pattern[str], float]] = [
 ]
 
 
-def check_spoiler(text: str) -> Tuple[None, None, None]:
-    """Spoiler detection will be implemented in issue #152."""
-    return None, None, None
+# (contains_spoiler, score, model_version). All three are None when the review was not checked.
+SpoilerResult = Tuple[Optional[bool], Optional[float], Optional[str]]
 
 
+def detect_spoilers(text: str) -> SpoilerResult:
+    """Classify review text. Never raises for an outside failure.
 
-def detect_spoilers(text: str) -> Tuple[bool, float, str]:
-    """Classify review text using OpenAI when configured, otherwise use local patterns."""
-    from app.core import config
-
+    With OPENAI_API_KEY set, OpenAI decides. When it fails, the review is "not checked" and the
+    result is (None, None, None). Without a key, the local patterns decide (US-14).
+    This function must be called without an open database transaction: the OpenAI call can wait
+    up to OPENAI_TIMEOUT_SECONDS for each of its tries.
+    """
     if config.OPENAI_API_KEY:
         try:
             contains_spoiler, score = classify_spoiler(text)
-            return contains_spoiler, score, config.SPOILER_MODEL
         except ExternalServiceError:
-            # OpenAI is down: the review is still saved, with the local patterns
-            logger.warning("OpenAI unavailable, using the local spoiler patterns")
+            logger.warning("OpenAI spoiler check failed, the review stays unchecked")
+            return None, None, None
+        except Exception:  # noqa: BLE001 - a failed check must never fail the saved review
+            logger.exception("Unexpected error in the spoiler check, the review stays unchecked")
+            return None, None, None
+        return contains_spoiler, score, config.SPOILER_MODEL
 
     score = 0.0
     for pattern, weight in _SPOILER_PATTERNS:
@@ -59,8 +65,7 @@ def detect_spoilers(text: str) -> Tuple[bool, float, str]:
             score += weight
 
     clamped_score = round(min(score, 1.0), 4)
-    return clamped_score >= SPOILER_THRESHOLD, clamped_score, SPOILER_MODEL_VERSION
-
+    return clamped_score >= config.SPOILER_THRESHOLD, clamped_score, SPOILER_MODEL_VERSION
 
 
 def upsert_review(
@@ -69,7 +74,14 @@ def upsert_review(
     entry_id: int,
     payload: ReviewCreate,
 ) -> tuple[Review, bool]:
-    """Create or replace the user's review for a library entry and run spoiler detection (US-14)."""
+    """Create or replace the user's review for a library entry and run spoiler detection (US-14).
+
+    Three steps, so no database connection is held while OpenAI answers:
+    1. Save the review with the spoiler fields NULL ("not checked") and commit.
+    2. Run the spoiler check. No transaction is open here.
+    3. Write the result in a second short transaction.
+    A failed check leaves the fields NULL. The review is never lost because of it.
+    """
     entry = (
         db.query(UserLibrary)
         .filter(UserLibrary.id == entry_id, UserLibrary.user_id == current_user.id)
@@ -78,36 +90,75 @@ def upsert_review(
     if not entry:
         raise LibraryEntryNotFoundError("Library entry not found")
 
-    contains_spoiler, spoiler_score, model_version = check_spoiler(payload.text)
+    # Read what is needed later now: after the commit, the objects are expired and reading
+    # them would open a new transaction.
+    text = payload.text
+    user_id = current_user.id
+    media_item_id = entry.media_item_id
 
+    # Step 1: save first. A changed text invalidates an older result, so the fields are reset.
     review = db.query(Review).filter(Review.library_entry_id == entry.id).first()
     is_new = review is None
     if review is None:
-        review = Review(
-            library_entry_id=entry.id,
-            text=payload.text,
-            contains_spoiler=contains_spoiler,
-            spoiler_score=spoiler_score,
-            spoiler_model_version=model_version,
-        )
+        review = Review(library_entry_id=entry.id, text=text)
         db.add(review)
     else:
-        review.text = payload.text
-        review.contains_spoiler = contains_spoiler
-        review.spoiler_score = spoiler_score
-        review.spoiler_model_version = model_version
+        review.text = text
+        review.contains_spoiler = None
+        review.spoiler_score = None
+        review.spoiler_model_version = None
         review.updated_at = utc_now()
 
     record_event(
         db,
-        user_id=current_user.id,
+        user_id=user_id,
         action=DiaryAction.REVIEW_POSTED,
-        media_item_id=entry.media_item_id,
-        details="Spoiler flagged" if contains_spoiler else "Review posted",
+        media_item_id=media_item_id,
+        details="Review posted",
     )
-    db.commit()
-    db.refresh(review)
+    db.flush()  # gives a new review its id
+    review_id = review.id
+    db.commit()  # ends the transaction and returns the connection to the pool
+
+    # Step 2: the check, without an open transaction.
+    contains_spoiler, spoiler_score, model_version = detect_spoilers(text)
+
+    # Step 3: write the result.
+    if model_version is not None:
+        _store_spoiler_result(
+            db, review_id, text, contains_spoiler, spoiler_score, model_version
+        )
+
+    review = db.get(Review, review_id)
     return review, is_new
+
+
+def _store_spoiler_result(
+    db: Session,
+    review_id: int,
+    text: str,
+    contains_spoiler: Optional[bool],
+    spoiler_score: Optional[float],
+    model_version: str,
+) -> None:
+    """Write the check result. A failure here is logged and leaves the review unchecked."""
+    try:
+        # One UPDATE with the text in the WHERE: when the review was deleted or edited while
+        # the check ran, the result belongs to an old text and nothing is written.
+        # updated_at is set to itself, so the result does not count as an edit of the review.
+        db.query(Review).filter(Review.id == review_id, Review.text == text).update(
+            {
+                Review.contains_spoiler: contains_spoiler,
+                Review.spoiler_score: spoiler_score,
+                Review.spoiler_model_version: model_version,
+                Review.updated_at: Review.updated_at,
+            },
+            synchronize_session=False,
+        )
+        db.commit()
+    except SQLAlchemyError:
+        db.rollback()
+        logger.exception("Could not store the spoiler result of review %s", review_id)
 
 
 def get_review(db: Session, current_user: User, entry_id: int) -> Review | None:
