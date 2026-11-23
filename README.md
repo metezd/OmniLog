@@ -16,7 +16,7 @@ CMPE 331 Software Engineering Concepts, Fall 2026-2027
 - Custom lists & history: Organize content your way and view your activity log.
 - All in one search: Find games and shows instantly with cached IGDB and TMDB data.
 - Episode & chapter tracking: Log playtimes, rate individual chapters, and save choice paths.
-- Cross media recommendations: Titles you do not own yet, ranked by the genres of your library and your ratings.
+- Cross media recommendations: Personalized, embedding-based recommendations for titles you do not own, with a popularity-based fallback.
 - Automatic spoiler shield: Plot-revealing reviews are flagged automatically.
 - Insights dashboard: Track genre breakdowns, rating trends, and total playtime stats.
 
@@ -68,7 +68,7 @@ flowchart LR
     AI -->|"spoiler check"| EMB
 ```
 
-The backend is a single FastAPI application. It is split into modules that match the six epics. Title details create or refresh media embeddings using OpenAI when the title has genres or a description. Recommendations still rank titles by genres; they do not use embeddings yet. The detailed data flow diagrams are in [`docs/analysis/behavior`](docs/analysis/behavior/dfd-level0-1.md).
+The backend is a single FastAPI application. It is split into modules that match the six epics. Title details create or refresh media embeddings using OpenAI when the title has genres or a description. Recommendations use embeddings from positively rated or completed library titles when available, and fall back to popularity-based ranking when needed. The detailed data flow diagrams are in [`docs/analysis/behavior`](docs/analysis/behavior/dfd-level0-1.md).
 
 ## Roadmap
 
@@ -84,7 +84,7 @@ Each step builds on the one before. A step is done when its tests pass.
 | 5 | External catalog: IGDB and TMDB, Redis cache, search, details | US-08, US-09 | Done. The manual sync is a command (`python -m app.sync`). There is no sync endpoint and no job log |
 | 6 | Episodic logging: chapter ratings, playtime, decisions | US-10 to US-12 | Done |
 | 7 | Analytics: personal statistics with a Redis cache | US-15 | Done |
-| 8 | AI engine: spoiler detection, embeddings, recommendations | US-13, US-14 | US-14 done. Embeddings are stored in `media_embeddings` and can be backfilled with `python -m app.embeddings`. US-13 recommendations still rank by genre and do not use vectors yet |
+| 8 | AI engine: spoiler detection, embeddings, recommendations | US-13, US-14 | Embeddings are stored in `media_embeddings` and can be backfilled with `python -m app.embeddings`. US-13 uses embedding-based ranking with a popularity fallback |
 | 9 | Hardening: non-functional tests, 70% coverage, test report, code freeze | NFR-01 to NFR-05 | Partly done. The NFR tests exist and the coverage gate of 70% is in CI (the last local run measured 91%). The Software Testing Report and the code freeze are not in the repository |
 
 ### Milestones
@@ -104,7 +104,7 @@ The backend is built for every story except the parts listed at the end of this 
 
 Not built yet:
 
-- Vector-based recommendations. Embeddings are stored in `media_embeddings`, but recommendations still rank titles by the genres in the user's library, weighted by ratings.
+- Recommendations use available title embeddings to personalize ranking. If usable taste vectors or vector search are unavailable, the service falls back to popularity-based ranking.
 - The Operator role (`is_admin`), the sync job log, the scheduled sync and the admin endpoints of the design. The manual sync is a command and needs none of them.
 
 The frontend calls the backend from its server code (see [Frontend](#frontend)). The friends page still shows sample data.
@@ -180,7 +180,7 @@ The shipped file holds one game: Life is Strange (`external_api_id` 7599), with 
 
 **Reviews and spoiler detection (US-14).** `POST /library/{id}/review` takes `{"text": "..."}` (1 to 5000 characters, not blank) and answers 201 with the review: `contains_spoiler`, `spoiler_score` (0 to 1) and `spoiler_model_version`. A library entry has one review, so a second `POST` replaces the first one. `GET /library/{id}/review` returns the review or `null`. Both answer 404 for an entry that is not the user's. With `OPENAI_API_KEY` set, the text goes to the model in `SPOILER_MODEL`. The review is flagged when the model says it has a spoiler and its score is `SPOILER_THRESHOLD` or more. Without a key, a list of local patterns checks the review (the model version is then `omnilog-nlp-spoiler-v1`). The review is saved first and checked afterwards, without an open database transaction. When OpenAI is set up but does not answer, the review is still saved and the answer is a normal 201 or 200: `contains_spoiler`, `spoiler_score` and `spoiler_model_version` are then `null` (not checked). Each review adds a `REVIEW_POSTED` diary event.
 
-**Recommendations (US-13).** `GET /recommendations` needs a token and returns every title in the catalog that the user does not own, best first. The score of a title is the sum of the weights of its genres. A genre weighs the rating of the library entry that has it (5 when the entry has no rating), added up over the library. Titles with the same score are sorted by id. The optional `target` parameter (`GAME`, `SERIES` or `MOVIE`) keeps one media type. The answer is not cached and does not use vector embeddings.
+**Recommendations (US-13).** `GET /recommendations` requires authentication and a `target` (`GAME`, `SERIES` or `MOVIE`). The optional `limit` defaults to 10 and must be between 1 and 50. The service excludes titles already in the current user's library. When embeddings are available for positively rated titles (rating 7 or higher) or completed titles without a rating, it averages those vectors and ranks candidates of the requested type by cosine distance. Candidates without embeddings can fill remaining slots. If no usable taste vector is available, or vector ranking fails, recommendations fall back to popularity-based ranking with a stable ID tie-breaker. The response is not cached.
 
 **OpenAI settings.** `OPENAI_API_KEY` (empty turns OpenAI off), `SPOILER_MODEL` (default `gpt-4o-mini`), `SPOILER_THRESHOLD` (default 0.5), `OPENAI_TIMEOUT_SECONDS` (8) and `OPENAI_MAX_RETRIES` (2) are used by the spoiler check. `EMBEDDING_MODEL` (`text-embedding-3-small`) and `EMBEDDING_DIMENSIONS` (1536) configure title embeddings. Opening title details creates or refreshes an embedding when its source text changes. Embedding failures are logged and do not block the title details response.
 
