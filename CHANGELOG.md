@@ -21,6 +21,7 @@ All notable changes to this project are written in this file. The format follows
 - Dependabot for Python, npm, GitHub Actions and Docker.
 - Project documents: Charter, requirements, analysis, design and plan.
 - The API documentation is now off on Render too (`ENABLE_DOCS=false`).
+- Local penetration test with its report, TDD evidence and AI usage notes (#252).
 - Contribution rules with a branching model, versioning, code review, a pull request template, issue templates and CODEOWNERS.
 - A release workflow that creates a GitHub Release from a version tag, and a ruleset that protects `main`.
 
