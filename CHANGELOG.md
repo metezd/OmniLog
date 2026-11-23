@@ -20,6 +20,7 @@ All notable changes to this project are written in this file. The format follows
 - Security checks: Gitleaks, Trivy, zizmor, Ruff security rules, ESLint security rules, static security tests and a report-only Semgrep job.
 - Dependabot for Python, npm, GitHub Actions and Docker.
 - Project documents: Charter, requirements, analysis, design and plan.
+- Local penetration test with its report, TDD evidence and AI usage notes (#252).
 - Contribution rules with a branching model, versioning, code review, a pull request template, issue templates and CODEOWNERS.
 - A release workflow that creates a GitHub Release from a version tag, and a ruleset that protects `main`.
 
