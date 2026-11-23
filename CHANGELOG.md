@@ -11,7 +11,7 @@ All notable changes to this project are written in this file. The format follows
 - Custom lists and the activity diary, with `DELETE` endpoints for library entries, list items and lists (US-06, US-07).
 - Episodic logging: chapter ratings, playtime and decisions, with the seed command `python -m app.seed` (US-10 to US-12).
 - Personal statistics with a Redis cache (US-15).
-- Reviews with spoiler detection (US-14) and genre based recommendations (US-13).
+- Reviews with spoiler detection (US-14) and personalized, embedding-based recommendations with a popularity fallback (US-13).
 - The manual sync command `python -m app.sync` and the embeddings command `python -m app.embeddings`.
 - Rate limits on login, register, search and review.
 - Next.js frontend that calls the backend from its server code, with the login token in an `httpOnly` cookie.
