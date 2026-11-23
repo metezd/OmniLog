@@ -40,6 +40,9 @@ services:
         generateValue: true
       - key: CORS_ORIGINS
         sync: false
+      # The API documentation is not public in production
+      - key: ENABLE_DOCS
+        value: "false"
       - key: IGDB_CLIENT_ID
         sync: false
       - key: IGDB_CLIENT_SECRET

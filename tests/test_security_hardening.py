@@ -1,5 +1,6 @@
 """Hardening (#220): security headers, the ENABLE_DOCS switch and 401 for tokens without exp or sub."""
 import os
+import re
 import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
@@ -104,3 +105,10 @@ def test_docs_are_on_by_default():
 @pytest.mark.parametrize("value", ["false", "0", "no", "off", "False"])
 def test_docs_can_be_turned_off(value):
     assert _docs_status(value) == ["404", "404", "404"]
+
+
+@pytest.mark.parametrize("config_file", ["render.yaml", "docker-compose.prod.yml"])
+def test_docs_are_off_in_every_production_config(config_file):
+    config = (BACKEND_DIR.parent / config_file).read_text(encoding="utf-8")
+
+    assert re.search(r'ENABLE_DOCS(:\s*\$\{ENABLE_DOCS:-false\}|\s+value:\s*"false")', config)
