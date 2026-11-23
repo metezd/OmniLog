@@ -35,6 +35,77 @@ def test_us13_recommendations_with_empty_library(client, auth_headers):
     assert isinstance(response.json(), list)
 
 
+
+def test_us13_recommendations_falls_back_when_taste_embedding_query_fails(
+    client, auth_headers, monkeypatch, db
+):
+    """US-13: taste embedding query failures should use popularity fallback."""
+    from sqlalchemy import func
+
+    from app.models.entities import MediaItem, MediaType, User, UserLibrary
+    from app.services import recommendations_service
+    from helpers import new_credentials
+
+    candidate = create_media(client, auth_headers, media_type="SERIES")
+
+    existing_popularity = (
+        db.query(
+            UserLibrary.media_item_id,
+            func.count(UserLibrary.id).label("library_count"),
+        )
+        .join(MediaItem, MediaItem.id == UserLibrary.media_item_id)
+        .filter(MediaItem.media_type == MediaType.SERIES)
+        .group_by(UserLibrary.media_item_id)
+        .subquery()
+    )
+    highest_count = db.query(
+        func.coalesce(func.max(existing_popularity.c.library_count), 0)
+    ).scalar()
+    extra_users = []
+    for _ in range(highest_count + 1):
+        credentials = new_credentials()
+        extra_users.append(
+            User(
+                username=credentials["username"],
+                email=credentials["email"],
+                hashed_password="test-only",
+            )
+        )
+    db.add_all(extra_users)
+    db.flush()
+    db.add_all(
+        UserLibrary(user_id=user.id, media_item_id=candidate["id"])
+        for user in extra_users
+    )
+    db.commit()
+
+    original_query = recommendations_service.Session.query
+
+    def query_with_vector_failure(session, *entities, **kwargs):
+        query = original_query(session, *entities, **kwargs)
+        if any(
+            getattr(entity, "key", None) == "embedding"
+            for entity in entities
+        ):
+            raise RuntimeError("simulated vector query failure")
+        return query
+
+    monkeypatch.setattr(
+        recommendations_service.Session,
+        "query",
+        query_with_vector_failure,
+    )
+
+    response = client.get(
+        "/recommendations", params={"target": "SERIES"}, headers=auth_headers
+    )
+
+    assert response.status_code == 200
+    recommendations = response.json()
+    assert isinstance(recommendations, list)
+    assert any(item["id"] == candidate["id"] for item in recommendations)
+
+
 # ---------------------------------------------------------------- US-14
 @pytest.fixture
 def local_classifier(monkeypatch):
@@ -322,3 +393,128 @@ def test_us14_local_classifier_uses_the_threshold_setting(
     assert response.json()["contains_spoiler"] is False
     assert response.json()["spoiler_score"] == 0.55
     assert response.json()["spoiler_model_version"] == "omnilog-nlp-spoiler-v1"
+
+
+# Additional US-13 endpoint validation tests
+def test_us13_recommendations_requires_authentication(client):
+    response = client.get("/recommendations", params={"target": "SERIES"})
+    assert response.status_code == 401
+
+
+def test_us13_recommendations_requires_target(client, auth_headers):
+    response = client.get("/recommendations", headers=auth_headers)
+    assert response.status_code == 422
+
+
+def test_us13_recommendations_rejects_invalid_target(client, auth_headers):
+    response = client.get(
+        "/recommendations",
+        params={"target": "INVALID"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 422
+
+
+def test_us13_recommendations_accepts_max_limit(client, auth_headers):
+    response = client.get(
+        "/recommendations",
+        params={"target": "SERIES", "limit": 50},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+
+
+@pytest.mark.parametrize("limit", [0, 51])
+def test_us13_recommendations_rejects_out_of_range_limit(
+    client, auth_headers, limit
+):
+    response = client.get(
+        "/recommendations",
+        params={"target": "SERIES", "limit": limit},
+        headers=auth_headers,
+    )
+    assert response.status_code == 422
+
+
+def test_us13_ranks_candidates_by_the_current_users_taste_only(
+    client, auth_headers, db
+):
+    """Known vectors rank the closest unowned candidate; another user's taste is ignored."""
+    from app.core import config
+    from app.models.entities import MediaEmbedding
+    from helpers import new_credentials, register_and_login
+
+    own_source = create_media(client, auth_headers, media_type="GAME")
+    closest = create_media(client, auth_headers, media_type="SERIES")
+    distant = create_media(client, auth_headers, media_type="SERIES")
+    owned_series = create_media(client, auth_headers, media_type="SERIES")
+    add_to_library(client, auth_headers, own_source["id"], status="COMPLETED")
+    add_to_library(client, auth_headers, owned_series["id"], rating=10)
+
+    other_headers = register_and_login(client, new_credentials())
+    other_sources = [
+        create_media(client, other_headers, media_type="MOVIE") for _ in range(4)
+    ]
+    for source in other_sources:
+        add_to_library(client, other_headers, source["id"], rating=10)
+
+    vector = lambda x, y: [float(x), float(y)] + [0.0] * 1534
+    for item_id, embedding in (
+        (own_source["id"], vector(1, 0)),
+        (closest["id"], vector(1, 0.1)),
+        (distant["id"], vector(0, 1)),
+        (owned_series["id"], vector(1, 0)),
+        *((source["id"], vector(0, 1)) for source in other_sources),
+    ):
+        db.add(
+            MediaEmbedding(
+                media_item_id=item_id,
+                model_name=config.EMBEDDING_MODEL,
+                embedding=embedding,
+                dimension=1536,
+                source_text_hash="test",
+            )
+        )
+    db.commit()
+
+    response = client.get(
+        "/recommendations", params={"target": "SERIES", "limit": 10}, headers=auth_headers
+    )
+    assert response.status_code == 200
+    ids = [item["id"] for item in response.json()]
+    assert ids.index(closest["id"]) < ids.index(distant["id"])
+    assert owned_series["id"] not in ids
+
+
+def test_us13_large_catalog_has_bounded_queries_and_response(
+    client, auth_headers, db
+):
+    """A 5,000-title catalog still returns a small page without per-title queries."""
+    from sqlalchemy import event
+    from app.models.entities import MediaItem, MediaType
+
+    db.add_all(
+        MediaItem(title=f"Catalog item {index}", media_type=MediaType.SERIES)
+        for index in range(5000)
+    )
+    db.commit()
+
+    statements = []
+    from app.core.database import engine
+
+    def count_select(_conn, _cursor, statement, _parameters, _context, _many):
+        if statement.lstrip().upper().startswith("SELECT"):
+            statements.append(statement)
+
+    event.listen(engine, "before_cursor_execute", count_select)
+    try:
+        response = client.get(
+            "/recommendations", params={"target": "SERIES", "limit": 10}, headers=auth_headers
+        )
+    finally:
+        event.remove(engine, "before_cursor_execute", count_select)
+
+    assert response.status_code == 200
+    assert len(response.json()) == 10
+    assert len(response.content) < 20_000
+    assert len(statements) <= 5

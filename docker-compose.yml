@@ -11,7 +11,7 @@ services:
       POSTGRES_DB: omnilog
     ports:
       # Bound to localhost only, so the database is not reachable from the network
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - omnilog-pgdata:/var/lib/postgresql/data
       # Runs only on the first start: creates the separate test database
