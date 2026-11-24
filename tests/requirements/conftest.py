@@ -41,14 +41,25 @@ os.environ["DATABASE_URL"] = os.getenv(
     "TEST_DATABASE_URL",
     "postgresql+psycopg2://omnilog:omnilog@localhost:5432/omnilog_test",
 )
+def _default(name: str, value: str) -> None:
+    """Set a variable that is missing or empty.
+
+    `os.environ.setdefault` is not enough: a `backend/.env` copied from `.env.example` has
+    `IGDB_CLIENT_ID=` and the other keys as empty strings, so the variables exist and the
+    catalog sources would be turned off (every catalog test then gets 503).
+    """
+    if not os.environ.get(name):
+        os.environ[name] = value
+
+
 # A fixed key for tests so they do not depend on a local .env file.
-os.environ.setdefault("SECRET_KEY", "test-only-secret-key-not-for-production-use")
+_default("SECRET_KEY", "test-only-secret-key-not-for-production-use")
 # Fake credentials for IGDB and TMDB. The tests never reach the real services (see the
 # fake_external_apis fixture below). A real value in backend/.env is kept for the live tests.
-os.environ.setdefault("IGDB_CLIENT_ID", "test-igdb-client-id")
-os.environ.setdefault("IGDB_CLIENT_SECRET", "test-igdb-client-secret")
-os.environ.setdefault("TMDB_API_KEY", "test-tmdb-api-key")
-os.environ.setdefault("EXTERNAL_API_BACKOFF_SECONDS", "0")  # retries must not slow the tests
+_default("IGDB_CLIENT_ID", "test-igdb-client-id")
+_default("IGDB_CLIENT_SECRET", "test-igdb-client-secret")
+_default("TMDB_API_KEY", "test-tmdb-api-key")
+_default("EXTERNAL_API_BACKOFF_SECONDS", "0")  # retries must not slow the tests
 
 
 def _ensure_test_database_exists(url: str) -> None:

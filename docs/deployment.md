@@ -87,7 +87,7 @@ All settings are in `.env.prod`. The file holds secrets and is ignored by Git. C
 | `SECRET_KEY` | yes | Signs the login tokens. At least 32 characters. The backend does not start with a shorter key |
 | `APP_DOMAIN` | yes | Name of the frontend, for example `app.example.com` |
 | `API_DOMAIN` | yes | Name of the backend, for example `api.example.com` |
-| `API_URL` | yes | The public address of the backend, for example `https://api.example.com`. Built into the frontend image as `NEXT_PUBLIC_API_URL`. Only the Axios client in `src/lib/api.ts` uses it, and the build stops when it is empty |
+| `API_URL` | yes | The public address of the backend, for example `https://api.example.com`. Built into the frontend image as `NEXT_PUBLIC_API_URL`. No code reads it since the Axios client `src/lib/api.ts` was removed, but the build still stops when it is empty |
 | `CORS_ORIGINS` | yes | The address of the frontend, for example `https://app.example.com`. The backend accepts browser calls only from here |
 | `ENABLE_DOCS` | no | Shows the API documentation at `/docs`, `/redoc` and `/openapi.json`. Default is `false` in `docker-compose.prod.yml` and `render.yaml`, and `true` when the backend runs without it (development) |
 | `IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET`, `TMDB_API_KEY` | no | Keys of the catalog services. Without them the catalog search cannot reach the outside services |
