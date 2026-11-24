@@ -24,6 +24,7 @@ All notable changes to this project are written in this file. The format follows
 - Local penetration test with its report, TDD evidence and AI usage notes (#252).
 - Contribution rules with a branching model, versioning, code review, a pull request template, issue templates and CODEOWNERS.
 - A release workflow that creates a GitHub Release from a version tag, and a ruleset that protects `main`.
+- A SonarQube job in CI (SonarCloud, with the backend coverage and the quality gate) and `sonar-project.properties`. It runs once the secret `SONAR_TOKEN` is set (#299).
 
 ### Changed
 
