@@ -109,6 +109,8 @@ Not built yet:
 
 The frontend calls the backend from its server code (see [Frontend](#frontend)). The friends page still shows sample data.
 
+Latest release: [v0.8.0](https://github.com/metezd/OmniLog/releases/tag/v0.8.0) (pre-release, Step 8). The changes of every version are in [`CHANGELOG.md`](CHANGELOG.md), and the next planned releases are `v0.9.0` (Step 9 done) and `v1.0.0` (code freeze, 30.11.2026).
+
 ## Getting started
 
 ### Backend
