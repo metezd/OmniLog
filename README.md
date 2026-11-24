@@ -217,6 +217,16 @@ python -m pytest tests -v --tb=short
 
 CI runs the same suite with `--cov-fail-under=70`. The stories are linked to the test functions in [`docs/analysis/data/traceability.md`](docs/analysis/data/traceability.md). The frontend tests run with Vitest in happy-dom (`cd frontend && npm test`). The settings that keep happy-dom from running code of a page are in `frontend/vitest.config.mts` and are checked by `frontend/tests/security/happy-dom.test.ts`.
 
+### Code quality (SonarQube)
+
+The job "SonarQube" in `.github/workflows/ci.yml` scans the code on SonarCloud after the backend tests, with their coverage (`coverage.xml`), and fails when the quality gate fails. The settings are in [`sonar-project.properties`](sonar-project.properties). The job is skipped, with a notice, while the secret `SONAR_TOKEN` is not set, and for pull requests from forks. To turn it on (needs admin rights on the repository):
+
+1. Sign in to [SonarCloud](https://sonarcloud.io) with GitHub, import `metezd/OmniLog` and turn off "Automatic Analysis" (Administration > Analysis Method), so that only CI scans.
+2. Create a token (My Account > Security) and add it as the repository secret `SONAR_TOKEN`.
+3. Add the repository variables `SONAR_PROJECT_KEY` and `SONAR_ORGANIZATION` with the values that SonarCloud shows.
+
+SonarCloud is free for public repositories only. While this repository is private, it needs a paid SonarCloud plan, or a local SonarQube Community Build for a check by hand: `docker run -d --name sonarqube -p 9000:9000 sonarqube:community`, then run the scanner with `-Dsonar.host.url=http://localhost:9000` and a token of that server.
+
 ### Dependency security
 
 Dependabot opens pull requests for the Python packages, the frontend packages and the GitHub Actions (`.github/dependabot.yml`). Next.js and `eslint-config-next` are pinned to the same exact version and are updated together. The CI job for the frontend runs `npm audit --omit=dev --audit-level=high` and fails on a known high or critical problem in a package that runs in production. Development tools are not part of that check. Vitest 3 and 4 have open advisories that are fixed only in Vitest 5, a major upgrade that is planned as separate work, so `npm audit` (without `--omit=dev`) still lists them.
