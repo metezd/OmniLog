@@ -228,6 +228,7 @@ Dependabot opens pull requests for the Python packages, the frontend packages an
 | Project Charter | [`docs/CHARTER.md`](docs/CHARTER.md) |
 | Contribution rules (branching, commits, reviews, versions, releases) | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
 | Changelog | [`CHANGELOG.md`](CHANGELOG.md) |
+| AI usage: tools, pipeline, rules and member notes | [`docs/ai-usage`](docs/ai-usage/README.md) |
 | Deployment and the deployment pipeline | [`docs/deployment.md`](docs/deployment.md) |
 | Requirement Specification | [`docs/requirements/requirements-specification.md`](docs/requirements/requirements-specification.md) |
 | User stories | [`docs/requirements/user-stories.md`](docs/requirements/user-stories.md) |
