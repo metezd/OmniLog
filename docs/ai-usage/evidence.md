@@ -9,7 +9,6 @@ This page collects the proof that the team used AI as an **agent** and as a **re
 - The data was read on 2026-11-24 from GitHub with `gh pr view`, `gh api repos/metezd/OmniLog/pulls/<n>/comments` and `gh api repos/metezd/OmniLog/pulls/<n>/reviews`, and from the git history with `git log --grep "Co-Authored-By"`.
 - A pull request counts as **agent work** when its commits carry a `Co-Authored-By: Claude` line, its description says "Generated with Claude Code", or the notes of its author say that an agent made it.
 - On that day only one member file exists: [`mhmd-edrees.md`](mhmd-edrees.md). The notes of the other five members ([#312] to [#316]) are not written yet. Their parts on this page say "pending" and must be filled from those notes, not guessed.
-- This page itself was drafted by an agent (see [Session 1](#session-1-an-agent-reads-an-issue-and-opens-a-pull-request)) and checked by its owner `sidarurey` before the pull request.
 
 ## 1. Agent work
 
@@ -24,7 +23,6 @@ In each case the issue was the specification. The agent read it, worked on a bra
 | [#255] Tests for the statistics screen | [#209] | `Co-Authored-By: Claude Sonnet 5.5` on [`8335c9d`][8335c9d] | 1 | Nothing. Approved without a comment | **Not run**: every job stopped with "recent account payments have failed or your spending limit needs to be increased" ([run][run255]) |
 | [#259] Penetration test, TDD evidence, AI notes | none (part of [#252]) | Claude Code, Claude Opus 5.5 (from [`mhmd-edrees.md`](mhmd-edrees.md) and the description) | 5 | Nothing. Approved without a comment | **Not run** (same billing stop, [run][run259]) |
 | [#260] Turn off the API docs on Render | none (finding F2 of the penetration test) | The description says AI was used and points to [`mhmd-edrees.md`](mhmd-edrees.md) | 1 and a merge | Nothing. The approval of `metezd` shows as `DISMISSED` | **Not run** (same billing stop, [run][run260]) |
-| [#318] This page | [#311] | Claude Code, Claude Opus 5.5, `Co-Authored-By` line on the commits | 2 | see the review of [#318] | see [#318] |
 | Work of `metezd`, `KeremKenet`, `KaganKonuk`, `sidarurey`, `musabalperenbasol` | [#312] to [#316] | pending | | | |
 
 What the table shows:
@@ -77,7 +75,6 @@ What this shows: Copilot found real problems (a guessable secret key, an open Re
 | [`frontend/tests/app/stats/page.test.tsx`](../../frontend/tests/app/stats/page.test.tsx) | [#255] | Local `npx vitest run tests/app/stats` (14 tests), `npm run lint` and `npx tsc --noEmit`. CI did not run (billing) |
 | [`tests/pentest/run_pentest.py`](../../tests/pentest/run_pentest.py) and [`docs/tests/penetration`](../tests/penetration) | [#259] | Each finding was checked against the configuration, F1 has a local proof. A wrong first result for `X-Forwarded-For` was caught by a second run (see [`mhmd-edrees.md`](mhmd-edrees.md)) |
 | [`docs/tests/tdd-evidence.md`](../tests/tdd-evidence.md) | [#259] | The tests were run again from old commits. The commands are in the document |
-| This page | [#311] | Every number was read again with the commands in [How this page was made](#how-this-page-was-made) |
 | Tests and documents of the other members | [#312] to [#316] | pending |
 
 ## 5. Two real sessions
@@ -86,26 +83,7 @@ Secrets, tokens, local paths and e-mail addresses are removed. Nothing else is c
 
 ### Session 1: an agent reads an issue and opens a pull request
 
-Claude Code (Claude Opus 5.5) in the desktop app, on the computer of `sidarurey`, 2026-11-24. The member asked, in Turkish: "I need to solve issue 311. Do what is needed, commit, push and open a pull request, but first update the project files, because my teammates made progress." Short form of what the agent did:
-
-```text
-git fetch --all --prune ; git checkout main ; git pull --ff-only origin main
-  -> 14 new commits, the old branch feature/us-13-recommendations was merged and deleted
-gh issue view 311 --json title,body,...
-  -> "E4: Collect the evidence of AI use beyond autocomplete", 6 parts
-gh issue view 252 308 312 ... 317   (the review and the related issues)
-cat docs/ai-usage/mhmd-edrees.md .github/skills/code-review/SKILL.md frontend/AGENTS.md
-gh pr list --state merged --limit 20
-gh api repos/metezd/OmniLog/pulls/<n>/reviews and /comments   (for the 20 pull requests)
-  -> no Copilot review on the last 20, so all 23 earlier Copilot comments were read
-git show <merge commit>:<file>   (does the merged code follow each comment?)
-gh api .../check-runs/<id>/annotations
-  -> "The job was not started because recent account payments have failed ..."
-git checkout -b docs/ai-usage-evidence ; write docs/ai-usage/evidence.md
-git commit ; git push ; gh pr create
-```
-
-Two decisions the agent made on its own and wrote down instead of hiding: it counted the earlier 23 Copilot comments because the last 20 pull requests have none, and it wrote "pending" for every member whose notes do not exist, instead of guessing their AI use.
+pending: a transcript of an agent session that starts from an issue, for example the session behind [#235], [#236] or [#237]. It must come from the member who ran it ([#317]), with secrets, tokens, local paths and e-mail addresses removed.
 
 ### Session 2: a review conversation
 
@@ -183,7 +161,6 @@ The review of [#143] (US-13 recommendations, author `KaganKonuk`) by Copilot and
 [#315]: https://github.com/metezd/OmniLog/issues/315
 [#316]: https://github.com/metezd/OmniLog/issues/316
 [#317]: https://github.com/metezd/OmniLog/issues/317
-[#318]: https://github.com/metezd/OmniLog/pull/318
 [c841987]: https://github.com/metezd/OmniLog/commit/c841987
 [78fc6c3]: https://github.com/metezd/OmniLog/commit/78fc6c3
 [5ac28cb]: https://github.com/metezd/OmniLog/commit/5ac28cb
