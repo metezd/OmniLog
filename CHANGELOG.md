@@ -33,6 +33,8 @@ All notable changes to this project are written in this file. The format follows
 - The version of the backend, the frontend package and the Git tags is now one number (`0.8.0`), and a test checks that the files agree.
 - Render deploys `main` only after the GitHub checks pass.
 - The Dependabot auto-merge workflow uses rebase, so it follows the linear history rule.
+- The README, `docs/deployment.md` and `frontend/README.md` no longer describe the removed Axios client or Recharts, and the README lists the testing documents (#295).
+- A local `backend/.env` no longer overrides variables that are already set (shell, CI, Render, tests). With a `.env` copied from `.env.example`, 132 tests failed because its empty IGDB and TMDB keys replaced the fake keys of the tests (#295).
 
 ### Removed
 
