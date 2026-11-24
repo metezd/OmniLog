@@ -25,7 +25,7 @@ CMPE 331 Software Engineering Concepts, Fall 2026-2027
 ```mermaid
 flowchart LR
     subgraph Client
-        UI["Next.js Frontend<br/>React, TypeScript, Tailwind, Recharts"]
+        UI["Next.js Frontend<br/>React, TypeScript, Tailwind"]
     end
 
     subgraph Backend["FastAPI Backend"]
@@ -84,7 +84,7 @@ Each step builds on the one before. A step is done when its tests pass.
 | 5 | External catalog: IGDB and TMDB, Redis cache, search, details | US-08, US-09 | Done. The manual sync is a command (`python -m app.sync`). There is no sync endpoint and no job log |
 | 6 | Episodic logging: chapter ratings, playtime, decisions | US-10 to US-12 | Done |
 | 7 | Analytics: personal statistics with a Redis cache | US-15 | Done |
-| 8 | AI engine: spoiler detection, embeddings, recommendations | US-13, US-14 | Embeddings are stored in `media_embeddings` and can be backfilled with `python -m app.embeddings`. US-13 uses embedding-based ranking with a popularity fallback |
+| 8 | AI engine: spoiler detection, embeddings, recommendations | US-13, US-14 | Done. Embeddings are stored in `media_embeddings` and can be backfilled with `python -m app.embeddings`. US-13 uses embedding-based ranking with a popularity fallback |
 | 9 | Hardening: non-functional tests, 70% coverage, test report, code freeze | NFR-01 to NFR-05 | Partly done. The NFR tests exist and the coverage gate of 70% is in CI (the last local run measured 91%). The Software Testing Report and the code freeze are not in the repository |
 
 ### Milestones
@@ -102,9 +102,10 @@ Each step builds on the one before. A step is done when its tests pass.
 
 The backend is built for every story except the parts listed at the end of this paragraph. All six epics have endpoints and tests: registration and login (`POST /auth/register`, `POST /auth/login`, `GET /auth/me`), the catalog (`POST /media`, `GET /catalog/search`, `GET /catalog/{id}`), the library (`/library`), custom lists and the activity diary (`/lists`, `/diary`), chapter ratings, playtime and decisions (`/library/{id}/chapters/{chapter_id}/...`, US-10 to US-12), personal statistics with a Redis cache (`GET /stats`, US-15), reviews with spoiler detection (`POST` and `GET /library/{id}/review`, US-14) and recommendations (`GET /recommendations`, US-13). The last full local test run gave 885 passed and 20 skipped, with 2 warnings.
 
+Recommendations use the title embeddings to personalize the ranking. If no usable taste vector exists or the vector search fails, the service falls back to a popularity ranking.
+
 Not built yet:
 
-- Recommendations use available title embeddings to personalize ranking. If usable taste vectors or vector search are unavailable, the service falls back to popularity-based ranking.
 - The Operator role (`is_admin`), the sync job log, the scheduled sync and the admin endpoints of the design. The manual sync is a command and needs none of them.
 
 The frontend calls the backend from its server code (see [Frontend](#frontend)). The friends page still shows sample data.
@@ -170,7 +171,7 @@ A game is joined to the catalog by its IGDB id (`external_api_id`). To find it, 
 The shipped file holds one game: Life is Strange (`external_api_id` 7599), with 5 chapters and 6 decision points. The chapter titles and decisions are written by the team and no data source confirms them, so check them against the game before a demo. The command refuses a game with `external_api_id` 0. To change the content, edit the file and run the command again. To create or refresh embeddings in bulk, run `python -m app.embeddings` from `backend`. The command skips titles without genres and descriptions, and skips embeddings whose source text has not changed.
 
 **Rating scales.** The team chose two scales (point 2 in [`docs/analysis/data/domain-model.md`](docs/analysis/data/domain-model.md)). A rating of a library entry is a whole number from 1 to 10 (`POST /library`, `PATCH /library/{id}`). A rating of a chapter or episode is a whole number from 1 to 5 (`PUT /library/{id}/chapters/{chapter_id}/rating`). A value outside the range, or a value that is not a JSON number, is refused with 422. Sending `null` for the rating of a library entry in `PATCH` clears it.
-**Reviews.** `POST /library/{entry_id}/review` creates or updates a review for a library entry owned by the authenticated user. The request body is `{"text": "Your review text"}`. A new review returns 201, and updating an existing review returns 200. Review text must not be blank or longer than 5000 characters (422). Requests without authentication return 401, and entries that do not exist or belong to another user return 404. `GET /library/{entry_id}/review` returns the review, or 404 if no review exists. Posting a review adds a `REVIEW_POSTED` diary event. Spoiler detection is not implemented yet; the spoiler fields remain `null` until it is implemented.
+**Reviews.** `POST /library/{entry_id}/review` creates or updates a review for a library entry owned by the authenticated user. The request body is `{"text": "Your review text"}`. A new review returns 201, and updating an existing review returns 200. Review text must not be blank or longer than 5000 characters (422). Requests without authentication return 401, and entries that do not exist or belong to another user return 404. `GET /library/{entry_id}/review` returns the review, or 404 if no review exists. Posting a review adds a `REVIEW_POSTED` diary event. The spoiler check is described in "Reviews and spoiler detection (US-14)" below.
 
 **Paging of long lists.** `GET /diary`, `GET /library` and `GET /lists` take two optional query parameters: `limit` (1 to 500) and `offset` (0 or more, the number of rows to skip). The default `limit` is 100 for `/diary` and 200 for `/library` and `/lists`, so a client that sends nothing gets a first page and no screen has to change for a user with fewer rows. A `limit` above 500, a `limit` below 1 and a negative `offset` answer 422. The answer stays a plain JSON list, and the order does not change: `/diary` is newest first (ties are ordered by `id`, newest first), `/library` and `/lists` are oldest first. An `offset` after the last row gives an empty list. To read the next page, add the number of rows you got to the `offset`; a page with fewer rows than `limit` is the last one. A client that must show everything reads pages until it gets a short page. The diary has two indexes, `(user_id, created_at DESC)` for this list and `media_item_id` for the delete cascade of a title (migration `0013`).
 
@@ -204,7 +205,7 @@ npm install
 npm run dev
 ```
 
-The app runs at `http://localhost:3000`. The server code of Next.js (Server Components and Server Actions) calls the backend, and the JWT is kept in a cookie that the browser cannot read. The address of the backend is `BACKEND_URL` (default `http://localhost:8000` in development, required in production, see `frontend/.env.example`). `NEXT_PUBLIC_API_URL` is only for the Axios client in `src/lib/api.ts` and the production Docker build needs it. The friends page uses sample data.
+The app runs at `http://localhost:3000`. The server code of Next.js (Server Components and Server Actions) calls the backend, and the JWT is kept in a cookie that the browser cannot read. The address of the backend is `BACKEND_URL` (default `http://localhost:8000` in development, required in production, see `frontend/.env.example`). No code reads `NEXT_PUBLIC_API_URL` any more, because the Axios client `src/lib/api.ts` was removed in `f7cf8fd`. The production Docker build still requires it (`frontend/Dockerfile`). The friends page uses sample data.
 
 ### Tests
 
@@ -217,6 +218,16 @@ python -m pytest tests -v --tb=short
 
 CI runs the same suite with `--cov-fail-under=70`. The stories are linked to the test functions in [`docs/analysis/data/traceability.md`](docs/analysis/data/traceability.md). The frontend tests run with Vitest in happy-dom (`cd frontend && npm test`). The settings that keep happy-dom from running code of a page are in `frontend/vitest.config.mts` and are checked by `frontend/tests/security/happy-dom.test.ts`.
 
+### Code quality (SonarQube)
+
+The job "SonarQube" in `.github/workflows/ci.yml` scans the code on SonarCloud after the backend tests, with their coverage (`coverage.xml`), and fails when the quality gate fails. The settings are in [`sonar-project.properties`](sonar-project.properties). The job is skipped, with a notice, while the secret `SONAR_TOKEN` is not set, and for pull requests from forks. To turn it on (needs admin rights on the repository):
+
+1. Sign in to [SonarCloud](https://sonarcloud.io) with GitHub, import `metezd/OmniLog` and turn off "Automatic Analysis" (Administration > Analysis Method), so that only CI scans.
+2. Create a token (My Account > Security) and add it as the repository secret `SONAR_TOKEN`.
+3. Add the repository variables `SONAR_PROJECT_KEY` and `SONAR_ORGANIZATION` with the values that SonarCloud shows.
+
+SonarCloud is free for public repositories only. While this repository is private, it needs a paid SonarCloud plan, or a local SonarQube Community Build for a check by hand: `docker run -d --name sonarqube -p 9000:9000 sonarqube:community`, then run the scanner with `-Dsonar.host.url=http://localhost:9000` and a token of that server.
+
 ### Dependency security
 
 Dependabot opens pull requests for the Python packages, the frontend packages and the GitHub Actions (`.github/dependabot.yml`). Next.js and `eslint-config-next` are pinned to the same exact version and are updated together. The CI job for the frontend runs `npm audit --omit=dev --audit-level=high` and fails on a known high or critical problem in a package that runs in production. Development tools are not part of that check. Vitest 3 and 4 have open advisories that are fixed only in Vitest 5, a major upgrade that is planned as separate work, so `npm audit` (without `--omit=dev`) still lists them.
@@ -228,6 +239,7 @@ Dependabot opens pull requests for the Python packages, the frontend packages an
 | Project Charter | [`docs/CHARTER.md`](docs/CHARTER.md) |
 | Contribution rules (branching, commits, reviews, versions, releases) | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
 | Changelog | [`CHANGELOG.md`](CHANGELOG.md) |
+| AI usage: tools, pipeline, rules and member notes | [`docs/ai-usage`](docs/ai-usage/README.md) |
 | Deployment and the deployment pipeline | [`docs/deployment.md`](docs/deployment.md) |
 | Requirement Specification | [`docs/requirements/requirements-specification.md`](docs/requirements/requirements-specification.md) |
 | User stories | [`docs/requirements/user-stories.md`](docs/requirements/user-stories.md) |
@@ -236,3 +248,5 @@ Dependabot opens pull requests for the Python packages, the frontend packages an
 | Domain model and E-R diagram | [`docs/analysis/data`](docs/analysis/data) |
 | Data flow diagrams | [`docs/analysis/behavior`](docs/analysis/behavior) |
 | UI screen list | [`docs/analysis/ui/screen-list.md`](docs/analysis/ui/screen-list.md) |
+| Penetration test report | [`docs/tests/penetration`](docs/tests/penetration/README.md) |
+| TDD evidence | [`docs/tests/tdd-evidence.md`](docs/tests/tdd-evidence.md) |
