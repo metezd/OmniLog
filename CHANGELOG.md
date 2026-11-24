@@ -22,15 +22,19 @@ All notable changes to this project are written in this file. The format follows
 - Project documents: Charter, requirements, analysis, design and plan.
 - The API documentation is now off on Render too (`ENABLE_DOCS=false`).
 - Local penetration test with its report, TDD evidence and AI usage notes (#252).
-- The AI usage page: tools, pipeline, instruction files, rules and controls (`docs/ai-usage/README.md`, #308).
+- AI usage notes of Sidar Ürey (`docs/ai-usage/sidar-urey.md`, #315).
+- The evidence of AI use beyond autocomplete: agent pull requests, Copilot review results, instruction files and a review session (`docs/ai-usage/evidence.md`, #311).
 - Contribution rules with a branching model, versioning, code review, a pull request template, issue templates and CODEOWNERS.
 - A release workflow that creates a GitHub Release from a version tag, and a ruleset that protects `main`.
+- A SonarQube job in CI (SonarCloud, with the backend coverage and the quality gate) and `sonar-project.properties`. It runs once the secret `SONAR_TOKEN` is set (#299).
 
 ### Changed
 
 - The version of the backend, the frontend package and the Git tags is now one number (`0.8.0`), and a test checks that the files agree.
 - Render deploys `main` only after the GitHub checks pass.
 - The Dependabot auto-merge workflow uses rebase, so it follows the linear history rule.
+- The README, `docs/deployment.md` and `frontend/README.md` no longer describe the removed Axios client or Recharts, and the README lists the testing documents (#295).
+- A local `backend/.env` no longer overrides variables that are already set (shell, CI, Render, tests). With a `.env` copied from `.env.example`, 132 tests failed because its empty IGDB and TMDB keys replaced the fake keys of the tests (#295).
 
 ### Removed
 

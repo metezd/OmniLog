@@ -35,7 +35,9 @@
           { "context": "Frontend checks" },
           { "context": "gitleaks" },
           { "context": "trivy" },
-          { "context": "zizmor" }
+          { "context": "zizmor" },
+          { "context": "PR title" },
+          { "context": "Branch name" }
         ]
       }
     }
