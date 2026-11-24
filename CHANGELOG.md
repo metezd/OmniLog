@@ -22,8 +22,11 @@ All notable changes to this project are written in this file. The format follows
 - Project documents: Charter, requirements, analysis, design and plan.
 - The API documentation is now off on Render too (`ENABLE_DOCS=false`).
 - Local penetration test with its report, TDD evidence and AI usage notes (#252).
+- AI usage notes of Sidar Ürey (`docs/ai-usage/sidar-urey.md`, #315).
+- The evidence of AI use beyond autocomplete: agent pull requests, Copilot review results, instruction files and a review session (`docs/ai-usage/evidence.md`, #311).
 - Contribution rules with a branching model, versioning, code review, a pull request template, issue templates and CODEOWNERS.
 - A release workflow that creates a GitHub Release from a version tag, and a ruleset that protects `main`.
+- Checks of branch names and pull request titles: a second ruleset (`.github/rulesets/branch-names.json`) and the workflow `pr-title.yml` (#294).
 
 ### Changed
 
