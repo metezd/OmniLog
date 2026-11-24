@@ -2,8 +2,9 @@ import os
 
 from dotenv import load_dotenv
 
-# Load variables from a local .env file (ignored by git) if it exists
-load_dotenv(override=os.getenv("SECRET_KEY") != "test-secret-key-at-least-32-characters-long")
+# Load variables from a local .env file (ignored by git) if it exists. A variable that is
+# already set (shell, CI, Render, the test setup) keeps priority over the file.
+load_dotenv()
 
 
 def _require(name: str) -> str:
