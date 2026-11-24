@@ -23,6 +23,7 @@ All notable changes to this project are written in this file. The format follows
 - The API documentation is now off on Render too (`ENABLE_DOCS=false`).
 - Local penetration test with its report, TDD evidence and AI usage notes (#252).
 - Contribution rules with a branching model, versioning, code review, a pull request template, issue templates and CODEOWNERS.
+- The AI assistance convention: a section in the pull request template, the label `ai-assisted`, the commit trailer `Assisted-by:` and the rule that the author explains every line (#309).
 - A release workflow that creates a GitHub Release from a version tag, and a ruleset that protects `main`.
 
 ### Changed
