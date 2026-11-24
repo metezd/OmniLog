@@ -4,6 +4,8 @@ All notable changes to this project are written in this file. The format follows
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-24
+
 ### Added
 
 - Authentication with register, login and JWT, and `GET /auth/me` (US-02, US-03).
@@ -25,17 +27,32 @@ All notable changes to this project are written in this file. The format follows
 - AI usage notes of Sidar Ürey (`docs/ai-usage/sidar-urey.md`, #315).
 - The evidence of AI use beyond autocomplete: agent pull requests, Copilot review results, instruction files and a review session (`docs/ai-usage/evidence.md`, #311).
 - Contribution rules with a branching model, versioning, code review, a pull request template, issue templates and CODEOWNERS.
+- The AI assistance convention: a section in the pull request template, the label `ai-assisted`, the commit trailer `Assisted-by:` and the rule that the author explains every line (#309).
 - A release workflow that creates a GitHub Release from a version tag, and a ruleset that protects `main`.
-- A SonarQube job in CI (SonarCloud, with the backend coverage and the quality gate) and `sonar-project.properties`. It runs once the secret `SONAR_TOKEN` is set (#299).
+- Health endpoints `GET /health` and `GET /health/ready` for the Render health check.
+- Security headers on every API response and the `ENABLE_DOCS` switch for the API documentation.
+- Paging with `limit` and `offset` on the diary, the library and the lists, and indexes on `diary_entries` (migration 0013).
+- Frontend: the S-01 landing page with the ASCII background and the liquid-glass style, the statistics screen and its tests. The friends page is marked as a demo with sample data (#123, #124).
 
 ### Changed
 
 - The version of the backend, the frontend package and the Git tags is now one number (`0.8.0`), and a test checks that the files agree.
 - Render deploys `main` only after the GitHub checks pass.
 - The Dependabot auto-merge workflow uses rebase, so it follows the linear history rule.
-- The README, `docs/deployment.md` and `frontend/README.md` no longer describe the removed Axios client or Recharts, and the README lists the testing documents (#295).
-- A local `backend/.env` no longer overrides variables that are already set (shell, CI, Render, tests). With a `.env` copied from `.env.example`, 132 tests failed because its empty IGDB and TMDB keys replaced the fake keys of the tests (#295).
-- Catalog poster images from TMDB, IGDB, TVMaze, Steam and iTunes are now served through `/api/poster` with a fallback placeholder when an external image fails to load.
+- `GET /stats` caps the playtime histogram at 100+ hours and 21 buckets (#216).
+- The database URL is normalized for PostgreSQL, and the connection falls back cleanly for local development.
+- The backend dependencies are pinned in lock files, and `bcrypt` replaces `passlib`.
+- Python 3.14 in the GitHub workflows and 3.15.0 in `render.yaml`.
+
+### Fixed
+
+- A review is saved before the spoiler check runs, and the spoiler fields stay empty when the check fails.
+- Render: the Redis service uses the type `keyvalue`, the backend starts with proxy headers and the frontend uses Node 26.
+
+### Security
+
+- `python-jose` is replaced by PyJWT, and access tokens must carry the `exp` and `sub` claims (the `iat` claim is added).
+- A dependency audit (`pip-audit`) runs in CI.
 
 ### Removed
 
