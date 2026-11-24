@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import PosterImage from "@/components/layout/PosterImage";
 import AddToLibraryButton from "@/components/search/AddToLibraryButton";
 import {
   MEDIA_TYPE_BADGE_CLASSES,
@@ -24,13 +25,7 @@ export default function SearchResultCard({ item, inLibrary }: SearchResultCardPr
       className={`liquid-glass liquid-glass-card ${MEDIA_TYPE_CARD_CLASSES[item.media_type]} flex flex-col overflow-hidden rounded-2xl`}
     >
       <div className="relative h-56 w-full overflow-hidden bg-black/40">
-        {item.poster_url ? (
-          // A plain img, because the poster hosts of IGDB and TMDB are not configured for next/image
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={item.poster_url} alt={`Poster of ${item.title}`} className="h-full w-full object-cover" />
-        ) : (
-          <div className="flex h-full items-center justify-center text-xs text-slate-500">No poster</div>
-        )}
+        <PosterImage posterUrl={item.poster_url} title={item.title} />
         <div className="absolute inset-0 bg-gradient-to-t from-[#090C15] via-transparent to-transparent" />
         <span
           className={`absolute left-3 top-3 rounded-full border px-2 py-0.5 text-[10px] font-semibold backdrop-blur-md ${MEDIA_TYPE_BADGE_CLASSES[item.media_type]}`}
