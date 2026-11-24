@@ -43,3 +43,35 @@ export function releaseYear(releaseDate: string | null): string | null {
   const match = releaseDate?.match(/^\d{4}/);
   return match ? match[0] : null;
 }
+
+/** Allowed external catalog CDN hostnames that can be proxied through /api/poster. */
+export const ALLOWED_POSTER_HOSTS = new Set([
+  "image.tmdb.org",
+  "images.igdb.com",
+  "static.tvmaze.com",
+  "shared.akamai.steamstatic.com",
+  "cdn.akamai.steamstatic.com",
+  "is1-ssl.mzstatic.com",
+  "is2-ssl.mzstatic.com",
+  "is3-ssl.mzstatic.com",
+  "is4-ssl.mzstatic.com",
+  "is5-ssl.mzstatic.com",
+]);
+
+/**
+ * Route known external catalog poster URLs through the Next.js /api/poster proxy so browsers
+ * behind ISP/DNS blocks or strict tracking filters load images from the app origin.
+ */
+export function resolvePosterUrl(posterUrl: string | null): string | null {
+  if (!posterUrl) return null;
+  try {
+    const parsed = new URL(posterUrl);
+    if (parsed.protocol === "https:" && ALLOWED_POSTER_HOSTS.has(parsed.hostname)) {
+      const cleanTarget = `${parsed.origin}${parsed.pathname}`;
+      return `/api/poster?url=${encodeURIComponent(cleanTarget)}`;
+    }
+  } catch {
+    return posterUrl;
+  }
+  return posterUrl;
+}

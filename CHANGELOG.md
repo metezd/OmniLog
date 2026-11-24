@@ -35,6 +35,7 @@ All notable changes to this project are written in this file. The format follows
 - The Dependabot auto-merge workflow uses rebase, so it follows the linear history rule.
 - The README, `docs/deployment.md` and `frontend/README.md` no longer describe the removed Axios client or Recharts, and the README lists the testing documents (#295).
 - A local `backend/.env` no longer overrides variables that are already set (shell, CI, Render, tests). With a `.env` copied from `.env.example`, 132 tests failed because its empty IGDB and TMDB keys replaced the fake keys of the tests (#295).
+- Catalog poster images from TMDB, IGDB, TVMaze, Steam and iTunes are now served through `/api/poster` with a fallback placeholder when an external image fails to load.
 
 ### Removed
 

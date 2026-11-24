@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import PosterImage from "@/components/layout/PosterImage";
 import AddToLibraryButton from "@/components/search/AddToLibraryButton";
 import EmptyState from "@/components/states/EmptyState";
 import ErrorState from "@/components/states/ErrorState";
@@ -100,18 +101,7 @@ export default async function TitleDetailPage({ params }: TitlePageProps) {
       {/* Hero Header */}
       <div className="liquid-glass grid grid-cols-1 gap-6 rounded-3xl border border-white/10 p-6 md:grid-cols-[220px_1fr]">
         <div className="relative h-72 w-full overflow-hidden rounded-2xl bg-black/40 md:h-80">
-          {detail.poster_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={detail.poster_url}
-              alt={`Poster of ${detail.title}`}
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <div className="flex h-full items-center justify-center text-xs text-slate-500">
-              No poster
-            </div>
-          )}
+          <PosterImage posterUrl={detail.poster_url} title={detail.title} />
         </div>
 
         <div className="flex flex-col justify-between space-y-4">
