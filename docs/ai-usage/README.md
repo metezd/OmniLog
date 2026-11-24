@@ -32,7 +32,7 @@ flowchart LR
 1. **Issue.** The issue is the specification. The agent reads it and does what it says, so the issue names the files, the rules and the definition of done (for example [#311], [#294]).
 2. **Branch.** The agent works on a branch named `type/short-description` ([CONTRIBUTING.md](../../CONTRIBUTING.md#branch-names), checked by [#320]). It never works on `main`.
 3. **Local tests.** The agent runs the tests and writes the numbers in the pull request, for example "768 passed, 16 skipped, coverage 91%" in [#236].
-4. **Pull request.** The [template](../../.github/pull_request_template.md) asks what changed and how it was tested. A section about AI help and the label `ai-assisted` are added by [#309]. Today the label is on [#186], [#187], [#238], [#247], [#258] and [#319]. List them with `gh pr list --label ai-assisted --state all`.
+4. **Pull request.** The [template](../../.github/pull_request_template.md) asks what changed and how it was tested. A section about AI help and the label `ai-assisted` are added by [#309]. The label is also on the merged pull requests where the member notes, a commit trailer or the description show AI help. List them with `gh pr list --label ai-assisted --state all`.
 5. **CI.** The required checks are in [`.github/rulesets/main.json`](../../.github/rulesets/main.json). SonarQube is prepared in [#322].
 6. **Review.** CODEOWNERS asks `metezd` (and `KeremKenet` for the frontend) for a review. One approval from a teammate is required. A Copilot review is optional and is not an approval.
 7. **Merge.** The author merges after the approval and the green checks.
