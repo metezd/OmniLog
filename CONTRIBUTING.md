@@ -38,6 +38,8 @@ Use `type/short-description` in lower case with hyphens.
 
 Examples: `feat/title-description-and-genres`, `fix/login-redirect`, `chore/project-tooling`.
 
+Both names are checked. The ruleset in [`.github/rulesets/branch-names.json`](.github/rulesets/branch-names.json) refuses to create a branch with another name (Dependabot branches are allowed), and the workflow `pr-title.yml` fails the checks "Branch name" and "PR title" when the branch name or the pull request title is not in this form.
+
 ## Commit messages
 
 One line in the form `type(scope): subject`. We follow Conventional Commits.
@@ -59,6 +61,24 @@ The pull request template asks for a summary, the linked issues, the list of cha
 - needs a migration or a new environment variable.
 
 Add the labels of the area (`backend`, `frontend`, `ci`, `documentation`) and the milestone of the roadmap step.
+
+## AI assistance
+
+AI may help with code, tests, documents and reviews. How the team uses it end to end is in [`docs/ai-usage`](docs/ai-usage/README.md). Every change shows whether AI helped, so that the help can be traced later:
+
+- **Pull request.** Fill the section "AI assistance" of the template: none, AI helped, or AI wrote most of it, the tool and the model, what you checked by hand, and what the AI got wrong that you fixed.
+- **Label.** Add `ai-assisted` to every pull request where AI helped. All of them: `gh pr list --label ai-assisted --state all`.
+- **Commit trailer.** A commit that AI wrote or changed gets a trailer in a second line. The subject stays one line:
+
+  ```bash
+  git commit -m "fix: reject NUL characters" -m "Assisted-by: Claude Code (Claude Opus 5.5)"
+  ```
+
+  Use the real tool and model, for example `Assisted-by: Codex (gpt-6-luna)` or `Assisted-by: ChatGPT`.
+
+**The author must be able to explain every line** of AI output before the merge, as if they had written it. The reviewer asks when something is unclear, and a change that the author cannot explain is not merged. AI never merges, and AI output goes through CI and a human review like any other change.
+
+Work merged before this rule has no trailer, and history is not rewritten. It is covered by the notes of each member in [`docs/ai-usage`](docs/ai-usage/README.md).
 
 ## Versioning and releases
 
@@ -119,10 +139,16 @@ Every pull request is reviewed before it is merged, including the pull requests 
 
 ### Protecting `main`
 
-The rules above are enforced by GitHub, not by trust. The ruleset in [`.github/rulesets/main.json`](.github/rulesets/main.json) requires a pull request, one approval, resolved conversations, a linear history and these status checks: Security lint (Ruff), Backend tests, Docker Compose smoke test, Frontend checks, gitleaks, trivy and zizmor. It also blocks force pushes and deleting `main`. The workflow `docker-build.yml` is not listed on purpose, because it runs only when some files change, and a check that does not run would block the other pull requests. Apply the ruleset once (needs the GitHub CLI and admin rights):
+The rules above are enforced by GitHub, not by trust. The ruleset in [`.github/rulesets/main.json`](.github/rulesets/main.json) requires a pull request, one approval, resolved conversations, a linear history and these status checks: Security lint (Ruff), Backend tests, Docker Compose smoke test, Frontend checks, gitleaks, trivy, zizmor, PR title and Branch name. It also blocks force pushes and deleting `main`. The workflow `docker-build.yml` is not listed on purpose, because it runs only when some files change, and a check that does not run would block the other pull requests. Apply the ruleset once (needs the GitHub CLI and admin rights):
 
 ```powershell
 gh api repos/metezd/OmniLog/rulesets --method POST --input .github/rulesets/main.json
+```
+
+The second ruleset, [`.github/rulesets/branch-names.json`](.github/rulesets/branch-names.json), enforces the [branch names](#branch-names) on every branch except `main` and `dependabot/...`. Apply it the same way:
+
+```powershell
+gh api repos/metezd/OmniLog/rulesets --method POST --input .github/rulesets/branch-names.json
 ```
 
 ## Checks before you push
@@ -153,6 +179,6 @@ npm audit --omit=dev --audit-level=high
 
 ## Labels and milestones
 
-- Labels: `backend`, `frontend`, `ci`, `dependencies`, `security`, `documentation`, `tests`, `enhancement`, `bug`, `scope-extension`, `follow-up`.
+- Labels: `backend`, `frontend`, `ci`, `dependencies`, `security`, `documentation`, `tests`, `enhancement`, `bug`, `scope-extension`, `follow-up`, and `ai-assisted` (see [AI assistance](#ai-assistance)).
 - Milestones follow the roadmap in the README (Step 0 to Step 9).
 - A change for the changelog goes into `CHANGELOG.md` under `[Unreleased]` (see [Versioning and releases](#versioning-and-releases)).
