@@ -38,6 +38,8 @@ Use `type/short-description` in lower case with hyphens.
 
 Examples: `feat/title-description-and-genres`, `fix/login-redirect`, `chore/project-tooling`.
 
+Both names are checked. The ruleset in [`.github/rulesets/branch-names.json`](.github/rulesets/branch-names.json) refuses to create a branch with another name (Dependabot branches are allowed), and the workflow `pr-title.yml` fails the checks "Branch name" and "PR title" when the branch name or the pull request title is not in this form.
+
 ## Commit messages
 
 One line in the form `type(scope): subject`. We follow Conventional Commits.
@@ -119,10 +121,16 @@ Every pull request is reviewed before it is merged, including the pull requests 
 
 ### Protecting `main`
 
-The rules above are enforced by GitHub, not by trust. The ruleset in [`.github/rulesets/main.json`](.github/rulesets/main.json) requires a pull request, one approval, resolved conversations, a linear history and these status checks: Security lint (Ruff), Backend tests, Docker Compose smoke test, Frontend checks, gitleaks, trivy and zizmor. It also blocks force pushes and deleting `main`. The workflow `docker-build.yml` is not listed on purpose, because it runs only when some files change, and a check that does not run would block the other pull requests. Apply the ruleset once (needs the GitHub CLI and admin rights):
+The rules above are enforced by GitHub, not by trust. The ruleset in [`.github/rulesets/main.json`](.github/rulesets/main.json) requires a pull request, one approval, resolved conversations, a linear history and these status checks: Security lint (Ruff), Backend tests, Docker Compose smoke test, Frontend checks, gitleaks, trivy, zizmor, PR title and Branch name. It also blocks force pushes and deleting `main`. The workflow `docker-build.yml` is not listed on purpose, because it runs only when some files change, and a check that does not run would block the other pull requests. Apply the ruleset once (needs the GitHub CLI and admin rights):
 
 ```powershell
 gh api repos/metezd/OmniLog/rulesets --method POST --input .github/rulesets/main.json
+```
+
+The second ruleset, [`.github/rulesets/branch-names.json`](.github/rulesets/branch-names.json), enforces the [branch names](#branch-names) on every branch except `main` and `dependabot/...`. Apply it the same way:
+
+```powershell
+gh api repos/metezd/OmniLog/rulesets --method POST --input .github/rulesets/branch-names.json
 ```
 
 ## Checks before you push
