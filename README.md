@@ -236,3 +236,4 @@ Dependabot opens pull requests for the Python packages, the frontend packages an
 | Domain model and E-R diagram | [`docs/analysis/data`](docs/analysis/data) |
 | Data flow diagrams | [`docs/analysis/behavior`](docs/analysis/behavior) |
 | UI screen list | [`docs/analysis/ui/screen-list.md`](docs/analysis/ui/screen-list.md) |
+| Evidence of AI use (agents, AI review, instruction files) | [`docs/ai-usage/evidence.md`](docs/ai-usage/evidence.md) |
