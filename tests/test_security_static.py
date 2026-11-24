@@ -396,7 +396,7 @@ def _import_config(cors_origins: str | None) -> subprocess.CompletedProcess:
     env = {
         **os.environ,
         "DATABASE_URL": "postgresql+psycopg2://u:p@localhost/x",
-        # This exact value keeps a local backend/.env file from overriding the variables below
+        # A local backend/.env file cannot override these, because variables that are already set win
         "SECRET_KEY": "test-secret-key-at-least-32-characters-long",  # gitleaks:allow (dummy test value)
     }
     env.pop("CORS_ORIGINS", None)
