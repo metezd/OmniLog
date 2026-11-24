@@ -1,0 +1,51 @@
+name: Pull request names
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  # The title becomes the commit subject after "Rebase and merge" of a one-commit pull request,
+  # so it must be a Conventional Commit (see "Commit messages" in CONTRIBUTING.md).
+  title:
+    name: PR title
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      # The title is user input, so it reaches the script only through an environment variable
+      - name: Check the title
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          pattern='^(feat|fix|docs|test|chore|ci|refactor|perf|build|revert)(\([a-z0-9._/-]+\))?!?: [^ ].*$'
+          if [[ "$TITLE" =~ $pattern ]]; then
+            echo "The title is a Conventional Commit."
+          else
+            # The title is printed on its own line, never inside a workflow command
+            printf 'Title: %s\n' "$TITLE"
+            echo "::error title=Pull request title::The title is not a Conventional Commit. Use 'type(scope): text', for example 'docs: explain the release steps'. Types: feat, fix, docs, test, chore, ci, refactor, perf, build, revert."
+            exit 1
+          fi
+
+  # Second line of defense for the "Branch names" ruleset (.github/rulesets/branch-names.json).
+  # Dependabot branches are allowed, as in the ruleset.
+  branch:
+    name: Branch name
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Check the branch name
+        env:
+          BRANCH: ${{ github.head_ref }}
+        run: |
+          pattern='^(feat|fix|chore|docs|test)/[a-z0-9][a-z0-9._-]*$'
+          if [[ "$BRANCH" =~ $pattern || "$BRANCH" == dependabot/* ]]; then
+            echo "The branch name follows type/short-description."
+          else
+            printf 'Branch: %s\n' "$BRANCH"
+            echo "::error title=Branch name::The branch name does not follow type/short-description. Allowed types: feat, fix, chore, docs, test, in lower case with hyphens, for example 'feat/my-work'."
+            exit 1
+          fi
