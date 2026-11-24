@@ -207,6 +207,55 @@ jobs:
           path: coverage.xml
           if-no-files-found: ignore
 
+  # SonarQube analysis on SonarCloud with the coverage of the backend job (#299). Skipped while the
+  # secret SONAR_TOKEN is not set (also for Dependabot), and for pull requests from forks, which
+  # get no secrets. The project key and the organization are repository variables.
+  sonarqube:
+    name: SonarQube
+    needs: backend
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check the SonarQube token
+        id: sonar
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          if [ -n "$SONAR_TOKEN" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice title=SonarQube::The secret SONAR_TOKEN is not set, so the scan is skipped."
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # The full history lets SonarQube find new code and the authors of the lines
+      - name: Checkout
+        if: steps.sonar.outputs.available == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Download backend coverage
+        if: steps.sonar.outputs.available == 'true'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: backend-coverage
+
+      # Fails the job when the quality gate fails
+      - name: SonarQube scan
+        if: steps.sonar.outputs.available == 'true'
+        uses: SonarSource/sonarqube-scan-action@e805d875275f728fac1885b413934be6d7c63f65 # v8.4.1
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
+            -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }}
+            -Dsonar.qualitygate.wait=true
+
   docker-compose:
     name: Docker Compose smoke test
     runs-on: ubuntu-latest
