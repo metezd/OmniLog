@@ -71,9 +71,23 @@ def test_no_client_and_no_header_is_unknown(monkeypatch):
     assert client_address(Request({"type": "http", "headers": [], "client": None})) == "unknown"
 
 
+class FrozenClock:
+    """Stands in for the `time` module of app/core/rate_limit.py.
+
+    The limits count in fixed windows of one minute. With the real clock, the 11 logins of a test
+    (each one a bcrypt check) can cross the end of a minute on a slow runner, the count starts
+    again and the last login gets 401 instead of 429. A fixed time keeps every call in one window.
+    """
+
+    @staticmethod
+    def time() -> float:
+        return 1_800_000_000.0  # the start of an hour, as in test_rate_limits.py
+
+
 @pytest.fixture
 def login_limit_on(monkeypatch):
     monkeypatch.setattr(config, "RATE_LIMIT_ENABLED", True)
+    monkeypatch.setattr(rate_limit, "time", FrozenClock)
     monkeypatch.setattr(config, "REDIS_URL", "")  # count in the process, not in a shared Redis
     monkeypatch.setattr(config, "FORWARDED_TRUSTED_HOPS", 2)
     cache.reset_connection()
