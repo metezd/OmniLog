@@ -16,17 +16,17 @@ Part of the review checklist in #252 (section E).
 | [#235](https://github.com/metezd/OmniLog/pull/235) - Python version | Assisted with CI configuration and deprecated API replacements | PR reports 95 passing local tests and successful CI |
 | [#236](https://github.com/metezd/OmniLog/pull/236) - Rate limits | Assisted with implementation, tests and documentation | PR reports 768 passing backend tests and 187 passing frontend tests |
 | [#237](https://github.com/metezd/OmniLog/pull/237) - Passlib replacement | Assisted with bcrypt migration, dependency locking and tests | PR reports 784 passing tests and 91% coverage |
-| [#259](https://github.com/metezd/OmniLog/pull/259) - Penetration testing and TDD evidence | Assisted with local testing, git history analysis and documentation | Findings checked against configuration and recorded test results |
-| [#260](https://github.com/metezd/OmniLog/pull/260) - Render configuration | Assisted with disabling API documentation and adding regression tests | PR reports 93 passing tests |
-| [#345](https://github.com/metezd/OmniLog/pull/345) - TDD evidence | Assisted with test history analysis and documentation | PR reports 17 passing tests and repeated red/green runs |
-| [#346](https://github.com/metezd/OmniLog/pull/346) - AI mistakes register | Assisted with collecting and documenting AI mistakes | PR reports 9 passing tests and reference checks |
+| [#259](https://github.com/metezd/OmniLog/pull/259) - Penetration testing and TDD evidence | Wrote and ran the attack script, analysed the git history and wrote the reports | Findings checked against configuration and recorded test results |
+| [#260](https://github.com/metezd/OmniLog/pull/260) - Render configuration | Wrote the change that turns off the API documentation and its regression test | PR reports 93 passing tests |
+| [#345](https://github.com/metezd/OmniLog/pull/345) - TDD evidence | Ran the red and green checks from the real commits and wrote the document | PR reports 17 passing tests and repeated red/green runs |
+| [#346](https://github.com/metezd/OmniLog/pull/346) - AI mistakes register | Collected the mistakes from the notes and pull requests and wrote the register | PR reports 9 passing tests and reference checks |
 
 ## AI mistakes that were caught
 
 | Mistake | How it was caught | Fix | Severity |
 |---|---|---|---|
 | The token change in #231 broke an existing token lifetime test | CI failure | Fixed in [c841987](https://github.com/metezd/OmniLog/commit/c841987) | Minor |
-| ENABLE_DOCS was missing from render.yaml | Penetration test finding F2 | Fixed in [a247f0b](https://github.com/metezd/OmniLog/commit/a247f0b) | Medium |
+| ENABLE_DOCS was missing from render.yaml | Penetration test finding F2 | Fixed in [a247f0b](https://github.com/metezd/OmniLog/commit/a247f0b) | Serious (M2 in [mistakes.md](mistakes.md)) |
 | The initial RATE-02 result was affected by the local test configuration | Configuration review and repeated local testing | Corrected in the penetration test report | Incorrect initial explanation |
 | Incorrect failed/passed test counts in the first TDD draft | Review of the complete test output | Corrected in #345 | Minor |
 | An existing warning was incorrectly considered an AI mistake | Review of the original PR | Removed from the register in #346 | Minor |
