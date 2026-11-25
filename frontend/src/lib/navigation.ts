@@ -7,5 +7,4 @@ export const USER_NAV_LINKS = [
   { href: "/diary", label: "Diary" },
   { href: "/recommendations", label: "Recommendations" },
   { href: "/stats", label: "Stats" },
-  { href: "/friends", label: "Friends" },
 ] as const;
