@@ -21,6 +21,17 @@ Issue #299. This feeds the Software Testing Report (#296). The scan was run on 2
 
 The backend coverage in SonarQube (95.0%) matches `pytest --cov` (94.99%, [coverage](coverage.md)), so the paths in `coverage.xml` are read correctly. SonarQube counts lines and conditions together, so its frontend number (41.6%) is not the same as the line number of Vitest (about 33%).
 
+### Screenshots
+
+Both versions were scanned again on 26.11.2026 into two projects of the same local server, with the same numbers as above. The pages were opened without a login. The project name of the "after" scan says `6010b2a`: that commit has the same code as `6ee1f8d`, which only adds the `Assisted-by` trailer to its message.
+
+| Before (`main` at `74f1f3a`) | After (#349) |
+|---|---|
+| ![Summary before the fixes: quality gate passed, security E, reliability C](sonarqube/1-before-summary.jpg) | ![Summary after the fixes: quality gate passed, all ratings A, 0 open issues](sonarqube/3-after-summary.jpg) |
+| ![The 15 open issues before the fixes, the Blocker first](sonarqube/2-before-issues.jpg) | ![No open issues after the fixes](sonarqube/4-after-issues.jpg) |
+
+The dashboard of this SonarQube version counts by software quality: 1 security, 14 reliability and 10 maintainability issues before the fixes. These are the same 15 issues as in the table, because one issue can count for two qualities (for example the `Number.NaN` smells count for reliability and maintainability).
+
 ## 2. Every finding and what was done
 
 | Rule | Type, severity | Where | Decision |
