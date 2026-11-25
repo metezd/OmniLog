@@ -4,7 +4,7 @@ Part of the review checklist in #252 (section E). Issue: #317.
 
 ## Role
 
-My main role was Backend QA and Test Engineer. I contributed to backend testing, security testing, dependency updates, debugging and technical documentation. I also worked with GitHub to manage branches, commits and pull requests. I used AI assistance for some implementation and documentation tasks. The table below lists each pull request where AI helped.
+My main role was Backend QA and Test Engineer. I contributed to backend testing, security testing, dependency updates, debugging and technical documentation. I also worked with GitHub to manage branches, commits and pull requests. I used AI assistance for many implementation and documentation tasks. The table below lists each pull request where AI helped.
 
 ## Tools
 
@@ -24,6 +24,7 @@ My main role was Backend QA and Test Engineer. I contributed to backend testing,
 | [#260](https://github.com/metezd/OmniLog/pull/260) - Render configuration | Wrote the change that turns off the API documentation and its regression test | PR reports 93 passing tests |
 | [#345](https://github.com/metezd/OmniLog/pull/345) - TDD evidence | Ran the red and green checks from the real commits and wrote the document | PR reports 17 passing tests and repeated red/green runs |
 | [#346](https://github.com/metezd/OmniLog/pull/346) - AI mistakes register | Collected the mistakes from the notes and pull requests and wrote the register | PR reports 9 passing tests and reference checks |
+| [#348](https://github.com/metezd/OmniLog/pull/348) - Penetration retest | Extended the attack script, ran the retest and the browser check, and wrote the report section | CI, and 31 of 31 checks passed against the fixed code |
 
 ## AI mistakes that were caught
 
