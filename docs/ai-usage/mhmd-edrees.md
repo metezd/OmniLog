@@ -1,6 +1,10 @@
 # AI Usage Notes: Mohammed Edris (@Mhmd77Edrees)
 
-Part of the review checklist in #252 (section E).
+Part of the review checklist in #252 (section E). Issue: #317.
+
+## Role
+
+My main role was Backend QA and Test Engineer. I contributed to backend testing, security testing, dependency updates, debugging and technical documentation. I also worked with GitHub to manage branches, commits and pull requests. I used AI assistance for some implementation and documentation tasks. The table below lists each pull request where AI helped.
 
 ## Tools
 
