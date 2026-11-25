@@ -210,8 +210,10 @@ jobs:
         # --cov-append adds the live paths to the coverage of the normal run, so the summary
         # shows how much the live tests add (#297)
         run: |
-          python -m pytest tests/requirements/test_epic3_catalog_live.py -v --cov=backend/app --cov-append --cov-report=xml
+          status=0
+          python -m pytest tests/requirements/test_epic3_catalog_live.py -v --cov=backend/app --cov-append --cov-report=xml || status=$?
           python -c "import xml.etree.ElementTree as E; r=float(E.parse('coverage.xml').getroot().get('line-rate')); print(f'### Backend coverage with the live tests: {r*100:.2f}% of lines')" >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
 
       - name: Upload backend coverage
         if: always()
