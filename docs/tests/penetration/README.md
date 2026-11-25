@@ -172,7 +172,7 @@ A user was created with `<img src=x onerror="window.__xss=1">` and `<script>wind
 | Logged out | `/library`, `/lists`, `/lists/6`, `/diary`, `/stats`, `/recommendations`, `/title/4` and `/search` answer 307 to `/login` |
 | Frontend headers | `X-Frame-Options: DENY` and a `Content-Security-Policy` with a nonce and `strict-dynamic`, no `X-Powered-By` |
 
-**A false alarm that was checked:** on `/title/4` the text `window.__xss=2` was found inside one `<script>` element. It is the data that Next.js sends to the page (`self.__next_f.push`), where `<` is written as the escape `<`, so it is a string and not a tag. The script did not set `window.__xss`.
+**A false alarm that was checked:** on `/title/4` the text `window.__xss=2` was found inside one `<script>` element. It is the data that Next.js sends to the page (`self.__next_f.push`), where `<` is written as the escape `\u003c`, so it is a string and not a tag. The script did not set `window.__xss`.
 
 ### Not tested yet
 
