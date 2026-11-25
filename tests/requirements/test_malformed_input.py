@@ -132,3 +132,72 @@ def test_us06_deeply_nested_json_is_refused_without_a_server_error(tolerant, aut
 
     assert_refused(response)
     assert len(response.content) < 2_000
+
+
+# ------------------------------------------------------------------------- F6: body size limit
+ONE_MB = 1024 * 1024
+
+
+def test_f6_us06_a_body_over_one_megabyte_gets_413(tolerant, auth_headers):
+    response = tolerant.post("/lists", json={"name": "A" * 3_000_000}, headers=auth_headers)
+
+    assert response.status_code == 413
+    assert len(response.content) < 2_000
+    # The security headers are on this answer too
+    assert response.headers.get("x-content-type-options") == "nosniff"
+
+
+def test_f6_us14_the_largest_real_body_still_works(tolerant, auth_headers, entry):
+    """A review of 5000 characters is the largest body that the API accepts. It is far under 1 MB."""
+    response = tolerant.post(f"/library/{entry['id']}/review", json={"text": "word " * 1000}, headers=auth_headers)
+
+    assert response.status_code in (200, 201)
+
+
+def test_f6_exactly_one_megabyte_is_not_refused_for_its_size(tolerant, auth_headers):
+    body = '{"name": "' + "A" * (ONE_MB - 12) + '"}'
+    assert len(body) == ONE_MB
+
+    response = tolerant.post("/lists", content=body, headers={**auth_headers, "Content-Type": "application/json"})
+
+    assert response.status_code == 422  # too long for a list name, but not refused for the size
+
+
+def _raw_post(path, headers):
+    """Call the app directly, because a client library always writes a correct Content-Length."""
+    import asyncio
+
+    messages = []
+
+    async def receive():
+        return {"type": "http.request", "body": b"{}", "more_body": False}
+
+    async def send(message):
+        messages.append(message)
+
+    scope = {
+        "type": "http", "method": "POST", "path": path, "raw_path": path.encode(), "query_string": b"",
+        "headers": [(name.lower().encode(), value.encode()) for name, value in headers.items()],
+        "client": ("127.0.0.1", 50000), "server": ("testserver", 80), "scheme": "http", "http_version": "1.1",
+        "root_path": "",
+    }
+    asyncio.run(app(scope, receive, send))
+    return next(message["status"] for message in messages if message["type"] == "http.response.start")
+
+
+@pytest.mark.parametrize("value", ["abc", "-1", "1.5", ""])
+def test_f6_a_content_length_that_is_not_a_number_gets_400(value):
+    assert _raw_post("/lists", {"Content-Length": value, "Content-Type": "application/json"}) == 400
+
+
+def test_f6_a_content_length_over_the_limit_gets_413_before_the_body_is_read():
+    assert _raw_post("/lists", {"Content-Length": str(50 * ONE_MB), "Content-Type": "application/json"}) == 413
+
+
+def test_f6_the_proxy_limits_the_body_too():
+    """A chunked body has no Content-Length, so Caddy refuses large bodies as well."""
+    from pathlib import Path
+
+    caddyfile = (Path(__file__).resolve().parents[2] / "docker/Caddyfile").read_text(encoding="utf-8")
+
+    assert "max_size 1MB" in caddyfile
