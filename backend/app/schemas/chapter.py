@@ -4,6 +4,8 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.core.validation import NoNulStr
+
 
 class ChapterRatingUpdate(BaseModel):
     """The rating of one chapter or episode.
@@ -55,7 +57,7 @@ class DecisionCreate(BaseModel):
     when the chapter has more than one.
     """
 
-    choice: str = Field(strict=True, min_length=1, max_length=10)
+    choice: NoNulStr = Field(strict=True, min_length=1, max_length=10)
     decision_point_id: Optional[int] = Field(default=None, strict=True, ge=1, le=2**31 - 1)
 
 
