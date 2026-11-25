@@ -1,7 +1,7 @@
 """Non-functional requirement tests (NFR-01 to NFR-04).
 
-NFR-05 (code coverage) is measured in the Testing phase with:
-    pytest --cov=backend/app
+The coverage requirement is checked in tests/test_coverage_gate.py, and the number is measured in
+CI (docs/tests/coverage.md).
 """
 import time
 from types import SimpleNamespace

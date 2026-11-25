@@ -1,4 +1,4 @@
-"""Health endpoints: /health says the process is alive, /health/ready checks the database and Redis."""
+"""Health endpoints (US-01): /health says the process is alive, /health/ready checks the database and Redis."""
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock
