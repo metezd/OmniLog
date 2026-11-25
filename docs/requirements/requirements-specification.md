@@ -195,7 +195,7 @@ No authentication, library, catalog, episodic, AI or analytics endpoints exist y
 
 **Assumptions**
 1. The API paths and payloads in the tests (for example `POST /auth/register`, `POST /auth/login` with a JSON body, `POST /library`, `GET /catalog/search`) are the team's proposed contract. If the implemented API differs, both the stories and the tests will be updated.
-2. A helper endpoint `POST /media` creates catalog entries during test setup.
+2. A helper endpoint `POST /media` creates catalog entries during test setup. Decision (#218): it is off by default and answers 404, because users get titles from the catalog search. The setting `ALLOW_MEDIA_CREATE` turns it on, and only the tests do that. `GET /media/{id}` needs a login.
 
 **Open issues**
 1. **Database:** the Project Charter specifies PostgreSQL. Resolved: the code, the migrations and the tests use PostgreSQL. A development fallback to SQLite is still in `backend/app/core/database.py` and should be removed.

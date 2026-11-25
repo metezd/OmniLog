@@ -252,16 +252,16 @@ def test_nan_rating_is_rejected(client, auth_headers, library_entry):
 
 def test_get_media_returns_the_item(client, auth_headers, media_item):
     """US-09 groundwork: GET /media/{id} returns the stored title."""
-    response = client.get(f"/media/{media_item['id']}")
+    response = client.get(f"/media/{media_item['id']}", headers=auth_headers)
 
     assert response.status_code == 200
     assert response.json()["id"] == media_item["id"]
     assert response.json()["title"] == media_item["title"]
 
 
-def test_get_unknown_media_returns_404(client):
+def test_get_unknown_media_returns_404(client, auth_headers):
     """US-09 groundwork: an unknown media id returns 404."""
-    assert client.get("/media/99999999").status_code == 404
+    assert client.get("/media/99999999", headers=auth_headers).status_code == 404
 
 
 def test_us05_rejected_rating_leaves_the_entry_unchanged(

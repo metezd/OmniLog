@@ -72,6 +72,8 @@ Not tested, so these results say nothing about them:
 
 **Fix:** close #218, allow only `https` addresses from the IGDB and TMDB image hosts, and add a Content-Security-Policy for images in the frontend.
 
+**Status:** fixed for the backend in #218. `POST /media` answers 404 unless `ALLOW_MEDIA_CREATE` is on, and then `poster_url` must be an `https` address on `image.tmdb.org` or `images.igdb.com`. `GET /media/{id}` needs a login. The Content-Security-Policy is still open.
+
 ### F4. Four malformed inputs cause a 500 error (Low)
 
 | Input | Answer |
