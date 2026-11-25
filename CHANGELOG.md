@@ -22,6 +22,10 @@ All notable changes to this project are written in this file. The format follows
 
 - The backend coverage gate in CI is 90% instead of 70%, about 5 points under the measured 94.96%. The frontend has coverage with measured thresholds (`npm run test:coverage`). Every CI run writes the numbers to the job summary and keeps the HTML reports. The new tests also found double spaces in TVMaze descriptions, which are fixed (#297).
 
+### Added
+
+- A CI check that every user story and non-functional requirement is named by tests (`tests/test_requirements_traceability.py`), the matrix in `docs/tests/traceability.md`, and new tests for US-01 and NFR-05 (#300).
+
 ## [0.8.0] - 2026-11-24
 
 ### Added
