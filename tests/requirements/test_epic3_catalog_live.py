@@ -32,7 +32,9 @@ def test_live_igdb_finds_life_is_strange(client, auth_headers):
     response = _search(client, auth_headers, "Life is Strange", "GAME")
 
     assert response.status_code == 200, response.text
-    assert any(item["title"] == "Life is Strange" for item in response.json())
+    titles = [item["title"] for item in response.json()]
+    # IGDB changes the case of names over time ("Life is Strange" became "Life Is Strange")
+    assert "life is strange" in [title.casefold() for title in titles], f"IGDB answered: {titles}"
     assert all("poster_url" in item and "release_date" in item for item in response.json())
 
 
@@ -44,8 +46,10 @@ def test_live_tmdb_finds_a_series_and_a_movie(client, auth_headers):
     movie = _search(client, auth_headers, "Blade Runner", "MOVIE")
 
     assert series.status_code == movie.status_code == 200
-    assert any(item["title"] == "Breaking Bad" for item in series.json())
-    assert any(item["title"] == "Blade Runner" for item in movie.json())
+    series_titles = [item["title"] for item in series.json()]
+    movie_titles = [item["title"] for item in movie.json()]
+    assert "Breaking Bad" in series_titles, f"TMDB answered: {series_titles}"
+    assert "Blade Runner" in movie_titles, f"TMDB answered: {movie_titles}"
 
 
 def test_live_tmdb_series_details_have_seasons_and_episodes(client, auth_headers):

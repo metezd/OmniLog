@@ -157,14 +157,14 @@ The CI runs the same checks. Running them first saves a round trip.
 
 ```bash
 # Backend, from the repository root with the virtual environment active
-python -m pytest tests/requirements -v --cov=backend/app --cov-fail-under=70
+python -m pytest tests -v --cov=backend/app --cov-fail-under=90
 cd backend && alembic upgrade head && alembic check
 
 # Frontend
 cd frontend
 npm run lint
 npx tsc --noEmit
-npm test
+npm run test:coverage
 npm run build
 npm audit --omit=dev --audit-level=high
 ```
