@@ -233,6 +233,7 @@ Open `https://localhost` in the browser and accept the certificate warning, beca
 | The browser guesses the type of an answer, or sends the API address to other sites | The backend sends `X-Content-Type-Options: nosniff` and `Referrer-Policy: no-referrer` on every answer. Caddy does not add them, so they also work on Render |
 | A token or user data stays in a browser or proxy cache | Answers of `/auth/*` have `Cache-Control: no-store` |
 | A user fills the shared catalog with false titles or outside images | `POST /media` answers 404 unless `ALLOW_MEDIA_CREATE` is on. When it is on, `poster_url` must be an `https` address on `image.tmdb.org` or `images.igdb.com`. `GET /media/{id}` needs a login (#218) |
+| An injected script runs in the app, or a page loads an image from any host | The frontend sends a Content-Security-Policy on every page (`src/proxy.ts`): scripts only with the nonce of the request (no `unsafe-inline`), images only from the app and the TMDB and IGDB image hosts, no plugins, no framing. `CSP_REPORT_ONLY=true` on the frontend sends it as report only, to try out a change (#303) |
 | The full list of endpoints is public | `ENABLE_DOCS` is `false` in production, so `/docs`, `/redoc` and `/openapi.json` answer 404 |
 | The login token is stolen by a script in the page | The frontend keeps the token in an `httpOnly` cookie and sends it to the backend from its server code |
 | A break-in to a container gives full control | The backend and the frontend run as a normal user, not as root |
