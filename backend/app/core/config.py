@@ -44,6 +44,18 @@ if "*" in CORS_ORIGINS:
 # Turn it off in production, so the full list of endpoints is not public.
 ENABLE_DOCS = os.getenv("ENABLE_DOCS", "true").strip().lower() in ("1", "true", "yes", "on")
 
+# Allow POST /media, which adds a title to the shared catalog (#218). Off by default, so the
+# route answers 404: titles come from the catalog search. The tests turn it on to make fixtures.
+ALLOW_MEDIA_CREATE = os.getenv("ALLOW_MEDIA_CREATE", "false").strip().lower() in ("1", "true", "yes", "on")
+
+# How many proxies add an address to X-Forwarded-For in front of the backend (#251). The client
+# address is read that many places from the right end of the header, because a client can write
+# anything at the left end. 0 (default) uses the address that uvicorn gives, which is right for
+# development and for the Docker setup (FORWARDED_ALLOW_IPS). render.yaml sets 2.
+FORWARDED_TRUSTED_HOPS = int(os.getenv("FORWARDED_TRUSTED_HOPS", "0"))
+if FORWARDED_TRUSTED_HOPS < 0:
+    raise RuntimeError("FORWARDED_TRUSTED_HOPS must be 0 or more.")
+
 # How long a login token stays valid, in minutes
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "90"))
 
@@ -57,7 +69,8 @@ IGDB_CLIENT_SECRET = os.getenv("IGDB_CLIENT_SECRET", "").strip()
 TMDB_API_KEY = os.getenv("TMDB_API_KEY", "").strip()
 
 # Redis holds the search cache. If Redis is down, an in-process cache is used instead.
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+# An empty value turns Redis off, so the in-process cache is used from the start (#251).
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0").strip()
 
 # How long a search result stays cached, in seconds (default: 1 hour)
 CACHE_TTL_SECONDS = int(os.getenv("CACHE_TTL_SECONDS", "3600"))

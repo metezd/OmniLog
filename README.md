@@ -100,7 +100,7 @@ Each step builds on the one before. A step is done when its tests pass.
 
 ## Project status
 
-The backend is built for every story except the parts listed at the end of this paragraph. All six epics have endpoints and tests: registration and login (`POST /auth/register`, `POST /auth/login`, `GET /auth/me`), the catalog (`POST /media`, `GET /catalog/search`, `GET /catalog/{id}`), the library (`/library`), custom lists and the activity diary (`/lists`, `/diary`), chapter ratings, playtime and decisions (`/library/{id}/chapters/{chapter_id}/...`, US-10 to US-12), personal statistics with a Redis cache (`GET /stats`, US-15), reviews with spoiler detection (`POST` and `GET /library/{id}/review`, US-14) and recommendations (`GET /recommendations`, US-13). The last full local test run gave 885 passed and 20 skipped, with 2 warnings.
+The backend is built for every story except the parts listed at the end of this paragraph. All six epics have endpoints and tests: registration and login (`POST /auth/register`, `POST /auth/login`, `GET /auth/me`), the catalog (`GET /catalog/search`, `GET /catalog/{id}`, and `POST /media`, which is off by default and used only by the tests), the library (`/library`), custom lists and the activity diary (`/lists`, `/diary`), chapter ratings, playtime and decisions (`/library/{id}/chapters/{chapter_id}/...`, US-10 to US-12), personal statistics with a Redis cache (`GET /stats`, US-15), reviews with spoiler detection (`POST` and `GET /library/{id}/review`, US-14) and recommendations (`GET /recommendations`, US-13). The last full local test run gave 885 passed and 20 skipped, with 2 warnings.
 
 Recommendations use the title embeddings to personalize the ranking. If no usable taste vector exists or the vector search fails, the service falls back to a popularity ranking.
 
@@ -121,6 +121,8 @@ Start PostgreSQL and Redis first (the first start also creates the `omnilog_test
 ```bash
 docker compose up -d
 ```
+
+PostgreSQL listens on `localhost:5432`. If another PostgreSQL on your machine already uses that port, start with `POSTGRES_PORT=5433 docker compose up -d` and use port `5433` in `DATABASE_URL` and `TEST_DATABASE_URL`.
 
 Then set up the backend:
 

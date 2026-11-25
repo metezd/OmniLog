@@ -40,6 +40,11 @@ services:
         generateValue: true
       - key: CORS_ORIGINS
         sync: false
+      # Read the client address from X-Forwarded-For, 2 places from the right: the proxy of
+      # Render adds the browser address in front of the frontend, and again the address of the
+      # frontend in front of the backend (#251, docs/deployment.md section 9.1)
+      - key: FORWARDED_TRUSTED_HOPS
+        value: "2"
       # The API documentation is not public in production
       - key: ENABLE_DOCS
         value: "false"
