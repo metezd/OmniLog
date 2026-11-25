@@ -254,4 +254,5 @@ Dependabot opens pull requests for the Python packages, the frontend packages an
 | UI screen list | [`docs/analysis/ui/screen-list.md`](docs/analysis/ui/screen-list.md) |
 | Penetration test report | [`docs/tests/penetration`](docs/tests/penetration/README.md) |
 | TDD evidence | [`docs/tests/tdd-evidence.md`](docs/tests/tdd-evidence.md) |
+| Requirements traceability | [`docs/tests/traceability.md`](docs/tests/traceability.md) |
 | Code coverage | [`docs/tests/coverage.md`](docs/tests/coverage.md) |
