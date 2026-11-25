@@ -13,7 +13,8 @@ Part of the review checklist in [#252] (section E). Issue: [#308]. This page exp
 | Claude | Claude Sonnet 5.5 | `KeremKenet` | Tests of the statistics screen ([#255]). The tool is **pending** ([#313]) | `Co-Authored-By` trailer of [`8335c9d`][8335c9d] |
 | GitHub Copilot code review | - | - | An extra reviewer on 14 pull requests, from [#25] to [#228]. It does not count as an approval ([CONTRIBUTING.md](../../CONTRIBUTING.md#code-review)) | [`evidence.md`][evidence] ([#318]), section 2 |
 | Copilot Autofix | - | `metezd` | Fixes that answered Copilot review comments in [#41], [#66] and [#143] | `Co-authored-by: Copilot Autofix` in [`fa01da5`][fa01da5], [`e97895e`][e97895e] |
-| Other use by `metezd`, `KaganKonuk`, `musabalperenbasol` | | | **pending** | [#312], [#314], [#316] |
+| Claude (chat on claude.ai) | Claude Opus (version not recorded) | `musabalperenbasol` | Chat for [#6], [#78], [#84], [#240], [#254]. No repository access. The notes were drafted by a Cowork agent (Claude Opus 5.5) | [`musab-alperen-basol.md`](musab-alperen-basol.md) ([#316]) |
+| Other use by `metezd`, `KaganKonuk` | | | **pending** | [#312], [#314] |
 
 ## 2. The pipeline
 
@@ -91,7 +92,8 @@ Did not work:
 |---|---|
 | Notes of Mohammed Edris ([#317]) | [`mhmd-edrees.md`](mhmd-edrees.md) |
 | Notes of Sidar Ürey ([#315]) | [`sidar-urey.md`][sidar] (in [#319]) |
-| Notes of Mete Özdoğan, Kerem Kenet, Kağan Konuk, Musab Alperen Başol | **pending**: [#312], [#313], [#314], [#316] |
+| Notes of Musab Alperen Başol ([#316]) | [`musab-alperen-basol.md`](musab-alperen-basol.md) |
+| Notes of Mete Özdoğan, Kerem Kenet, Kağan Konuk | **pending**: [#312], [#313], [#314] |
 | Register of AI mistakes ([#310]) | `mistakes.md` (**pending**) |
 | Evidence of AI use beyond autocomplete ([#311]) | [`evidence.md`][evidence] (in [#318]) |
 | AI assisted pull requests | `gh pr list --repo metezd/OmniLog --label ai-assisted --state all` |
@@ -100,10 +102,13 @@ Each member confirms the row of their own use in section 1 in the review of this
 
 [sidar]: sidar-urey.md
 [evidence]: evidence.md
+[#6]: https://github.com/metezd/OmniLog/pull/6
 [#25]: https://github.com/metezd/OmniLog/pull/25
 [#41]: https://github.com/metezd/OmniLog/pull/41
 [#44]: https://github.com/metezd/OmniLog/issues/44
 [#66]: https://github.com/metezd/OmniLog/pull/66
+[#78]: https://github.com/metezd/OmniLog/pull/78
+[#84]: https://github.com/metezd/OmniLog/pull/84
 [#143]: https://github.com/metezd/OmniLog/pull/143
 [#186]: https://github.com/metezd/OmniLog/pull/186
 [#187]: https://github.com/metezd/OmniLog/pull/187
@@ -113,8 +118,10 @@ Each member confirms the row of their own use in section 1 in the review of this
 [#236]: https://github.com/metezd/OmniLog/pull/236
 [#237]: https://github.com/metezd/OmniLog/pull/237
 [#238]: https://github.com/metezd/OmniLog/pull/238
+[#240]: https://github.com/metezd/OmniLog/pull/240
 [#247]: https://github.com/metezd/OmniLog/pull/247
 [#252]: https://github.com/metezd/OmniLog/issues/252
+[#254]: https://github.com/metezd/OmniLog/pull/254
 [#255]: https://github.com/metezd/OmniLog/pull/255
 [#258]: https://github.com/metezd/OmniLog/pull/258
 [#259]: https://github.com/metezd/OmniLog/pull/259
