@@ -6,6 +6,7 @@ import { getTitleDetails, searchCatalog } from "@/lib/server/catalog";
 import { getChapterProgress, logPlaytime, rateChapter, recordDecision } from "@/lib/server/chapters";
 import { addItemToList, createList, deleteList, getDiary, getList, getLists, removeItemFromList } from "@/lib/server/journal";
 import { addToLibrary, getLibrary, removeFromLibrary, updateLibraryEntry } from "@/lib/server/library";
+import { getReview, submitReview } from "@/lib/server/reviews";
 import { cookieStore } from "../../mocks/cookie-store";
 import { server } from "../../mocks/server";
 import { liveToken } from "../../mocks/token";
@@ -178,5 +179,57 @@ describe("journal", () => {
       ["POST", "/lists", { name: "Best narrative games" }],
       ["POST", "/lists/5/items", { media_item_id: 12 }],
     ]);
+  });
+});
+
+describe("reviews", () => {
+  const sampleReview = {
+    id: 1,
+    library_entry_id: 10,
+    text: "Great pacing and memorable ending.",
+    contains_spoiler: false,
+    spoiler_score: 0.1,
+    spoiler_model_version: "omnilog-nlp-spoiler-v1",
+    created_at: "2026-11-20T12:00:00Z",
+    updated_at: null,
+  };
+
+  it("posts a review to /library/{entry_id}/review with { text }", async () => {
+    const { seen } = fakeBackend(sampleReview);
+    const saved = await submitReview(10, "Great pacing and memorable ending.");
+    expect(saved).toEqual(sampleReview);
+    expect(seen[0]).toEqual({
+      method: "POST",
+      path: "/library/10/review",
+      auth: `Bearer ${TOKEN}`,
+      body: { text: "Great pacing and memorable ending." },
+    });
+  });
+
+  it("reads an existing review", async () => {
+    const { seen } = fakeBackend(sampleReview);
+    expect(await getReview(10)).toEqual(sampleReview);
+    expect(seen[0]).toMatchObject({ method: "GET", path: "/library/10/review" });
+  });
+
+  it("returns null when the entry has no review yet (404 Review not found)", async () => {
+    server.use(
+      http.get(`${BASE}/library/10/review`, () =>
+        HttpResponse.json({ detail: "Review not found" }, { status: 404 }),
+      ),
+    );
+    await expect(getReview(10)).resolves.toBeNull();
+  });
+
+  it("throws 404 when the library entry itself is missing", async () => {
+    server.use(
+      http.get(`${BASE}/library/999/review`, () =>
+        HttpResponse.json({ detail: "Library entry not found" }, { status: 404 }),
+      ),
+    );
+    await expect(getReview(999)).rejects.toMatchObject({
+      status: 404,
+      message: "Library entry not found",
+    });
   });
 });

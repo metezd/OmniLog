@@ -2,11 +2,21 @@ import "server-only";
 
 import type { Review } from "@/types/api";
 import { authedFetch } from "./authed";
+import { BackendError } from "./backend";
 
 // Library entry reviews and spoiler moderation (US-14).
 
-export function getReview(entryId: number): Promise<Review | null> {
-  return authedFetch<Review | null>(`/library/${entryId}/review`);
+export async function getReview(entryId: number): Promise<Review | null> {
+  try {
+    return await authedFetch<Review | null>(`/library/${entryId}/review`);
+  } catch (error) {
+    // The backend returns 404 "Review not found" when an entry has no review yet,
+    // while 404 "Library entry not found" means the entry itself is missing.
+    if (error instanceof BackendError && error.status === 404 && error.message !== "Library entry not found") {
+      return null;
+    }
+    throw error;
+  }
 }
 
 export function submitReview(entryId: number, text: string): Promise<Review> {
