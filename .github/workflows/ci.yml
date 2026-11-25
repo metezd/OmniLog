@@ -230,7 +230,7 @@ jobs:
   # get no secrets. The project key and the organization are repository variables.
   sonarqube:
     name: SonarQube
-    needs: backend
+    needs: [backend, frontend]
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -261,6 +261,21 @@ jobs:
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: backend-coverage
+
+      - name: Download frontend coverage
+        if: steps.sonar.outputs.available == 'true'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: frontend-coverage
+          path: frontend/coverage
+
+      # Vitest writes the paths relative to frontend/, SonarQube reads them from the repository root
+      - name: Point the frontend coverage at the repository root
+        if: steps.sonar.outputs.available == 'true'
+        run: |
+          if [ -f frontend/coverage/lcov.info ]; then
+            sed 's#^SF:src/#SF:frontend/src/#' frontend/coverage/lcov.info > frontend/coverage/lcov-root.info
+          fi
 
       # Fails the job when the quality gate fails
       - name: SonarQube scan
