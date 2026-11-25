@@ -111,6 +111,8 @@ A list name of 3 MB is refused with 422, but the answer contains the full 3 MB v
 
 **Fix:** start uvicorn with `--no-server-header`.
 
+**Status:** fixed in #304. `backend/Dockerfile` and `render.yaml` start uvicorn with `--no-server-header`, Caddy removes `Server` (`-Server`), and the frontend no longer sends `X-Powered-By`. The API also sends `X-Frame-Options: DENY`, a strict `Content-Security-Policy` and `Permissions-Policy` on every answer, now also on a 500. `curl -I` on the production stack in Docker showed no `Server` header on the backend, through Caddy and on the frontend.
+
 ## 4. Attacks that failed
 
 | Check | Attack | Result |
