@@ -89,7 +89,8 @@ All settings are in `.env.prod`. The file holds secrets and is ignored by Git. C
 | `API_DOMAIN` | yes | Name of the backend, for example `api.example.com` |
 | `API_URL` | yes | The public address of the backend, for example `https://api.example.com`. Built into the frontend image as `NEXT_PUBLIC_API_URL`. No code reads it since the Axios client `src/lib/api.ts` was removed, but the build still stops when it is empty |
 | `CORS_ORIGINS` | yes | The address of the frontend, for example `https://app.example.com`. The backend accepts browser calls only from here |
-| `FORWARDED_TRUSTED_HOPS` | no | How many proxies add an address to `X-Forwarded-For` in front of the backend. The login and register limits then count the address that many places from the right end of the header. Default `0` (use the address that uvicorn gives, right for this Docker setup). `render.yaml` sets `2` (section 9.1) |
+| `FORWARDED_TRUSTED_HOPS` | no | How many proxies add an address to `X-Forwarded-For` in front of the backend. The login and register limits then count the address that many places from the right end of the header. Default `0` (use the address that uvicorn gives, right for this Docker setup). `render.yaml` sets `1` (section 9.1) |
+| `FRONTEND_PROXY_SECRET` | no | A key that the backend and the frontend share, at least 32 characters. With it the frontend sends the browser address in `X-Client-IP`, and the backend uses that address only when `X-Frontend-Key` matches. Empty turns it off. `render.yaml` generates it for the backend and copies it to the frontend (section 9.1) |
 | `ENABLE_DOCS` | no | Shows the API documentation at `/docs`, `/redoc` and `/openapi.json`. Default is `false` in `docker-compose.prod.yml` and `render.yaml`, and `true` when the backend runs without it (development) |
 | `ALLOW_MEDIA_CREATE` | no | Turns on `POST /media`, which adds a title to the shared catalog. Default is `false`, so the route answers 404. Leave it off in production: titles come from the catalog search. Only the tests turn it on |
 | `IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET`, `TMDB_API_KEY` | no | Keys of the catalog services. Without them the catalog search cannot reach the outside services |
@@ -257,14 +258,14 @@ A call over the limit gets `429 Too Many Requests` with a `Retry-After` header (
 
 A client cannot choose the counted address by sending its own `X-Forwarded-For`: Caddy replaces the header of a client that it does not trust, and the backend ignores it from every other address. Without a proxy (development), the Dockerfile trusts only `127.0.0.1`.
 
-**On Render (#251).** The address of the proxy of Render is not fixed, so `render.yaml` starts uvicorn with `--proxy-headers --forwarded-allow-ips="*"`. Uvicorn then takes the **first** address of `X-Forwarded-For`, which the client can write. So the backend does not use that address for the limits. `render.yaml` sets `FORWARDED_TRUSTED_HOPS=2`, and the backend counts the second address from the right end of the header:
+**On Render (#251, #301).** The address of the proxy of Render is not fixed, so `render.yaml` starts uvicorn with `--proxy-headers --forwarded-allow-ips="*"`. Uvicorn then takes the **first** address of `X-Forwarded-For`, which the client can write (penetration finding F1). So the backend does not use that address for the limits:
 
-1. The proxy of Render adds the browser address to the right end of `X-Forwarded-For` in front of the frontend.
-2. The frontend passes the header on, and the proxy of Render adds the address of the frontend in front of the backend. The header ends with `..., browser, frontend`.
+1. **A call straight to the API.** `render.yaml` sets `FORWARDED_TRUSTED_HOPS=1`, so the backend counts the **right-most** address of `X-Forwarded-For`. The proxy of Render writes that one, whether it adds to the header of the client or replaces it. Anything the client writes stays on the left and is never counted.
+2. **A call from the frontend** (the login and registration forms). The right-most address is then the frontend, which every user shares. So the frontend also sends the browser address in `X-Client-IP`, with the key `FRONTEND_PROXY_SECRET` in `X-Frontend-Key`. The frontend takes the right-most address of the header that the proxy of Render wrote in front of it. The backend uses `X-Client-IP` only when the key matches (it compares with `hmac.compare_digest`), so a client cannot choose its address with this header either.
 
-This needs `BACKEND_URL` to be the public `https` address of `omnilog-api`. If the frontend calls the backend over the private network of Render, no second address is added, so set `FORWARDED_TRUSTED_HOPS=1`. A header that is too short or holds a value that is not an address falls back to the address that uvicorn gives.
+`render.yaml` generates the key for `omnilog-api` and copies it to `omnilog-web` (`fromService` with `envVarKey`). If the frontend has no key, every login through it is counted for the frontend address, so one user could block the others again. The Docker setup does not need the key, because there uvicorn trusts only the fixed addresses of the proxy and the frontend.
 
-A call that goes straight to the API domain has only one address from Render, so with `2` its counted address is the last address that the client wrote. Such a client can still change its counted address. The login form and the registration form never do this, because they go through the frontend. Check on the deployed service which addresses arrive before you rely on these limits.
+The Render documentation does not say whether its proxy adds to `X-Forwarded-For` or replaces it. The rule above is safe in both cases, because only the right-most address is used. Confirm on the deployed service with one harmless request before you rely on these limits.
 
 ## 10. What is not included yet
 
@@ -272,7 +273,7 @@ A call that goes straight to the API domain has only one address from Render, so
 - There is no automatic deployment to your own server. Render deploys `main` by itself (see the deployment pipeline in section 5), but the Docker stack on a server is updated by hand. The workflow `docker-build.yml` only checks that the stack starts and answers.
 - There are no automatic backups, no monitoring and no alerts.
 - The stack runs one copy of each service. Running more copies of the backend is not set up and not tested.
-- Rate limits on Render: the counted address depends on how the proxy of Render fills `X-Forwarded-For` (section 9.1). This was not checked on the deployed service. `RATE_LIMIT_ENABLED=false` turns the limits off.
+- Rate limits on Render: the rule of section 9.1 was tested locally with the options of `render.yaml`, but not on the deployed service. `RATE_LIMIT_ENABLED=false` turns the limits off.
 - Only login, register, search and review have a rate limit.
 - The friends page of the frontend shows sample data. The login, register, library, search, title, lists, diary, statistics and recommendations screens call the backend through the server code of Next.js (`BACKEND_URL`).
 - Embeddings are not built. There is no `media_embeddings` table and no embeddings command. The recommendations (US-13) rank the catalog by the genres of the library, so they work without any key.

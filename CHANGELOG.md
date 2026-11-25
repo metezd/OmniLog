@@ -12,6 +12,7 @@ All notable changes to this project are written in this file. The format follows
 
 ### Security
 
+- Penetration finding F1 is fixed: on Render the login and register limits count the right-most address of `X-Forwarded-For`, which the proxy writes, and the browser address that the frontend sends with the new shared key `FRONTEND_PROXY_SECRET`. A fake first address no longer resets the limit (#301).
 - Penetration findings F4, F5 and F6 are fixed: NUL bytes in any text and a too large `external_api_id` give 422 instead of 500, a 422 no longer repeats the rejected value (also no 500 for deeply nested JSON), and a body over 1 MB gets 413 from the API and from Caddy (#302).
 - `POST /media` is off by default and answers 404. The new setting `ALLOW_MEDIA_CREATE` turns it on, and then `poster_url` must be an `https` address on `image.tmdb.org` or `images.igdb.com`. `GET /media/{id}` now needs a login (#218).
 
