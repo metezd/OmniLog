@@ -5,13 +5,8 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from app.core.security import BCRYPT_MAX_BYTES
 from app.core.usernames import canonical_username
-
-
-def _reject_nul(value: str) -> str:
-    # NUL bytes cannot be stored in PostgreSQL text columns and bcrypt cannot hash them
-    if "\x00" in value:
-        raise ValueError("must not contain NUL characters")
-    return value
+# NUL bytes cannot be stored in PostgreSQL text columns and bcrypt cannot hash them
+from app.core.validation import reject_nul as _reject_nul
 
 
 class UserCreate(BaseModel):
