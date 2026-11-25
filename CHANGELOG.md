@@ -7,6 +7,7 @@ All notable changes to this project are written in this file. The format follows
 ### Added
 
 - Penetration retest after the fixes, with three new checks and a browser check of the frontend (#306).
+- Penetration retest on the production stack in Docker (Caddy, Redis, pgvector), checks of `GET /recommendations` with real vectors, and an OWASP ZAP API scan (`tests/pentest/run_stack.sh`, #306).
 - HTTP load test (`tests/performance/load_test.py`), a script that runs it against the production stack (`tests/performance/run_stack.sh`) and the manual workflow "Performance". The results and the limit of the server are in `docs/tests/performance.md` (#298).
 - A CI check that every user story and non-functional requirement is named by tests (`tests/test_requirements_traceability.py`), the matrix in `docs/tests/traceability.md`, and new tests for US-01 and NFR-05 (#300).
 
