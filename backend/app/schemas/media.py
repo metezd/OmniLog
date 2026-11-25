@@ -20,27 +20,30 @@ class MediaItemBase(BaseModel):
 POSTER_HOSTS = frozenset({"image.tmdb.org", "images.igdb.com"})
 
 
-class MediaItemCreate(MediaItemBase):
-    @field_validator("poster_url")
-    @classmethod
-    def poster_from_known_host(cls, value: Optional[str]) -> Optional[str]:
-        """Accept only an https address on the TMDB or IGDB image host.
+def poster_from_known_host(value: Optional[str]) -> Optional[str]:
+    """Accept only an https address on the TMDB or IGDB image host (#218, #303).
 
-        Every user loads the poster of a title, so an outside address would tell its owner who
-        looked at the title, and a `javascript:` address has no place in an image.
-        """
-        if value is None:
-            return value
-        parts = urlsplit(value)
-        if (
-            parts.scheme != "https"
-            or parts.hostname not in POSTER_HOSTS
-            or parts.port is not None
-            or parts.username is not None
-            or parts.password is not None
-        ):
-            raise ValueError("poster_url must be an https address on image.tmdb.org or images.igdb.com")
+    Every user loads the poster of a title, so an outside address would tell its owner who
+    looked at the title, and a `javascript:` address has no place in an image. The address is
+    taken apart with urllib, not matched with a regular expression, so a host that only starts
+    like an allowed one, user info, or a port is refused.
+    """
+    if value is None:
         return value
+    parts = urlsplit(value)
+    if (
+        parts.scheme != "https"
+        or parts.hostname not in POSTER_HOSTS
+        or parts.port is not None
+        or parts.username is not None
+        or parts.password is not None
+    ):
+        raise ValueError("poster_url must be an https address on image.tmdb.org or images.igdb.com")
+    return value
+
+
+class MediaItemCreate(MediaItemBase):
+    poster_host_check = field_validator("poster_url")(poster_from_known_host)
 
 
 class MediaItemUpdate(BaseModel):
@@ -52,6 +55,8 @@ class MediaItemUpdate(BaseModel):
     poster_url: Optional[str] = Field(default=None, min_length=1, max_length=500)
     release_date: Optional[str] = Field(default=None, min_length=1, max_length=50)
     external_api_id: Optional[int] = None
+
+    poster_host_check = field_validator("poster_url")(poster_from_known_host)
 
 
 class MediaItemResponse(MediaItemBase):
