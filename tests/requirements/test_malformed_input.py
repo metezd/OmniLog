@@ -93,3 +93,42 @@ def test_f4_the_connection_stays_usable_after_a_refused_input(tolerant, auth_hea
     tolerant.post("/lists", json={"name": f"a{NUL}b"}, headers=auth_headers)
 
     assert tolerant.get("/health").status_code == 200
+
+
+# ------------------------------------------------------------- F5: no echo of the rejected value
+def test_f5_nfr03_a_rejected_password_is_not_repeated(tolerant):
+    name = unique("short")
+    password = "Sh0rt!"  # under the minimum length  # gitleaks:allow (test value)
+
+    response = tolerant.post("/auth/register", json={"username": name, "email": f"{name}@example.com", "password": password})
+
+    assert response.status_code == 422
+    assert password not in response.text
+    assert all("input" not in item and "ctx" not in item for item in response.json()["detail"])
+
+
+def test_f5_the_error_still_names_the_field_and_the_reason(tolerant):
+    response = tolerant.post("/auth/register", json={"username": unique("x"), "email": "x@example.com", "password": "short"})
+
+    item = response.json()["detail"][0]
+    assert item["loc"] == ["body", "password"]
+    assert item["type"] == "string_too_short"
+    assert "at least 8 characters" in item["msg"]
+
+
+def test_f6_us06_a_rejected_long_value_is_not_repeated(tolerant, auth_headers):
+    response = tolerant.post("/lists", json={"name": "A" * 100_000}, headers=auth_headers)
+
+    assert response.status_code == 422
+    assert len(response.content) < 2_000
+
+
+# --------------------------------------------------------------------------- deeply nested JSON
+@pytest.mark.parametrize("depth", [50, 3000, 100_000])
+def test_us06_deeply_nested_json_is_refused_without_a_server_error(tolerant, auth_headers, depth):
+    body = '{"name": ' + "[" * depth + "]" * depth + "}"
+
+    response = tolerant.post("/lists", content=body, headers={**auth_headers, "Content-Type": "application/json"})
+
+    assert_refused(response)
+    assert len(response.content) < 2_000
