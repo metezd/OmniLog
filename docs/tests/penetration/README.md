@@ -89,17 +89,23 @@ A logged-in user can trigger these. No data changes.
 
 **Fix:** refuse NUL bytes in the text fields and add an upper limit to `external_api_id`, so that these answer 422.
 
+**Status:** fixed in #302. One check (`reject_nul`, type `NoNulStr` in `backend/app/core/validation.py`) is used by every text that a client sends, also `poster_url`, `release_date`, the decision choice and the search text. `external_api_id` must be between 1 and 2**31 - 1. All of them answer 422 now (`tests/requirements/test_malformed_input.py`).
+
 ### F5. Validation errors repeat the rejected password (Low)
 
 A registration with a short password gets a 422 whose `input` field contains the password. It goes back only to the sender, but it can end up in browser tools or in logs of a proxy.
 
 **Fix:** remove `input` from the answer in `validation_exception_handler` (`backend/app/core/errors.py`).
 
+**Status:** fixed in #302. A 422 now holds only `type`, `loc` and `msg` of each error, never `input` or `ctx`. This also fixed a problem found later: a value nested about 3000 levels deep gave a 500, because the handler walked the echoed value once per level.
+
 ### F6. No limit on the body size (Low)
 
 A list name of 3 MB is refused with 422, but the answer contains the full 3 MB value. The API reads the whole body first, so large requests cost memory and bandwidth. The same fix as F5 removes the repeated value.
 
 **Fix:** also set a maximum body size in the proxy or in a middleware.
+
+**Status:** fixed in #302. `BodySizeLimitMiddleware` (`backend/app/core/body_limit.py`) answers 413 for a body over 1 MB, before it is read when `Content-Length` says so, and while it is read for a chunked body. A `Content-Length` that is not a whole number gets 400. The answers keep the security headers. Caddy has the same limit (`request_body { max_size 1MB }`). A refused 3 MB value is no longer sent back (F5).
 
 ### F7. The `Server` header names uvicorn (Info)
 

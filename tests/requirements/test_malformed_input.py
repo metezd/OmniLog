@@ -98,7 +98,7 @@ def test_f4_the_connection_stays_usable_after_a_refused_input(tolerant, auth_hea
 # ------------------------------------------------------------- F5: no echo of the rejected value
 def test_f5_nfr03_a_rejected_password_is_not_repeated(tolerant):
     name = unique("short")
-    password = "Sh0rt!"  # under the minimum length  # gitleaks:allow (test value)
+    password = "Sh0rt!"  # noqa: S105  # gitleaks:allow (a test value under the minimum length)
 
     response = tolerant.post("/auth/register", json={"username": name, "email": f"{name}@example.com", "password": password})
 
@@ -201,3 +201,51 @@ def test_f6_the_proxy_limits_the_body_too():
     caddyfile = (Path(__file__).resolve().parents[2] / "docker/Caddyfile").read_text(encoding="utf-8")
 
     assert "max_size 1MB" in caddyfile
+
+
+def test_f6_a_chunked_body_that_grows_over_the_limit_gets_413():
+    """No Content-Length: the limit is counted while the body is read."""
+    import asyncio
+
+    chunks = [b"[" + b"1," * 300_000, b"1," * 300_000, b"1]"]  # about 1.2 MB in three parts
+    messages = []
+
+    async def receive():
+        body = chunks.pop(0)
+        return {"type": "http.request", "body": body, "more_body": bool(chunks)}
+
+    async def send(message):
+        messages.append(message)
+
+    scope = {
+        "type": "http", "method": "POST", "path": "/lists", "raw_path": b"/lists", "query_string": b"",
+        "headers": [(b"content-type", b"application/json"), (b"transfer-encoding", b"chunked")],
+        "client": ("127.0.0.1", 50000), "server": ("testserver", 80), "scheme": "http", "http_version": "1.1",
+        "root_path": "",
+    }
+    from app.core.body_limit import BodySizeLimitMiddleware
+
+    async def reads_everything(scope, receive, send):
+        while (await receive()).get("more_body"):
+            pass
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": b"read"})
+
+    asyncio.run(BodySizeLimitMiddleware(reads_everything)(scope, receive, send))
+
+    assert messages[0]["status"] == 413
+
+
+def test_f6_a_websocket_or_lifespan_scope_is_passed_on():
+    import asyncio
+
+    from app.core.body_limit import BodySizeLimitMiddleware
+
+    seen = []
+
+    async def inner(scope, receive, send):
+        seen.append(scope["type"])
+
+    asyncio.run(BodySizeLimitMiddleware(inner)({"type": "lifespan"}, None, None))
+
+    assert seen == ["lifespan"]
