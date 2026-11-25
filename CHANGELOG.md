@@ -4,6 +4,10 @@ All notable changes to this project are written in this file. The format follows
 
 ## [Unreleased]
 
+### Security
+
+- `POST /media` is off by default and answers 404. The new setting `ALLOW_MEDIA_CREATE` turns it on, and then `poster_url` must be an `https` address on `image.tmdb.org` or `images.igdb.com`. `GET /media/{id}` now needs a login (#218).
+
 ## [0.8.0] - 2026-11-24
 
 ### Added

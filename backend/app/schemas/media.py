@@ -1,4 +1,5 @@
 from typing import List, Optional
+from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -15,8 +16,31 @@ class MediaItemBase(BaseModel):
     external_api_id: Optional[int] = None
 
 
+# The image hosts of TMDB and IGDB. A title that a user adds may only point to these (#218).
+POSTER_HOSTS = frozenset({"image.tmdb.org", "images.igdb.com"})
+
+
 class MediaItemCreate(MediaItemBase):
-    pass
+    @field_validator("poster_url")
+    @classmethod
+    def poster_from_known_host(cls, value: Optional[str]) -> Optional[str]:
+        """Accept only an https address on the TMDB or IGDB image host.
+
+        Every user loads the poster of a title, so an outside address would tell its owner who
+        looked at the title, and a `javascript:` address has no place in an image.
+        """
+        if value is None:
+            return value
+        parts = urlsplit(value)
+        if (
+            parts.scheme != "https"
+            or parts.hostname not in POSTER_HOSTS
+            or parts.port is not None
+            or parts.username is not None
+            or parts.password is not None
+        ):
+            raise ValueError("poster_url must be an https address on image.tmdb.org or images.igdb.com")
+        return value
 
 
 class MediaItemUpdate(BaseModel):
