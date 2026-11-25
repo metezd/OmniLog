@@ -9,6 +9,10 @@ All notable changes to this project are written in this file. The format follows
 - The login and register limits on Render count the browser address again, not the address of the frontend for everybody. The new setting `FORWARDED_TRUSTED_HOPS` reads it from the right end of `X-Forwarded-For`, so a client cannot choose it by writing the left end (#251).
 - An empty `REDIS_URL` no longer stops the cache and the rate limits with an error. The in-process cache is used instead (#251).
 
+### Security
+
+- `POST /media` is off by default and answers 404. The new setting `ALLOW_MEDIA_CREATE` turns it on, and then `poster_url` must be an `https` address on `image.tmdb.org` or `images.igdb.com`. `GET /media/{id}` now needs a login (#218).
+
 ## [0.8.0] - 2026-11-24
 
 ### Added

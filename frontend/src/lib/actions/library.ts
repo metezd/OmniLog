@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
+import { BackendError } from "@/lib/server/backend";
 import { toErrorState } from "@/lib/server/error-state";
 import { addToLibrary, removeFromLibrary, updateLibraryEntry } from "@/lib/server/library";
 import { submitReview } from "@/lib/server/reviews";
@@ -17,10 +18,18 @@ export type ActionState =
   | { status: "saved"; message?: string }
   | { status: "error"; message: string };
 
+export type ReviewErrorCode = "validation" | "not_found" | "unavailable" | "error";
+
 export type ReviewActionState =
   | { status: "idle"; review?: Review | null }
   | { status: "saved"; review: Review }
-  | { status: "error"; message: string };
+  | {
+      status: "error";
+      code: ReviewErrorCode;
+      message: string;
+      review?: Review | null;
+      draft?: string;
+    };
 
 const VALID_STATUSES: WatchStatus[] = ["IN_PROGRESS", "COMPLETED", "PLAN_TO_WATCH", "DROPPED"];
 
@@ -118,18 +127,32 @@ export async function removeLibraryEntryAction(formData: FormData): Promise<void
 
 /** Submits a user review and runs automated NLP spoiler moderation (US-14). */
 export async function submitReviewAction(
-  _previous: ReviewActionState,
+  previous: ReviewActionState,
   formData: FormData,
 ): Promise<ReviewActionState> {
   const entryId = Number(formData.get("entryId"));
   const mediaItemId = Number(formData.get("mediaItemId"));
-  const text = String(formData.get("text") ?? "").trim();
+  const rawText = String(formData.get("text") ?? "");
+  const text = rawText.trim();
+  const previousReview = previous.review ?? null;
 
   if (!Number.isInteger(entryId) || entryId <= 0) {
-    return { status: "error", message: "Invalid library entry." };
+    return {
+      status: "error",
+      code: "not_found",
+      message: "This title or library entry could not be found.",
+      review: previousReview,
+      draft: rawText,
+    };
   }
   if (!text) {
-    return { status: "error", message: "Review text cannot be empty." };
+    return {
+      status: "error",
+      code: "validation",
+      message: "Review text cannot be empty.",
+      review: previousReview,
+      draft: rawText,
+    };
   }
 
   let review: Review;
@@ -137,7 +160,57 @@ export async function submitReviewAction(
     review = await submitReview(entryId, text);
   } catch (error) {
     rethrowIfRedirect(error);
-    return { status: "error", message: toErrorState(error).message };
+    if (error instanceof BackendError) {
+      if (error.status === 404) {
+        return {
+          status: "error",
+          code: "not_found",
+          message: "This title or library entry could not be found.",
+          review: previousReview,
+          draft: rawText,
+        };
+      }
+      if (error.status === 422) {
+        const validationMessage =
+          error.fieldErrors.text ??
+          Object.values(error.fieldErrors)[0] ??
+          error.message;
+        return {
+          status: "error",
+          code: "validation",
+          message: validationMessage || "Review text cannot be empty.",
+          review: previousReview,
+          draft: rawText,
+        };
+      }
+      if (error.status === 503) {
+        return {
+          status: "error",
+          code: "unavailable",
+          message:
+            "The AI moderation service is unavailable right now. Your review was not saved. Please try again.",
+          review: previousReview,
+          draft: rawText,
+        };
+      }
+      if (error.status === 0) {
+        return {
+          status: "error",
+          code: "unavailable",
+          message:
+            "The server could not be reached. Your review was not saved. Please try again.",
+          review: previousReview,
+          draft: rawText,
+        };
+      }
+    }
+    return {
+      status: "error",
+      code: "error",
+      message: toErrorState(error).message,
+      review: previousReview,
+      draft: rawText,
+    };
   }
 
   revalidatePath("/diary");
