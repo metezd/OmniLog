@@ -44,6 +44,10 @@ if "*" in CORS_ORIGINS:
 # Turn it off in production, so the full list of endpoints is not public.
 ENABLE_DOCS = os.getenv("ENABLE_DOCS", "true").strip().lower() in ("1", "true", "yes", "on")
 
+# Allow POST /media, which adds a title to the shared catalog (#218). Off by default, so the
+# route answers 404: titles come from the catalog search. The tests turn it on to make fixtures.
+ALLOW_MEDIA_CREATE = os.getenv("ALLOW_MEDIA_CREATE", "false").strip().lower() in ("1", "true", "yes", "on")
+
 # How long a login token stays valid, in minutes
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "90"))
 
