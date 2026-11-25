@@ -47,6 +47,7 @@ describe("Navbar for a logged-in user", () => {
     expect(screen.getByRole("link", { name: "Library" })).toHaveAttribute("href", "/library");
     expect(screen.getByRole("link", { name: "Search" })).toHaveAttribute("href", "/search");
     expect(screen.getByRole("link", { name: "Recommendations" })).toHaveAttribute("href", "/recommendations");
+    expect(screen.queryByRole("link", { name: "Friends" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Sign In" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Get Started" })).not.toBeInTheDocument();
   });
