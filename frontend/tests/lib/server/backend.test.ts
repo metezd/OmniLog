@@ -313,3 +313,58 @@ describe("the address of the browser (#217)", () => {
     expect(await sentForwardedFor("1".repeat(600))).toBeNull();
   });
 });
+
+describe("the browser address for the backend on Render (#301)", () => {
+  async function sentHeaders(forwardedFor: string | null): Promise<Record<string, string | null>> {
+    vi.stubEnv("BACKEND_URL", BASE);
+    let seen: Record<string, string | null> = {};
+    server.use(
+      http.post(`${BASE}/auth/login`, ({ request }) => {
+        seen = {
+          clientIp: request.headers.get("x-client-ip"),
+          key: request.headers.get("x-frontend-key"),
+          forwardedFor: request.headers.get("x-forwarded-for"),
+        };
+        return HttpResponse.json({ access_token: "t", token_type: "bearer" });
+      }),
+    );
+    await backendFetch("/auth/login", { method: "POST", body: {}, forwardedFor });
+    return seen;
+  }
+
+  it("sends the right-most address and the key when FRONTEND_PROXY_SECRET is set", async () => {
+    vi.stubEnv("FRONTEND_PROXY_SECRET", "a-shared-secret-of-the-frontend-and-backend");
+
+    const seen = await sentHeaders("198.51.100.1, 203.0.113.7");
+
+    // The proxy in front of the frontend writes the browser address at the right end. The left
+    // part was written by the browser and is never used.
+    expect(seen.clientIp).toBe("203.0.113.7");
+    expect(seen.key).toBe("a-shared-secret-of-the-frontend-and-backend");
+    expect(seen.forwardedFor).toBe("198.51.100.1, 203.0.113.7");
+  });
+
+  it("sends an IPv6 address as it is", async () => {
+    vi.stubEnv("FRONTEND_PROXY_SECRET", "a-shared-secret-of-the-frontend-and-backend");
+
+    expect((await sentHeaders("2001:db8::1")).clientIp).toBe("2001:db8::1");
+  });
+
+  it("sends neither header without FRONTEND_PROXY_SECRET", async () => {
+    vi.stubEnv("FRONTEND_PROXY_SECRET", "");
+
+    const seen = await sentHeaders("203.0.113.7");
+
+    expect(seen.clientIp).toBeNull();
+    expect(seen.key).toBeNull();
+  });
+
+  it("sends neither header without a browser address", async () => {
+    vi.stubEnv("FRONTEND_PROXY_SECRET", "a-shared-secret-of-the-frontend-and-backend");
+
+    const seen = await sentHeaders(null);
+
+    expect(seen.clientIp).toBeNull();
+    expect(seen.key).toBeNull();
+  });
+});

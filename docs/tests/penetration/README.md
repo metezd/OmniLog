@@ -58,7 +58,7 @@ Not tested, so these results say nothing about them:
 
 **Fix:** do not take the client address from the leftmost value. Use the address that the Render proxy adds, and add a test with a fake header. The Docker setup is not affected by this configuration, because `FORWARDED_ALLOW_IPS` lists only the fixed proxy addresses. See also #251.
 
-**Status:** partly fixed in #251. The backend no longer counts the first address. With `FORWARDED_TRUSTED_HOPS=2` (set in `render.yaml`) it counts the second address from the right, which the proxy of Render writes for calls through the frontend. A call that goes straight to the API can still choose its counted address, and the behaviour of the proxy of Render is still not checked on the deployed system.
+**Status:** fixed in #301 (first step in #251). The backend counts the right-most address of `X-Forwarded-For` (`FORWARDED_TRUSTED_HOPS=1` in `render.yaml`), which the proxy of Render writes. Calls from the frontend send the browser address in `X-Client-IP` with a shared key, and the backend ignores that header without the key. With the start options of `render.yaml`, 30 wrong logins that each send a new fake first address now get 10 x 401 and then 429 (`tests/requirements/test_f1_render_rate_limit.py`). `RATE-02` of the script now sends such addresses and fails if the bypass comes back. The behaviour of the proxy of Render was not checked on the deployed system.
 
 ### F2. API documentation is public on the Render setup (Medium)
 
@@ -136,4 +136,4 @@ Use a throwaway database, because the script creates users and titles. It refuse
 PENTEST_SECRET=<SECRET_KEY of the local API> python tests/pentest/run_pentest.py --base-url http://127.0.0.1:8000 --out results.json
 ```
 
-Start the API with `ENABLE_DOCS=false`. A direct local call comes from `127.0.0.1`, which uvicorn trusts by default, so RATE-02 reports a finding in this setup too. Read it together with F1.
+Start the API with `ENABLE_DOCS=false`, `ALLOW_MEDIA_CREATE=true` (the script adds titles with `POST /media`, which is off by default since #218) and the options of `render.yaml` for F1: `FORWARDED_TRUSTED_HOPS=1` and `uvicorn app.main:app --proxy-headers --forwarded-allow-ips="*"`. RATE-02 then sends 12 wrong logins with a new fake first address each, followed by `127.0.0.1` as the address that a proxy adds, and passes when the limit still answers 429 (#301).
