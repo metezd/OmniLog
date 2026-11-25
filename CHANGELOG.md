@@ -4,6 +4,11 @@ All notable changes to this project are written in this file. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- The login and register limits on Render count the browser address again, not the address of the frontend for everybody. The new setting `FORWARDED_TRUSTED_HOPS` reads it from the right end of `X-Forwarded-For`, so a client cannot choose it by writing the left end (#251).
+- An empty `REDIS_URL` no longer stops the cache and the rate limits with an error. The in-process cache is used instead (#251).
+
 ## [0.8.0] - 2026-11-24
 
 ### Added
