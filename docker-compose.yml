@@ -10,8 +10,10 @@ services:
       POSTGRES_PASSWORD: omnilog
       POSTGRES_DB: omnilog
     ports:
-      # Bound to localhost only, so the database is not reachable from the network
-      - "127.0.0.1:5433:5432"
+      # Bound to localhost only, so the database is not reachable from the network. Default 5432,
+      # which DATABASE_URL in backend/.env.example and CI use. When a PostgreSQL on this machine
+      # already uses 5432, set POSTGRES_PORT (for example 5433) and change DATABASE_URL to match.
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - omnilog-pgdata:/var/lib/postgresql/data
       # Runs only on the first start: creates the separate test database

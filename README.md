@@ -122,6 +122,8 @@ Start PostgreSQL and Redis first (the first start also creates the `omnilog_test
 docker compose up -d
 ```
 
+PostgreSQL listens on `localhost:5432`. If another PostgreSQL on your machine already uses that port, start with `POSTGRES_PORT=5433 docker compose up -d` and use port `5433` in `DATABASE_URL` and `TEST_DATABASE_URL`.
+
 Then set up the backend:
 
 ```bash
