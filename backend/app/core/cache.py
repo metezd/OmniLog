@@ -36,18 +36,27 @@ def reset_connection() -> None:
 
 
 def _redis() -> Optional[redis.Redis]:
-    global _client
+    global _client, _redis_down_until
     with _lock:
         if time.monotonic() < _redis_down_until:
             return None
         if _client is None:
-            # Short timeouts: a cache must never make a request wait long
-            _client = redis.Redis.from_url(
-                config.REDIS_URL,
-                socket_connect_timeout=0.5,
-                socket_timeout=0.5,
-                decode_responses=True,
-            )
+            url = (config.REDIS_URL or "").strip()
+            if not url:
+                # No Redis set up (#251): use the in-process cache, without a warning on each call
+                return None
+            try:
+                # Short timeouts: a cache must never make a request wait long
+                _client = redis.Redis.from_url(
+                    url,
+                    socket_connect_timeout=0.5,
+                    socket_timeout=0.5,
+                    decode_responses=True,
+                )
+            except ValueError as exc:  # a value that is not a Redis address
+                _redis_down_until = time.monotonic() + _REDIS_RETRY_AFTER_SECONDS
+                logger.warning("REDIS_URL is not a valid Redis address (%s). Using the in-process cache.", exc)
+                return None
         return _client
 
 
