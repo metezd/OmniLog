@@ -15,6 +15,7 @@ Part of the review checklist in #252 (section D). The results feed the security 
 | Confirmed issues | 7: 1 high, 2 medium, 3 low, 1 informational |
 | **Retest after the fixes** | 25.11.2026 at `74f1f3a`: **31 checks, 31 passed, 0 findings**. All 7 issues are fixed. See [section 5](#5-retest-after-the-fixes) |
 | Retest raw results | [`raw/results-after-fixes.json`](raw/results-after-fixes.json) |
+| **Retest on the production stack** | 26.11.2026 with Docker: through Caddy **31 of 31 passed**, `GET /recommendations` with pgvector **7 of 7 passed**, OWASP ZAP **0 failed, 3 warnings**, all triaged as false positive, expected or accepted. Raw results in [`raw/docker-stack`](raw/docker-stack) |
 
 The core protections held. No attack read or changed the data of another user, forged a token, or bypassed the login with SQL injection. The most important issue is that the login rate limit can be bypassed with the settings in `render.yaml`.
 
@@ -174,16 +175,46 @@ A user was created with `<img src=x onerror="window.__xss=1">` and `<script>wind
 
 **A false alarm that was checked:** on `/title/4` the text `window.__xss=2` was found inside one `<script>` element. It is the data that Next.js sends to the page (`self.__next_f.push`), where `<` is written as the escape `\u003c`, so it is a string and not a tag. The script did not set `window.__xss`.
 
+### The production stack, pgvector and OWASP ZAP
+
+Run on 26.11.2026 on a second computer with Docker (macOS, Docker Desktop), against `main` at `74f1f3a` with the script changes of this pull request. `tests/pentest/run_stack.sh` starts `docker-compose.prod.yml` as its own Compose project: Caddy 2 with HTTPS, the backend image (Python 3.15.2, one uvicorn process, `--no-server-header`), PostgreSQL 16 with **pgvector 0.8.7** and **Redis 7.4.12 with a password**, so the rate limits count in Redis this time. Only `ALLOW_MEDIA_CREATE=true` was added, because the scripts add titles. The raw results are in [`raw/docker-stack`](raw/docker-stack).
+
+**All checks through Caddy.** `run_pentest.py` ran against `https://api.localhost`, that is through Caddy and its certificate, not on the backend port: **31 of 31 passed** ([`results-docker-stack.json`](raw/docker-stack/results-docker-stack.json)). RATE-02 and RATE-05 also pass here, because Caddy replaces the `X-Forwarded-For` of a client it does not trust. INPUT-03 got its 413 from Caddy (`request_body { max_size 1MB }`), with an empty body.
+
+**`GET /recommendations` with pgvector.** `tests/pentest/check_recommendations.py` creates three users and their titles, then known vectors are written into `media_embeddings`, so the vector query really runs. The query catches its own errors and falls back to popularity, so a 200 alone proves nothing. REC-04 proves it: the title whose vector is closest to the taste of the user came first, and the backend log has no "Vector recommendation query failed". **7 of 7 passed** ([`recommendations-results.json`](raw/docker-stack/recommendations-results.json)):
+
+| Check | Attack | Result |
+|---|---|---|
+| REC-01 | No token | 401 |
+| REC-02 | `target=BOOK`, SQL in `target`, `limit` 0, 51, -1, 10^20, `ten`, no `target` | All 422 |
+| REC-03 | Titles in the own library | Never recommended |
+| REC-04 | Known vectors: a near and a far title | Near first, so the pgvector query ran |
+| REC-05 | A title that another user liked | Shown to others as a normal catalog title, never to its owner. No taste of one user changes the list of another |
+| REC-06 | A taste vector of zeros (cosine distance not defined) | 200, no server error |
+| REC-07 | `target=MOVIE` | Only movies |
+
+**OWASP ZAP.** `zap-api-scan.py` (the `ghcr.io/zaproxy/zaproxy:stable` image) scanned the 30 operations of the OpenAPI document of the backend through Caddy, logged in as a test user, 68 URLs in total. 118 rules passed, no rule failed, 3 gave a warning. The report is [`zap-report.html`](raw/docker-stack/zap-report.html) ([JSON](raw/docker-stack/zap-report.json)).
+
+| ZAP alert | Count | Triage |
+|---|---|---|
+| SQL Injection (40018), High | 2: `email` of `POST /auth/register`, `text` of `POST /library/{id}/review` | **False positive.** ZAP saw different answers for `' AND '1'='1' --` and `' AND '1'='2' --`. The difference comes from the rate limits (429) and the validation (422), not from SQL: every query goes through SQLAlchemy with bound parameters, and SQLI-01 and SQLI-02 passed |
+| A Server Error response code (100000), Low | 1: `GET /catalog/search` | **Expected.** It is a 503, not a 500: the test stack has no IGDB and TMDB keys, and the API answers 503 when an outside service is not available (NFR-04) |
+| Cross-Origin-Resource-Policy header missing (90004), Low | 5 answers | **Accepted.** The browser never calls the API itself (the frontend server does), so no other site can embed its answers. A `Cross-Origin-Resource-Policy: same-origin` header on the API would still be a cheap addition |
+| Re-examine Cache-control, Non-Storable Content, Authentication Request Identified, Client Error | informational | Expected: 404, 405, 409, 422 and 429 answers to ZAP's probes, and `no-store` on `/auth/*` on purpose |
+
 ### Not tested yet
 
-These parts of #306 need Docker, which is not installed on the test computer (it needs WSL 2), or the agreement of the team:
-
-- **The production stack** of `docker-compose.prod.yml` with Caddy, Redis and the pgvector database. Section F7 says that `curl -I` on that stack showed no `Server` header, but the attack script was not run against it.
-- **`GET /recommendations` and the embedding paths with pgvector.** The `media_embeddings` table was still left out.
-- **OWASP ZAP**, or another automated scanner. The checks are still written by hand.
-- **The hosted system on Render.** No request was sent to it. F1 and the headers there need one harmless request each, after the team agrees.
+- **The hosted system on Render.** No request was sent to it. F1 and the headers there need one harmless request each, after the team agrees. Its address is not in the repository.
 
 ## 6. How to run it again
+
+The whole retest against the production stack, with pgvector and ZAP, on a machine with Docker (it builds the images, uses ports 80 and 443 while it runs, and removes the stack at the end):
+
+```bash
+tests/pentest/run_stack.sh
+```
+
+The steps below run the attack script alone against a local API.
 
 Use a throwaway database, because the script creates users and titles. It refuses every address that is not local.
 
