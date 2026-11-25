@@ -66,7 +66,12 @@ def test_the_production_cost_is_12():
 
 
 def test_two_hashes_of_one_password_differ():
-    assert security.hash_password("StrongPass123!") != security.hash_password("StrongPass123!")
+    """bcrypt adds a new salt to every hash, so the same password gives two different hashes."""
+    first = security.hash_password("StrongPass123!")
+    second = security.hash_password("StrongPass123!")
+
+    assert first != second
+    assert security.verify_password("StrongPass123!", first) and security.verify_password("StrongPass123!", second)
 
 
 # ---------------------------------------------------------------- the 72 byte and NUL rules
