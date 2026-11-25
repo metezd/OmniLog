@@ -33,7 +33,8 @@ def test_live_igdb_finds_life_is_strange(client, auth_headers):
 
     assert response.status_code == 200, response.text
     titles = [item["title"] for item in response.json()]
-    assert "Life is Strange" in titles, f"IGDB answered: {titles}"
+    # IGDB changes the case of names over time ("Life is Strange" became "Life Is Strange")
+    assert "life is strange" in [title.casefold() for title in titles], f"IGDB answered: {titles}"
     assert all("poster_url" in item and "release_date" in item for item in response.json())
 
 
