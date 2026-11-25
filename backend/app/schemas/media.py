@@ -3,17 +3,18 @@ from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.core.validation import ExternalId, NoNulStr
 from app.models.entities import ChapterKind, MediaType
 
 
 class MediaItemBase(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True)
 
-    title: str = Field(min_length=1, max_length=200)
+    title: NoNulStr = Field(min_length=1, max_length=200)
     media_type: MediaType
-    poster_url: Optional[str] = Field(default=None, min_length=1, max_length=500)
-    release_date: Optional[str] = Field(default=None, min_length=1, max_length=50)
-    external_api_id: Optional[int] = None
+    poster_url: Optional[NoNulStr] = Field(default=None, min_length=1, max_length=500)
+    release_date: Optional[NoNulStr] = Field(default=None, min_length=1, max_length=50)
+    external_api_id: Optional[ExternalId] = None
 
 
 # The image hosts of TMDB and IGDB. A title that a user adds may only point to these (#218).
@@ -47,11 +48,11 @@ class MediaItemUpdate(BaseModel):
     """Partial Update. All areas are optional"""
     model_config = ConfigDict(str_strip_whitespace=True)
 
-    title: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    title: Optional[NoNulStr] = Field(default=None, min_length=1, max_length=200)
     media_type: Optional[MediaType] = None
-    poster_url: Optional[str] = Field(default=None, min_length=1, max_length=500)
-    release_date: Optional[str] = Field(default=None, min_length=1, max_length=50)
-    external_api_id: Optional[int] = None
+    poster_url: Optional[NoNulStr] = Field(default=None, min_length=1, max_length=500)
+    release_date: Optional[NoNulStr] = Field(default=None, min_length=1, max_length=50)
+    external_api_id: Optional[ExternalId] = None
 
 
 class MediaItemResponse(MediaItemBase):

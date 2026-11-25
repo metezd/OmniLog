@@ -4,10 +4,12 @@ from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.core.validation import NoNulStr
+
 
 # --- US-06: Custom lists ---
 class CustomListCreate(BaseModel):
-    name: str = Field(..., min_length=1, max_length=200)
+    name: NoNulStr = Field(..., min_length=1, max_length=200)
 
     @field_validator("name")
     @classmethod
