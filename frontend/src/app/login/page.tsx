@@ -23,7 +23,7 @@ export default async function LoginPage({
             Welcome Back
           </h1>
           <p className="text-xs text-slate-400">
-            Sign in to access your media logs & friend stream
+            Sign in to access your media logs &amp; library
           </p>
         </div>
 
