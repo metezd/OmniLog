@@ -265,7 +265,8 @@ def _normalize_episode(raw: Any) -> Optional[ExternalEpisode]:
 def _strip_html(text: Any) -> Optional[str]:
     if not isinstance(text, str):
         return None
-    return clean_text(re.sub(r"<[^>]+>", " ", text))
+    # A tag becomes a space, and runs of spaces become one, so "A <b>big</b> day" stays readable
+    return clean_text(" ".join(re.sub(r"<[^>]+>", " ", text).split()))
 
 
 def _search_public(media_type: MediaType, query: str, limit: int) -> list[ExternalTitle]:
