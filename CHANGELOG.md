@@ -14,6 +14,10 @@ All notable changes to this project are written in this file. The format follows
 
 - `POST /media` is off by default and answers 404. The new setting `ALLOW_MEDIA_CREATE` turns it on, and then `poster_url` must be an `https` address on `image.tmdb.org` or `images.igdb.com`. `GET /media/{id}` now needs a login (#218).
 
+### Added
+
+- HTTP load test (`tests/performance/load_test.py`), a script that runs it against the production stack (`tests/performance/run_stack.sh`) and the manual workflow "Performance". The results and the limit of the server are in `docs/tests/performance.md` (#298).
+
 ## [0.8.0] - 2026-11-24
 
 ### Added
