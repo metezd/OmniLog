@@ -74,7 +74,7 @@ Not tested, so these results say nothing about them:
 
 **Fix:** close #218, allow only `https` addresses from the IGDB and TMDB image hosts, and add a Content-Security-Policy for images in the frontend.
 
-**Status:** fixed for the backend in #218. `POST /media` answers 404 unless `ALLOW_MEDIA_CREATE` is on, and then `poster_url` must be an `https` address on `image.tmdb.org` or `images.igdb.com`. `GET /media/{id}` needs a login. The Content-Security-Policy is still open.
+**Status:** fixed for the backend in #218. `POST /media` answers 404 unless `ALLOW_MEDIA_CREATE` is on, and then `poster_url` must be an `https` address on `image.tmdb.org` or `images.igdb.com`. `GET /media/{id}` needs a login. Fixed completely in #303: the update schema checks `poster_url` the same way, and the frontend sends a Content-Security-Policy with `img-src 'self' data: blob: https://image.tmdb.org https://images.igdb.com` and scripts only with a nonce. In a browser on the production stack, an image from another host was blocked (`Loading the image 'https://attacker.example/pixel.png' violates ... img-src`), and an injected `onerror` handler did not run.
 
 ### F4. Four malformed inputs cause a 500 error (Low)
 
