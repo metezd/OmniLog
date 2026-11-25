@@ -58,6 +58,8 @@ Not tested, so these results say nothing about them:
 
 **Fix:** do not take the client address from the leftmost value. Use the address that the Render proxy adds, and add a test with a fake header. The Docker setup is not affected by this configuration, because `FORWARDED_ALLOW_IPS` lists only the fixed proxy addresses. See also #251.
 
+**Status:** partly fixed in #251. The backend no longer counts the first address. With `FORWARDED_TRUSTED_HOPS=2` (set in `render.yaml`) it counts the second address from the right, which the proxy of Render writes for calls through the frontend. A call that goes straight to the API can still choose its counted address, and the behaviour of the proxy of Render is still not checked on the deployed system.
+
 ### F2. API documentation is public on the Render setup (Medium)
 
 `ENABLE_DOCS` defaults to `true`. `docker-compose.prod.yml` sets it to `false`, but `render.yaml` does not set it, so `/docs`, `/redoc` and `/openapi.json` stay open there. This gap came from #231.

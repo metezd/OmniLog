@@ -6,6 +6,7 @@ import { getTitleDetails, searchCatalog } from "@/lib/server/catalog";
 import { getChapterProgress, logPlaytime, rateChapter, recordDecision } from "@/lib/server/chapters";
 import { addItemToList, createList, deleteList, getDiary, getList, getLists, removeItemFromList } from "@/lib/server/journal";
 import { addToLibrary, getLibrary, removeFromLibrary, updateLibraryEntry } from "@/lib/server/library";
+import { getRecommendations } from "@/lib/server/recommendations";
 import { getReview, submitReview } from "@/lib/server/reviews";
 import { cookieStore } from "../../mocks/cookie-store";
 import { server } from "../../mocks/server";
@@ -231,5 +232,27 @@ describe("reviews", () => {
       status: 404,
       message: "Library entry not found",
     });
+  });
+});
+
+describe("recommendations", () => {
+  it("fetches recommendations with the required target query parameter", async () => {
+    const { seen } = fakeBackend([]);
+    await getRecommendations("SERIES");
+    await getRecommendations("GAME", 5);
+
+    expect(seen.map((s) => [s.method, s.path, s.auth])).toEqual([
+      ["GET", "/recommendations?target=SERIES", `Bearer ${TOKEN}`],
+      ["GET", "/recommendations?target=GAME&limit=5", `Bearer ${TOKEN}`],
+    ]);
+  });
+
+  it("throws BackendError on 422 or 503 responses", async () => {
+    server.use(
+      http.get(`${BASE}/recommendations`, () =>
+        HttpResponse.json({ detail: "Service unavailable" }, { status: 503 }),
+      ),
+    );
+    await expect(getRecommendations("MOVIE")).rejects.toMatchObject({ status: 503 });
   });
 });

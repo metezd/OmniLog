@@ -143,16 +143,7 @@ export interface Review {
   updated_at: string | null;
 }
 
-export interface RecommendationItem {
-  id: number;
-  title: string;
-  media_type: MediaType;
-  poster_url: string | null;
-  release_date: string | null;
-  description: string | null;
-  external_api_id?: number | null;
-  genres?: string[];
-}
+export type RecommendationItem = MediaItem;
 
 // ---- Statistics (Epic 6)
 export interface GenreCount {

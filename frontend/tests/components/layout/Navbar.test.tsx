@@ -27,6 +27,7 @@ describe("Navbar for a visitor", () => {
     expect(screen.getByRole("link", { name: "Get Started" })).toHaveAttribute("href", "/register");
     expect(screen.queryByRole("button", { name: "Log out" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Library" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Recommendations" })).not.toBeInTheDocument();
   });
 
   it("includes a search form that submits to /search with query parameter q", () => {
@@ -45,6 +46,7 @@ describe("Navbar for a logged-in user", () => {
     expect(screen.getByText("@ali")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Library" })).toHaveAttribute("href", "/library");
     expect(screen.getByRole("link", { name: "Search" })).toHaveAttribute("href", "/search");
+    expect(screen.getByRole("link", { name: "Recommendations" })).toHaveAttribute("href", "/recommendations");
     expect(screen.queryByRole("link", { name: "Sign In" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Get Started" })).not.toBeInTheDocument();
   });
