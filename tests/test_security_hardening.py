@@ -37,6 +37,89 @@ def test_security_headers_on_errors_too():
     assert response.headers["X-Content-Type-Options"] == "nosniff"
 
 
+
+# ---------------------------------------------------------------- F7 and the missing headers (#304)
+API_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+    "X-Frame-Options": "DENY",
+    "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=()",
+}
+ROOT = BACKEND_DIR.parent
+
+
+@pytest.fixture
+def tolerant():
+    with TestClient(app, raise_server_exceptions=False) as test_client:
+        yield test_client
+
+
+def _answer(tolerant, kind, monkeypatch):
+    """One answer of each status that the issue names."""
+    if kind == 200:
+        return tolerant.get("/health")
+    if kind == 404:
+        return tolerant.get("/no-such-path")
+    if kind == 422:
+        return tolerant.post("/auth/login", json={})
+    if kind == 429:
+        from fastapi import HTTPException
+
+        from app.core import rate_limit
+
+        def always_limited(name, identity):
+            raise HTTPException(status_code=429, detail="Too many requests", headers={"Retry-After": "1"})
+
+        monkeypatch.setattr(rate_limit, "check", always_limited)
+        return tolerant.post("/auth/login", json={"username": "x", "password": "y"})
+    if kind == 500:
+        from app.core import database
+
+        def broken_session():
+            raise RuntimeError("database is gone")
+            yield  # pragma: no cover
+
+        app.dependency_overrides[database.get_db] = broken_session
+        try:
+            return tolerant.post("/auth/login", json={"username": "x", "password": "y"})
+        finally:
+            app.dependency_overrides.pop(database.get_db, None)
+    raise AssertionError(kind)
+
+
+@pytest.mark.parametrize("kind", [200, 404, 422, 429, 500])
+def test_f7_the_api_headers_are_on_every_status(tolerant, monkeypatch, kind):
+    response = _answer(tolerant, kind, monkeypatch)
+
+    assert response.status_code == kind
+    for name, value in API_HEADERS.items():
+        assert response.headers.get(name) == value, f"{name} on {kind}"
+
+
+def test_f7_a_500_does_not_show_the_error():
+    with TestClient(app, raise_server_exceptions=False) as test_client:
+        response = _answer(test_client, 500, None)
+
+    assert response.json() == {"detail": "Internal Server Error"}
+    assert "database is gone" not in response.text
+
+
+@pytest.mark.parametrize("path", ["backend/Dockerfile", "render.yaml"])
+def test_f7_uvicorn_does_not_name_itself(path):
+    text = (ROOT / path).read_text(encoding="utf-8")
+
+    assert "--no-server-header" in text
+
+
+def test_f7_caddy_removes_the_server_header_and_adds_the_browser_headers():
+    caddyfile = (ROOT / "docker/Caddyfile").read_text(encoding="utf-8")
+
+    for rule in ("-Server", "Strict-Transport-Security", "X-Content-Type-Options", "Referrer-Policy",
+                 "Permissions-Policy", "X-Frame-Options"):
+        assert rule in caddyfile, rule
+    assert re.search(r"Strict-Transport-Security\s+\"max-age=\d+", caddyfile)
+
 def test_auth_answers_are_not_cached():
     # Wrong body, so it stops at validation and never needs the database
     response = client.post("/auth/login", json={})
