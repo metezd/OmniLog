@@ -54,3 +54,20 @@ def test_short_secret_key_stops_startup(monkeypatch):
     monkeypatch.setattr("dotenv.load_dotenv", lambda *a, **k: False)
 
     _reload_config_expecting_error(monkeypatch, "at least 32 characters")
+
+
+# ---------------------------------------------------------------- US-01: negative and edge cases
+def test_us01_health_needs_no_token_and_ignores_a_bad_one(client):
+    """US-01 edge: a deployment check has no login, and a broken token must not stop it."""
+    response = client.get("/health", headers={"Authorization": "Bearer not-a-token"})
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "healthy"}
+
+
+def test_us01_health_only_answers_get(client):
+    """US-01 negative: only GET is defined, other methods get 405 and not a false "healthy"."""
+    response = client.post("/health")
+
+    assert response.status_code == 405
+    assert response.json() != {"status": "healthy"}
