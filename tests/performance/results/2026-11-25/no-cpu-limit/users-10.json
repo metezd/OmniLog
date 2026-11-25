@@ -1,0 +1,175 @@
+{
+  "endpoints": {
+    "GET /auth/me": {
+      "requests": 2183,
+      "errors": 0,
+      "p50_ms": 10.7,
+      "p95_ms": 17.3,
+      "p99_ms": 23.4,
+      "max_ms": 191.3,
+      "mean_ms": 11.6,
+      "measured": true
+    },
+    "GET /diary": {
+      "requests": 1743,
+      "errors": 0,
+      "p50_ms": 14.6,
+      "p95_ms": 23.6,
+      "p99_ms": 35.1,
+      "max_ms": 213.1,
+      "mean_ms": 15.8,
+      "measured": true
+    },
+    "GET /health": {
+      "requests": 1459,
+      "errors": 0,
+      "p50_ms": 4.2,
+      "p95_ms": 7.5,
+      "p99_ms": 10.2,
+      "max_ms": 139.7,
+      "mean_ms": 4.5,
+      "measured": true
+    },
+    "GET /library": {
+      "requests": 3018,
+      "errors": 0,
+      "p50_ms": 15.7,
+      "p95_ms": 24.2,
+      "p99_ms": 34.0,
+      "max_ms": 305.1,
+      "mean_ms": 16.7,
+      "measured": true
+    },
+    "GET /lists": {
+      "requests": 1821,
+      "errors": 0,
+      "p50_ms": 15.5,
+      "p95_ms": 24.2,
+      "p99_ms": 32.1,
+      "max_ms": 163.5,
+      "mean_ms": 16.5,
+      "measured": true
+    },
+    "GET /stats": {
+      "requests": 2283,
+      "errors": 0,
+      "p50_ms": 15.2,
+      "p95_ms": 25.8,
+      "p99_ms": 39.0,
+      "max_ms": 362.4,
+      "mean_ms": 16.4,
+      "measured": true
+    },
+    "PATCH /library/{id}": {
+      "requests": 2119,
+      "errors": 0,
+      "p50_ms": 24.3,
+      "p95_ms": 36.3,
+      "p99_ms": 48.2,
+      "max_ms": 324.8,
+      "mean_ms": 25.9,
+      "measured": true
+    },
+    "POST /auth/login": {
+      "requests": 299,
+      "errors": 0,
+      "p50_ms": 223.3,
+      "p95_ms": 243.7,
+      "p99_ms": 392.8,
+      "max_ms": 438.4,
+      "mean_ms": 227.7,
+      "measured": true
+    },
+    "setup POST /auth/login": {
+      "requests": 10,
+      "errors": 0,
+      "p50_ms": 248.1,
+      "p95_ms": 249.2,
+      "p99_ms": 249.2,
+      "max_ms": 249.2,
+      "mean_ms": 245.4,
+      "measured": false
+    },
+    "setup POST /auth/register": {
+      "requests": 10,
+      "errors": 0,
+      "p50_ms": 267.1,
+      "p95_ms": 277.6,
+      "p99_ms": 277.6,
+      "max_ms": 277.6,
+      "mean_ms": 265.2,
+      "measured": false
+    },
+    "setup POST /library": {
+      "requests": 30,
+      "errors": 0,
+      "p50_ms": 27.6,
+      "p95_ms": 34.9,
+      "p99_ms": 36.0,
+      "max_ms": 36.0,
+      "mean_ms": 27.7,
+      "measured": false
+    },
+    "setup POST /lists": {
+      "requests": 10,
+      "errors": 0,
+      "p50_ms": 13.1,
+      "p95_ms": 25.1,
+      "p99_ms": 25.1,
+      "max_ms": 25.1,
+      "mean_ms": 14.5,
+      "measured": false
+    },
+    "setup POST /media": {
+      "requests": 30,
+      "errors": 0,
+      "p50_ms": 20.8,
+      "p95_ms": 25.9,
+      "p99_ms": 26.1,
+      "max_ms": 26.1,
+      "mean_ms": 20.6,
+      "measured": false
+    }
+  },
+  "total": {
+    "requests": 14925,
+    "errors": 0,
+    "error_rate": 0.0,
+    "requests_per_second": 494.5,
+    "p50_ms": 14.9,
+    "p95_ms": 31.1,
+    "p99_ms": 223.6
+  },
+  "error_examples": {},
+  "settings": {
+    "base_url": "https://api.localhost",
+    "users": 10,
+    "seconds": 30.0,
+    "titles_per_user": 3,
+    "setup_concurrency": 10,
+    "search": null,
+    "p95_limit_ms": 500,
+    "error_limit": 0.01,
+    "mix": {
+      "GET /library": 20,
+      "GET /diary": 12,
+      "GET /lists": 12,
+      "GET /stats": 15,
+      "GET /auth/me": 15,
+      "GET /health": 10,
+      "PATCH /library/{id}": 14,
+      "POST /auth/login": 2
+    }
+  },
+  "run": {
+    "date": "2026-11-25T09:05:15+00:00",
+    "elapsed_seconds": 30.2,
+    "client_python": "3.15.2",
+    "client_cpus": 11,
+    "label": "docker-compose.prod.yml, 11 CPUs and 8319303680 bytes for Docker, backend CPUs: no limit"
+  },
+  "passed": {
+    "p95": true,
+    "error_rate": true
+  }
+}
