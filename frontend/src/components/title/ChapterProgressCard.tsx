@@ -113,11 +113,12 @@ export default function ChapterProgressCard({
             <input type="hidden" name="entryId" value={entryId} />
             <input type="hidden" name="chapterId" value={chapter.id} />
             <input type="hidden" name="mediaItemId" value={mediaItemId} />
-            <label className="block text-xs font-medium text-slate-300">
+            <label htmlFor={`minutes-${chapter.id}`} className="block text-xs font-medium text-slate-300">
               Log Playtime / Watch Time (minutes)
             </label>
             <div className="flex items-center gap-2">
               <input
+                id={`minutes-${chapter.id}`}
                 type="number"
                 name="minutes"
                 min={1}
