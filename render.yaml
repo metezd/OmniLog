@@ -40,11 +40,13 @@ services:
         generateValue: true
       - key: CORS_ORIGINS
         sync: false
-      # Read the client address from X-Forwarded-For, 2 places from the right: the proxy of
-      # Render adds the browser address in front of the frontend, and again the address of the
-      # frontend in front of the backend (#251, docs/deployment.md section 9.1)
+      # Count the right-most address of X-Forwarded-For, the one that the proxy of Render writes.
+      # Calls from the frontend send the browser address with the shared key instead (#301,
+      # docs/deployment.md section 9.1).
       - key: FORWARDED_TRUSTED_HOPS
-        value: "2"
+        value: "1"
+      - key: FRONTEND_PROXY_SECRET
+        generateValue: true
       # The API documentation is not public in production
       - key: ENABLE_DOCS
         value: "false"
@@ -71,5 +73,11 @@ services:
         value: 26
       - key: BACKEND_URL
         sync: false
+      # The same key as the backend, so the backend trusts the browser address that this sends
+      - key: FRONTEND_PROXY_SECRET
+        fromService:
+          type: web
+          name: omnilog-api
+          envVarKey: FRONTEND_PROXY_SECRET
       - key: NEXT_PUBLIC_API_URL
         sync: false

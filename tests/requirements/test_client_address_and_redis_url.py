@@ -58,11 +58,28 @@ def test_several_headers_count_as_one_list(monkeypatch):
     assert client_address(request_with(["1.2.3.4", "203.0.113.9, 10.20.0.5"])) == "203.0.113.9"
 
 
-@pytest.mark.parametrize("header", [None, "", " , ", "10.20.0.5", "not-an-address, 10.20.0.5", "203.0.113.9:443, 10.20.0.5"])
-def test_short_or_bad_header_falls_back_to_uvicorn(monkeypatch, header):
+@pytest.mark.parametrize("header", [None, "", " , "])
+def test_no_forwarded_address_falls_back_to_uvicorn(monkeypatch, header):
     monkeypatch.setattr(config, "FORWARDED_TRUSTED_HOPS", 2)
 
     assert client_address(request_with(header)) == "10.9.0.1"
+
+
+@pytest.mark.parametrize(
+    ("header", "expected"),
+    [
+        # Shorter than the hops: the right-most address, which the nearest proxy wrote (#301).
+        # The address from uvicorn would be the left-most one with --forwarded-allow-ips="*".
+        ("10.20.0.5", "10.20.0.5"),
+        # Not an address, but written by a proxy: counted as it is
+        ("not-an-address, 10.20.0.5", "not-an-address"),
+        ("203.0.113.9:443, 10.20.0.5", "203.0.113.9:443"),
+    ],
+)
+def test_short_or_bad_header_uses_what_the_proxies_wrote(monkeypatch, header, expected):
+    monkeypatch.setattr(config, "FORWARDED_TRUSTED_HOPS", 2)
+
+    assert client_address(request_with(header)) == expected
 
 
 def test_no_client_and_no_header_is_unknown(monkeypatch):
@@ -152,11 +169,14 @@ def test_negative_hops_stop_the_start():
     assert "FORWARDED_TRUSTED_HOPS" in result.stderr
 
 
-def test_render_sets_two_hops_and_keeps_the_proxy_headers():
+def test_render_counts_the_right_most_address_and_shares_the_frontend_key():
+    """#301: one hop on Render, and the same generated key for the backend and the frontend."""
     render = (BACKEND_DIR.parent / "render.yaml").read_text()
 
     assert '--proxy-headers --forwarded-allow-ips="*"' in render
-    assert "- key: FORWARDED_TRUSTED_HOPS\n        value: \"2\"" in render
+    assert "- key: FORWARDED_TRUSTED_HOPS\n        value: \"1\"" in render
+    assert "- key: FRONTEND_PROXY_SECRET\n        generateValue: true" in render
+    assert "envVarKey: FRONTEND_PROXY_SECRET" in render
 
 
 # ------------------------------------------------------------------------------- REDIS_URL

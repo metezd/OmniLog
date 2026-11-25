@@ -19,7 +19,7 @@ from app.core import cache, config, rate_limit
 from app.main import app
 
 RENDER_YAML = Path(__file__).resolve().parents[2] / "render.yaml"
-SECRET = "frontend-proxy-secret-for-tests-0123456789"
+SECRET = "frontend-proxy-secret-for-tests-0123456789"  # noqa: S105  # gitleaks:allow (test value, not a real key)
 ATTACKER = "203.0.113.50"  # the address that the proxy of Render sees
 FRONTEND = "10.20.0.5"  # the address of the frontend service
 
