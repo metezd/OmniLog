@@ -1,0 +1,65 @@
+name: Performance
+
+# The HTTP load test of #298 against the production stack. Manual only: it takes several minutes
+# and its numbers depend on the runner, so it is not a check for pull requests.
+on:
+  workflow_dispatch:
+    inputs:
+      users:
+        description: "Virtual users, separated by spaces (one run for each)"
+        default: "5 10 20"
+        required: true
+      seconds:
+        description: "Length of each run in seconds"
+        default: "30"
+        required: true
+      backend_cpus:
+        description: "Limit the backend to this many CPUs (empty: no limit)"
+        default: ""
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  load-test:
+    name: Load test
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      # The inputs go through env, never into the script text
+      - name: Run the load test
+        env:
+          USERS: ${{ inputs.users }}
+          SECONDS_PER_RUN: ${{ inputs.seconds }}
+          BACKEND_CPUS: ${{ inputs.backend_cpus }}
+        run: |
+          case "$USERS" in *[!0-9\ ]*|"") echo "users must be numbers and spaces"; exit 1;; esac
+          case "$SECONDS_PER_RUN" in *[!0-9]*|"") echo "seconds must be a number"; exit 1;; esac
+          # shellcheck disable=SC2086
+          tests/performance/run_stack.sh performance-results $USERS
+
+      - name: Write the results to the job summary
+        if: always()
+        run: |
+          {
+            echo "| Users | Requests/s | p50 ms | p95 ms | p99 ms | Error rate |"
+            echo "|---|---|---|---|---|---|"
+            for file in performance-results/users-*.json; do
+              [ -f "$file" ] || continue
+              python3 -c "import json,sys; d=json.load(open(sys.argv[1])); t=d['total']; print(f\"| {d['settings']['users']} | {t['requests_per_second']} | {t['p50_ms']} | {t['p95_ms']} | {t['p99_ms']} | {t['error_rate']*100:.2f}% |\")" "$file"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: performance-results
+          path: performance-results/
+          if-no-files-found: ignore

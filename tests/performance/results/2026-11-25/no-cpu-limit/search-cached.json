@@ -1,0 +1,86 @@
+{
+  "endpoints": {
+    "GET /catalog/search (cached)": {
+      "requests": 14495,
+      "errors": 0,
+      "p50_ms": 19.8,
+      "p95_ms": 29.1,
+      "p99_ms": 37.3,
+      "max_ms": 362.5,
+      "mean_ms": 20.7,
+      "measured": true
+    },
+    "first search (fills the cache)": {
+      "requests": 1,
+      "errors": 0,
+      "p50_ms": 369.9,
+      "p95_ms": 369.9,
+      "p99_ms": 369.9,
+      "max_ms": 369.9,
+      "mean_ms": 369.9,
+      "measured": false
+    },
+    "setup POST /auth/login": {
+      "requests": 1,
+      "errors": 0,
+      "p50_ms": 201.3,
+      "p95_ms": 201.3,
+      "p99_ms": 201.3,
+      "max_ms": 201.3,
+      "mean_ms": 201.3,
+      "measured": false
+    },
+    "setup POST /auth/register": {
+      "requests": 1,
+      "errors": 0,
+      "p50_ms": 203.7,
+      "p95_ms": 203.7,
+      "p99_ms": 203.7,
+      "max_ms": 203.7,
+      "mean_ms": 203.7,
+      "measured": false
+    },
+    "setup POST /lists": {
+      "requests": 1,
+      "errors": 0,
+      "p50_ms": 5.2,
+      "p95_ms": 5.2,
+      "p99_ms": 5.2,
+      "max_ms": 5.2,
+      "mean_ms": 5.2,
+      "measured": false
+    }
+  },
+  "total": {
+    "requests": 14495,
+    "errors": 0,
+    "error_rate": 0.0,
+    "requests_per_second": 483.0,
+    "p50_ms": 19.8,
+    "p95_ms": 29.1,
+    "p99_ms": 37.3
+  },
+  "error_examples": {},
+  "settings": {
+    "base_url": "https://api.localhost",
+    "users": 10,
+    "seconds": 30.0,
+    "titles_per_user": 3,
+    "setup_concurrency": 10,
+    "search": "Life is Strange",
+    "p95_limit_ms": 500,
+    "error_limit": 0.01,
+    "mix": null
+  },
+  "run": {
+    "date": "2026-11-25T09:08:24+00:00",
+    "elapsed_seconds": 30.0,
+    "client_python": "3.15.2",
+    "client_cpus": 11,
+    "label": "docker-compose.prod.yml, 11 CPUs and 8319303680 bytes for Docker, backend CPUs: no limit"
+  },
+  "passed": {
+    "p95": true,
+    "error_rate": true
+  }
+}
