@@ -159,13 +159,23 @@ jobs:
           alembic upgrade head
           alembic check
 
+      # The gate is about 5 points under the measured value, so coverage cannot fall without
+      # notice (#297). Change it together with CONTRIBUTING.md and docs/tests/coverage.md.
       - name: Run backend tests
         run: |
           python -m pytest tests -v \
             --cov=backend/app \
             --cov-report=term-missing \
             --cov-report=xml \
-            --cov-fail-under=70
+            --cov-report=html \
+            --cov-fail-under=90
+
+      - name: Write backend coverage to the job summary
+        if: always()
+        run: |
+          if [ -f coverage.xml ]; then
+            python -c "import xml.etree.ElementTree as E; r=float(E.parse('coverage.xml').getroot().get('line-rate')); print(f'### Backend coverage: {r*100:.2f}% of lines (gate 90%)')" >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       # Real IGDB and TMDB calls. Only on a manual run, so normal runs never use the keys.
       # The `secrets` context cannot be used in an `if`, so a first step looks at the secrets and
@@ -197,14 +207,20 @@ jobs:
           IGDB_CLIENT_ID: ${{ secrets.IGDB_ID }}
           IGDB_CLIENT_SECRET: ${{ secrets.IGDB_API_KEY }}
           TMDB_API_KEY: ${{ secrets.TMDB_API }}
-        run: python -m pytest tests/requirements/test_epic3_catalog_live.py -v
+        # --cov-append adds the live paths to the coverage of the normal run, so the summary
+        # shows how much the live tests add (#297)
+        run: |
+          python -m pytest tests/requirements/test_epic3_catalog_live.py -v --cov=backend/app --cov-append --cov-report=xml
+          python -c "import xml.etree.ElementTree as E; r=float(E.parse('coverage.xml').getroot().get('line-rate')); print(f'### Backend coverage with the live tests: {r*100:.2f}% of lines')" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload backend coverage
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: backend-coverage
-          path: coverage.xml
+          path: |
+            coverage.xml
+            htmlcov/
           if-no-files-found: ignore
 
   # SonarQube analysis on SonarCloud with the coverage of the backend job (#299). Skipped while the
@@ -360,8 +376,24 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
-      - name: Run frontend tests
-        run: npm run test --if-present
+      # The thresholds are in vitest.config.mts (#297)
+      - name: Run frontend tests with coverage
+        run: npm run test:coverage
+
+      - name: Write frontend coverage to the job summary
+        if: always()
+        run: |
+          if [ -f coverage/coverage-summary.json ]; then
+            node -e 'const t=require("./coverage/coverage-summary.json").total; console.log(`### Frontend coverage: ${t.lines.pct}% of lines, ${t.statements.pct}% of statements, ${t.functions.pct}% of functions, ${t.branches.pct}% of branches`)' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload frontend coverage
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: frontend-coverage
+          path: frontend/coverage/
+          if-no-files-found: ignore
 
       - name: Build
         run: npm run build
