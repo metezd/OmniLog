@@ -1,12 +1,28 @@
 # Reverse proxy with automatic HTTPS (Let's Encrypt). The two names come from the .env.prod file.
 # The proxy is the only service that is open to the network (ports 80 and 443).
 
+# Browser headers for both sites (#304). HSTS starts with one day. Raise it (for example to
+# max-age=31536000) after a week without problems. The Content-Security-Policy of the app comes
+# from the frontend itself (src/proxy.ts, #303), and the API sets its own.
+(security_headers) {
+	header {
+		Strict-Transport-Security "max-age=86400"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+		X-Frame-Options "DENY"
+		-Server
+	}
+}
+
 {$APP_DOMAIN} {
+	import security_headers
 	encode zstd gzip
 	reverse_proxy frontend:3000
 }
 
 {$API_DOMAIN} {
+	import security_headers
 	encode zstd gzip
 	# The same limit as the backend (#302). A chunked body has no Content-Length in advance.
 	request_body {

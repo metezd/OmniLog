@@ -42,4 +42,5 @@ HEALTHCHECK --interval=10s --timeout=5s --start-period=20s --retries=5 \
 ENV FORWARDED_ALLOW_IPS=127.0.0.1
 
 # Migrations are not run here. The compose file runs `alembic upgrade head` in a separate step.
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers"]
+# --no-server-header: the answers do not name uvicorn (penetration finding F7)
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--no-server-header"]
