@@ -8,5 +8,9 @@
 
 {$API_DOMAIN} {
 	encode zstd gzip
+	# The same limit as the backend (#302). A chunked body has no Content-Length in advance.
+	request_body {
+		max_size 1MB
+	}
 	reverse_proxy backend:8000
 }

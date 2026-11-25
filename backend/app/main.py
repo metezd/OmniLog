@@ -16,6 +16,7 @@ from app.core.errors import register_exception_handlers
 from app.api.library import router as library_router
 from app.api.media import router as media_router
 from app.core import cache
+from app.core.body_limit import BodySizeLimitMiddleware
 from app.core.config import CORS_ORIGINS, ENABLE_DOCS
 from app.core.database import get_db
 
@@ -32,6 +33,11 @@ SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "no-referrer",
 }
+
+
+# Added before the security headers below, so it runs inside them and its 413 and 400 answers
+# get the headers too (#302)
+app.add_middleware(BodySizeLimitMiddleware)
 
 
 @app.middleware("http")
