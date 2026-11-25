@@ -4,9 +4,11 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.core.validation import NoNulStr
+
 
 class ReviewCreate(BaseModel):
-    text: str = Field(..., min_length=1, max_length=5000)
+    text: NoNulStr = Field(..., min_length=1, max_length=5000)
 
     @field_validator("text")
     @classmethod
