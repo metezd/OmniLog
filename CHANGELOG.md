@@ -12,6 +12,7 @@ All notable changes to this project are written in this file. The format follows
 
 ### Security
 
+- Penetration finding F7 is fixed and the missing headers are added: no `Server` or `X-Powered-By` header, `X-Frame-Options`, `Content-Security-Policy` and `Permissions-Policy` from the API on every answer (also on a 500), the browser headers from the frontend, and HSTS and the same headers from Caddy (#304).
 - Penetration finding F1 is fixed: on Render the login and register limits count the right-most address of `X-Forwarded-For`, which the proxy writes, and the browser address that the frontend sends with the new shared key `FRONTEND_PROXY_SECRET`. A fake first address no longer resets the limit (#301).
 - `POST /media` is off by default and answers 404. The new setting `ALLOW_MEDIA_CREATE` turns it on, and then `poster_url` must be an `https` address on `image.tmdb.org` or `images.igdb.com`. `GET /media/{id}` now needs a login (#218).
 

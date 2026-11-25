@@ -16,6 +16,7 @@ from app.core.errors import register_exception_handlers
 from app.api.library import router as library_router
 from app.api.media import router as media_router
 from app.core import cache
+from app.core.security_headers import SecurityHeadersMiddleware
 from app.core.config import CORS_ORIGINS, ENABLE_DOCS
 from app.core.database import get_db
 
@@ -28,25 +29,8 @@ app = FastAPI(
     openapi_url="/openapi.json" if ENABLE_DOCS else None,
 )
 
-SECURITY_HEADERS = {
-    "X-Content-Type-Options": "nosniff",
-    "Referrer-Policy": "no-referrer",
-}
-
-
-@app.middleware("http")
-async def add_security_headers(request: Request, call_next):
-    """Add the security headers to every answer. The proxy (Caddy) does not set them, and on
-    Render there is no proxy of ours, so the API sets them itself.
-
-    Answers of /auth/* can hold a token or user data, so they must never be cached.
-    """
-    response = await call_next(request)
-    for name, value in SECURITY_HEADERS.items():
-        response.headers.setdefault(name, value)
-    if request.url.path.startswith("/auth/") or request.url.path == "/auth":
-        response.headers["Cache-Control"] = "no-store"
-    return response
+# The security headers on every answer, also on an unhandled error (#220, #304)
+app.add_middleware(SecurityHeadersMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
