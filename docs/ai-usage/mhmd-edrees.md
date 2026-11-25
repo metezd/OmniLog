@@ -36,6 +36,13 @@ My main role was Backend QA and Test Engineer. I contributed to backend testing,
 | Incorrect failed/passed test counts in the first TDD draft | Review of the complete test output | Corrected in #345 | Minor |
 | An existing warning was incorrectly considered an AI mistake | Review of the original PR | Removed from the register in #346 | Minor |
 
+## What I did not use AI for
+
+- Choosing my tasks and talking with the team.
+- Understanding the requirements and reading the issues.
+- Debugging, except in the pull requests listed above, where the AI found and fixed a problem (for example the CI failure of #231).
+- The final review of my pull requests before I ask for the merge.
+
 ## Limits
 
 - AI-generated changes require human review before merging.
