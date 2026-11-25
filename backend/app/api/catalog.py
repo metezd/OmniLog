@@ -1,5 +1,5 @@
 """Catalog endpoints. US-08 Search the catalog, US-09 View title details."""
-from typing import List
+from typing import Annotated, List
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.exceptions import RequestValidationError
@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, limit_per_user
 from app.core.database import get_db
+from app.core.validation import NoNulStr
 from app.models.entities import MediaType, User
 from app.schemas.media import MediaDetailResponse, MediaItemResponse
 from app.services import catalog_service
@@ -25,7 +26,8 @@ router = APIRouter(prefix="/catalog", tags=["Catalog"])
     dependencies=[Depends(limit_per_user("search"))],
 )
 def search_catalog(
-    q: str = Query(..., min_length=1, max_length=100, description="Title to search for"),
+    # The validator sits inside Annotated: FastAPI drops an AfterValidator next to a Query default
+    q: Annotated[NoNulStr, Query(min_length=1, max_length=100, description="Title to search for")],
     media_type: MediaType = Query(..., alias="type", description="GAME, SERIES or MOVIE"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),

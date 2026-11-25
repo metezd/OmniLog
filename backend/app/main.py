@@ -16,6 +16,7 @@ from app.core.errors import register_exception_handlers
 from app.api.library import router as library_router
 from app.api.media import router as media_router
 from app.core import cache
+from app.core.body_limit import BodySizeLimitMiddleware
 from app.core.security_headers import SecurityHeadersMiddleware
 from app.core.config import CORS_ORIGINS, ENABLE_DOCS
 from app.core.database import get_db
@@ -29,7 +30,9 @@ app = FastAPI(
     openapi_url="/openapi.json" if ENABLE_DOCS else None,
 )
 
-# The security headers on every answer, also on an unhandled error (#220, #304)
+# The body size limit runs inside the security headers, so its 413 and 400 answers get them too
+# (#302). The security headers are on every answer, also on an unhandled error (#220, #304).
+app.add_middleware(BodySizeLimitMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 
 app.add_middleware(
