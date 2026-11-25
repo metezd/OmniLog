@@ -85,6 +85,7 @@ def test_nfr01_cached_stats_p95_under_500ms(client, auth_headers):
         ("GET", "/stats"),
         # Media (internal)
         ("POST", "/media"),
+        ("GET", "/media/1"),
     ],
 )
 def test_nfr02_protected_endpoints_require_token(client, method, path):

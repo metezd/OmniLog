@@ -17,3 +17,12 @@ def rate_limits_off(monkeypatch):
     rate_limit.reset()
     yield
     rate_limit.reset()
+
+
+@pytest.fixture(autouse=True)
+def media_create_on(monkeypatch):
+    """Turn POST /media on (#218). It is off by default, but the test helpers use it to create
+    titles. tests/requirements/test_media_access.py turns it off again."""
+    from app.core import config
+
+    monkeypatch.setattr(config, "ALLOW_MEDIA_CREATE", True)

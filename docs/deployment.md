@@ -91,6 +91,7 @@ All settings are in `.env.prod`. The file holds secrets and is ignored by Git. C
 | `CORS_ORIGINS` | yes | The address of the frontend, for example `https://app.example.com`. The backend accepts browser calls only from here |
 | `FORWARDED_TRUSTED_HOPS` | no | How many proxies add an address to `X-Forwarded-For` in front of the backend. The login and register limits then count the address that many places from the right end of the header. Default `0` (use the address that uvicorn gives, right for this Docker setup). `render.yaml` sets `2` (section 9.1) |
 | `ENABLE_DOCS` | no | Shows the API documentation at `/docs`, `/redoc` and `/openapi.json`. Default is `false` in `docker-compose.prod.yml` and `render.yaml`, and `true` when the backend runs without it (development) |
+| `ALLOW_MEDIA_CREATE` | no | Turns on `POST /media`, which adds a title to the shared catalog. Default is `false`, so the route answers 404. Leave it off in production: titles come from the catalog search. Only the tests turn it on |
 | `IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET`, `TMDB_API_KEY` | no | Keys of the catalog services. Without them the catalog search cannot reach the outside services |
 | `OPENAI_API_KEY` | no | OpenAI API key. Without it, OpenAI-backed features are disabled |
 | `EMBEDDING_MODEL`, `EMBEDDING_DIMENSIONS`, `SPOILER_MODEL`, `SPOILER_THRESHOLD`, `OPENAI_TIMEOUT_SECONDS`, `OPENAI_MAX_RETRIES` | no | Models, spoiler confidence threshold, request timeout in seconds and retry count |
@@ -230,6 +231,7 @@ Open `https://localhost` in the browser and accept the certificate warning, beca
 | A stolen token works forever | Every token has `exp`. A token without `exp` or `sub` is rejected with 401 |
 | The browser guesses the type of an answer, or sends the API address to other sites | The backend sends `X-Content-Type-Options: nosniff` and `Referrer-Policy: no-referrer` on every answer. Caddy does not add them, so they also work on Render |
 | A token or user data stays in a browser or proxy cache | Answers of `/auth/*` have `Cache-Control: no-store` |
+| A user fills the shared catalog with false titles or outside images | `POST /media` answers 404 unless `ALLOW_MEDIA_CREATE` is on. When it is on, `poster_url` must be an `https` address on `image.tmdb.org` or `images.igdb.com`. `GET /media/{id}` needs a login (#218) |
 | The full list of endpoints is public | `ENABLE_DOCS` is `false` in production, so `/docs`, `/redoc` and `/openapi.json` answer 404 |
 | The login token is stolen by a script in the page | The frontend keeps the token in an `httpOnly` cookie and sends it to the backend from its server code |
 | A break-in to a container gives full control | The backend and the frontend run as a normal user, not as root |
