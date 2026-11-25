@@ -6,7 +6,7 @@ Part of the review checklist in #252 (section D), issue #307. Everything here co
 
 - The requirement tests were written on 12.10.2026, before the code of 14 of the 15 user stories. Only US-01 came before its test (section 2).
 - Five story groups (six stories) were run again from the real commits: the tests failed on the code before the feature and passed with it (section 3).
-- The five security fixes of the testing phase (F1, F3, F4, F5, F7) each have a `test:` commit that fails for the expected reason and a `fix:` commit that makes it pass (section 4).
+- Nine fixes of the testing phase (F1, F3, F4, F5 with deep JSON, F6, F7, D10, and two SonarQube findings) each have a `test:` commit that fails for the expected reason and a `fix:` commit that makes it pass (section 4), in the backend and, where they changed it, in the frontend.
 
 ## 1. How the project used test-first
 
@@ -59,7 +59,7 @@ The US-06/07 run selects the tests with `-k "us06 or us07"`, and the US-11 run s
 
 ## 4. Red then green cycles of the testing phase fixes
 
-The fixes of the penetration test findings were made as a pair of commits: first `test:` with only the new tests, then `fix:`. Each `test:` commit was run on its own (red) and then the `fix:` commit (green). On 25.11.2026 all five red runs failed for the reason the finding describes, not because of a typo or a missing import.
+The fixes of the penetration test findings were made as a pair of commits: first `test:` with only the new tests, then `fix:`. Each `test:` commit was run on its own (red) and then the `fix:` commit (green). On 25.11.2026 all red runs failed for the reason the finding describes, not because of a typo or a missing import.
 
 | Finding | Issue / PR | Red: `test:` commit | Failing line | Green: `fix:` commit |
 |---|---|---|---|---|
@@ -68,8 +68,29 @@ The fixes of the penetration test findings were made as a pair of commits: first
 | F5/F6 Echoed values | #302 / #341 | `6c9351e`: 2 failed, 16 passed | `test_f5_nfr03_a_rejected_password_is_not_repeated`: `assert 'Sh0rt!' not in '{"detail":[...'` | `179afb3`: 18 passed |
 | F3 Poster address | #303 / #342 | `8e388ae`: 10 failed, 15 passed | `test_f3_us08_other_addresses_are_refused[javascript:alert(1)-MediaItemUpdate]`: `DID NOT RAISE ValidationError` | `c07c63f`: 25 passed |
 | F7 Headers | #304 / #343 | `fb15646`: 9 failed, 14 passed | `test_f7_the_api_headers_are_on_every_status[200]`: `X-Frame-Options on 200` | `efa6293`: 23 passed |
+| F6 Body size | #302 / #341 | `fbd63b5`: 7 failed, 20 passed | `test_f6_us06_a_body_over_one_megabyte_gets_413`: 422 instead of 413; a broken `Content-Length` reached the endpoint (401 instead of 400) | `95d12a0`: 29 passed |
+| D10 Duplicate list routes | #305 / #344 | `bbd9465`: 1 failed | `test_no_duplicate_operation_ids_in_openapi`: `Duplicate Operation ID delete_custom_list_lists__list_id__delete` | `e2e8744`: 1 passed |
 
-The counts are for the whole test file of each fix. The F5 file also holds the F4 tests, which already passed at `6c9351e`. The F7 file also holds the older hardening tests. The frontend tests of F1, F3 and F7 (Vitest) were not run again here.
+F5 and F6 are two pairs: `6c9351e`/`179afb3` removed the echoed value (F5 and the deep JSON), and `fbd63b5`/`95d12a0` added the size limit (F6). D10 is on the branch of #344 until it is merged.
+
+### The frontend part of the cycles
+
+Some fixes changed the frontend too. Their `test:` commits hold Vitest tests as well. Run again on 26.11.2026 in Docker (Node 24), only the named test file:
+
+| Fix | Test file | Red: `test:` commit | Failing line | Green |
+|---|---|---|---|---|
+| F1 (#340) | `tests/lib/server/backend.test.ts` | `2737be8`: 2 failed, 32 passed | `expected null to be '203.0.113.7'` (no `X-Client-IP` sent) | `b60b09b`: 34 passed |
+| F3 (#342) | `tests/proxy.test.ts` | `8e388ae`: 6 failed, 7 passed | no `Content-Security-Policy` header | `c07c63f`: 13 passed |
+| F7 (#343) | `tests/next-config.test.ts` | `e34a49c`: 2 failed | no browser headers, `X-Powered-By` on | `efa6293`: 2 passed |
+| SonarQube S6853 (#349) | `tests/components/title/ChapterProgressCard.test.tsx` | `0a2f138`: 1 failed, 2 passed | the playtime field has no label | `53e8a90`: 3 passed |
+
+F7 therefore has two `test:` commits: `fb15646` for the backend and `e34a49c` for the frontend, both before `efa6293`.
+
+### A second run on another machine
+
+The backend pairs were also run on macOS 27.2.1 with Python 3.12.16 and PostgreSQL 16.16 (Redis off) on 25.11.2026: F1 3 failed then 6 passed, F4 9 failed then 12 passed, F6 7 failed then 29 passed, D10 1 failed then 1 passed. The F5 pair gave **3** failed, 15 passed at `6c9351e`, one more than on Windows: there, the list name nested 3000 levels deep really gave a 500 (`RecursionError` in the old error handler), and the test passed after `179afb3`. So the deep JSON fix is shown on this machine, and the result depends on the recursion limit of the Python build.
+
+The counts are for the whole test file of each fix. The F5 file also holds the F4 tests, which already passed at `6c9351e`. The F7 file also holds the older hardening tests. The frontend tests are in the next table.
 
 ### Tests that passed at once
 
@@ -77,7 +98,8 @@ A test that passes before the fix does not prove the fix. Some new tests passed 
 
 - **Guards that are meant to pass.** `test_f4_us08_the_largest_external_id_still_works`, `test_f3_us08_tmdb_and_igdb_images_are_accepted` and `test_f3_us08_an_update_without_a_poster_is_fine` check that the fix does not refuse good input. They must pass before and after.
 - **`test_f4_us12_nul_in_a_decision_is_refused`** passed at once. NUL in a decision was already refused before the fix, so this test only protects against a regression. It does not show a fix.
-- **`test_us06_deeply_nested_json_is_refused_without_a_server_error`** passed at once on this machine. The penetration report says that a value nested about 3000 levels deep gave a 500 before #302. That 500 did not happen in this run (Windows, Python 3.13), so this run is not evidence for that part of the fix.
+- **`test_us06_deeply_nested_json_is_refused_without_a_server_error`** passed at once on Windows with Python 3.13, but failed with a 500 on macOS with Python 3.12 (section "A second run on another machine"). The 50 and 100 000 level cases passed at once on both: the parser already refuses 100 000 levels.
+- **Guards of F1 and F6.** A forged `X-Client-IP` without the key, with a wrong key or with a broken value, a review of 5000 characters and a body of exactly 1 MB were already handled before the fix. They protect the fix from refusing good input or trusting bad input.
 
 ## 5. Environment of the runs
 
