@@ -68,6 +68,7 @@ AI may help with code, tests, documents and reviews. How the team uses it end to
 
 - **Pull request.** Fill the section "AI assistance" of the template: none, AI helped, or AI wrote most of it, the tool and the model, what you checked by hand, and what the AI got wrong that you fixed.
 - **Label.** Add `ai-assisted` to every pull request where AI helped. All of them: `gh pr list --label ai-assisted --state all`.
+- **Check.** The check "AI disclosure" (in `.github/workflows/pr-title.yml`) fails when the section is missing, when not exactly one of the three boxes is ticked, or when AI helped and the label is missing. It runs again when you edit the description or change the labels. Dependabot pull requests are skipped.
 - **Commit trailer.** A commit that AI wrote or changed gets a trailer in a second line. The subject stays one line:
 
   ```bash
