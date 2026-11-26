@@ -1,0 +1,53 @@
+{
+  "register_email": {
+    "original_status": 201,
+    "true_payload": [
+      422,
+      {
+        "detail": [
+          {
+            "type": "value_error",
+            "loc": [
+              "body",
+              "email"
+            ],
+            "msg": "value is not a valid email address: The part after the @-sign contains invalid characters: \"'\", '=', SPACE."
+          }
+        ]
+      }
+    ],
+    "false_payload": [
+      422,
+      {
+        "detail": [
+          {
+            "type": "value_error",
+            "loc": [
+              "body",
+              "email"
+            ],
+            "msg": "value is not a valid email address: The part after the @-sign contains invalid characters: \"'\", '=', SPACE."
+          }
+        ]
+      }
+    ],
+    "same_answer": true
+  },
+  "review_text": {
+    "answers": [
+      {
+        "payload": "John Doe' OR '1'='1' -- ",
+        "status": 201,
+        "stored_text": "John Doe' OR '1'='1' --"
+      },
+      {
+        "payload": "John Doe' OR '1'='2' -- ",
+        "status": 201,
+        "stored_text": "John Doe' OR '1'='2' --"
+      }
+    ],
+    "same_status": true,
+    "stored_as_sent": true
+  },
+  "verdict": "false positive"
+}
