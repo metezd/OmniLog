@@ -85,7 +85,7 @@ Each step builds on the one before. A step is done when its tests pass.
 | 6 | Episodic logging: chapter ratings, playtime, decisions | US-10 to US-12 | Done |
 | 7 | Analytics: personal statistics with a Redis cache | US-15 | Done |
 | 8 | AI engine: spoiler detection, embeddings, recommendations | US-13, US-14 | Done. Embeddings are stored in `media_embeddings` and can be backfilled with `python -m app.embeddings`. US-13 uses embedding-based ranking with a popularity fallback |
-| 9 | Hardening: non-functional tests, 70% coverage, test report, code freeze | NFR-01 to NFR-05 | Partly done. The NFR tests exist. Coverage is 94.96% for the backend with a CI gate of 90%, and 31.33% for the frontend with a measured threshold ([coverage](docs/tests/coverage.md)). The Software Testing Report and the code freeze are not in the repository |
+| 9 | Hardening: non-functional tests, 70% coverage, test report, code freeze | NFR-01 to NFR-05 | Partly done. The NFR tests exist. Coverage is 94.96% for the backend with a CI gate of 90%, and 31.33% for the frontend with a measured threshold ([coverage](docs/tests/coverage.md)). The [Software Testing Report](docs/tests/software-testing-report.md) is written; the code freeze is not done yet |
 
 ### Milestones
 
@@ -252,6 +252,7 @@ Dependabot opens pull requests for the Python packages, the frontend packages an
 | Domain model and E-R diagram | [`docs/analysis/data`](docs/analysis/data) |
 | Data flow diagrams | [`docs/analysis/behavior`](docs/analysis/behavior) |
 | UI screen list | [`docs/analysis/ui/screen-list.md`](docs/analysis/ui/screen-list.md) |
+| Software Testing Report | [`docs/tests/software-testing-report.md`](docs/tests/software-testing-report.md) |
 | Penetration test report | [`docs/tests/penetration`](docs/tests/penetration/README.md) |
 | TDD evidence | [`docs/tests/tdd-evidence.md`](docs/tests/tdd-evidence.md) |
 | Requirements traceability | [`docs/tests/traceability.md`](docs/tests/traceability.md) |
