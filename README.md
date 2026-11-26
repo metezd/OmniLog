@@ -256,5 +256,6 @@ Dependabot opens pull requests for the Python packages, the frontend packages an
 | Penetration test report | [`docs/tests/penetration`](docs/tests/penetration/README.md) |
 | TDD evidence | [`docs/tests/tdd-evidence.md`](docs/tests/tdd-evidence.md) |
 | Requirements traceability | [`docs/tests/traceability.md`](docs/tests/traceability.md) |
+| SonarQube analysis | [`docs/tests/sonarqube.md`](docs/tests/sonarqube.md) |
 | Code coverage | [`docs/tests/coverage.md`](docs/tests/coverage.md) |
 | Performance tests | [`docs/tests/performance.md`](docs/tests/performance.md) |
