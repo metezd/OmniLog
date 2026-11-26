@@ -126,6 +126,28 @@ describe("GET /api/poster", () => {
       expect(response.status).toBe(502);
     });
 
+    it("does not follow a redirect of the upstream host", async () => {
+      // An allowed CDN that answers with a redirect could send the server to any address, for
+      // example one inside its own network. fetch follows redirects unless it is told not to.
+      fetchMock.mockResolvedValueOnce(imageResponse());
+
+      await call("https://image.tmdb.org/t/p/w500/abc.jpg");
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const init = fetchMock.mock.calls[0][1] as RequestInit | undefined;
+      expect(init?.redirect).toBe("error");
+    });
+
+    it("turns a refused redirect into 502", async () => {
+      // With redirect "error", fetch rejects with a TypeError when the upstream redirects
+      fetchMock.mockRejectedValueOnce(new TypeError("fetch failed: redirect mode is set to error"));
+
+      const response = await call("https://image.tmdb.org/t/p/w500/abc.jpg");
+
+      expect(response.status).toBe(502);
+      expect(await response.text()).not.toContain("redirect");
+    });
+
     it("turns a network failure into 502", async () => {
       fetchMock.mockRejectedValueOnce(new Error("socket hang up"));
 
