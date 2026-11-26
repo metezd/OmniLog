@@ -1,12 +1,17 @@
 """Edge cases for reviews and recommendations (US-13, US-14, NFR-02).
 
 Added in the testing phase after the coverage run showed that the "not found" paths of the review
-endpoints and the genre ranking of the recommendations had no test. A review belongs to a library
+endpoints and the rating threshold of the recommendations had no test. A review belongs to a library
 entry, so the main risk is one user reading or writing the review of another user.
+
+Updated after main was merged (review of #234): a missing review now answers 404 and a second
+review answers 200 (the contract of test_epic5_ai.py), and the recommendations rank by pgvector
+embeddings instead of genres, so the two genre tests were replaced by a test of the rating threshold.
 """
 import pytest
 
-from app.models.entities import Genre, MediaItem
+from app.core import config
+from app.models.entities import MediaEmbedding
 from helpers import add_to_library, create_media, new_credentials, register_and_login
 
 SPOILER_TEXT = "In the final chapter the main character dies and the narrator was the killer."
@@ -19,11 +24,17 @@ def other_headers(client):
     return register_and_login(client, new_credentials())
 
 
-def give_genres(db, media_id, names):
-    item = db.get(MediaItem, media_id)
-    for name in names:
-        genre = db.query(Genre).filter(Genre.name == name).one_or_none()
-        item.genres.append(genre or Genre(name=name))
+def give_embedding(db, media_id, x, y):
+    """Store a known 1536-dimension vector for a title, like the command of #151 would."""
+    db.add(
+        MediaEmbedding(
+            media_item_id=media_id,
+            model_name=config.EMBEDDING_MODEL,
+            embedding=[float(x), float(y)] + [0.0] * (config.EMBEDDING_DIMENSIONS - 2),
+            dimension=config.EMBEDDING_DIMENSIONS,
+            source_text_hash="test",
+        )
+    )
     db.commit()
 
 
@@ -50,8 +61,7 @@ def test_the_review_of_another_users_entry_cannot_be_written(
 
     assert response.status_code == 404
     mine = client.get(f"/library/{library_entry['id']}/review", headers=auth_headers)
-    assert mine.status_code == 200
-    assert mine.json() is None  # nothing was stored on the entry of the owner
+    assert mine.status_code == 404  # nothing was stored on the entry of the owner
 
 
 def test_the_review_of_another_users_entry_cannot_be_read(
@@ -68,14 +78,6 @@ def test_the_review_of_another_users_entry_cannot_be_read(
     assert CALM_TEXT not in response.text
 
 
-def test_no_review_yet_answers_200_with_null(client, auth_headers, library_entry):
-    """US-14: an entry without a review returns 200 and null, not an error."""
-    response = client.get(f"/library/{library_entry['id']}/review", headers=auth_headers)
-
-    assert response.status_code == 200
-    assert response.json() is None
-
-
 def test_a_second_review_replaces_the_first_and_the_flag_follows_the_new_text(
     client, auth_headers, library_entry
 ):
@@ -86,7 +88,8 @@ def test_a_second_review_replaces_the_first_and_the_flag_follows_the_new_text(
 
     second = client.post(url, json={"text": CALM_TEXT}, headers=auth_headers)
 
-    assert second.status_code == 201
+    assert first.status_code == 201
+    assert second.status_code == 200  # an update, not a new review
     assert second.json()["id"] == first.json()["id"]  # same row, not a new one
     assert second.json()["contains_spoiler"] is False
     stored = client.get(url, headers=auth_headers).json()
@@ -113,44 +116,30 @@ def test_a_review_longer_than_5000_characters_is_rejected(client, auth_headers, 
 
 
 # ---------------------------------------------------------------- US-13: recommendations
-def test_recommendations_rank_titles_with_the_liked_genres_first(client, auth_headers, db):
-    """US-13: a series that shares a genre with a highly rated game comes before one that does not."""
-    game = create_media(client, auth_headers, media_type="GAME")
-    give_genres(db, game["id"], ["Adventure"])
-    add_to_library(client, auth_headers, game["id"], status="COMPLETED", rating=10)
-    unrelated = create_media(client, auth_headers, media_type="SERIES")  # created first
-    give_genres(db, unrelated["id"], ["Sports"])
-    related = create_media(client, auth_headers, media_type="SERIES")
-    give_genres(db, related["id"], ["Adventure"])
+def test_only_titles_rated_7_or_more_shape_the_taste(client, auth_headers, db):
+    """US-13: a rating of 7 counts as liked, a rating of 6 does not (the threshold of the service).
 
-    response = client.get("/recommendations", params={"target": "SERIES"}, headers=auth_headers)
+    If the title rated 6 counted, the taste would be the middle of both vectors and `near_disliked`
+    would come first. Without it, the taste is the vector of the title rated 7.
+    """
+    liked = create_media(client, auth_headers, media_type="GAME")
+    add_to_library(client, auth_headers, liked["id"], status="COMPLETED", rating=7)
+    disliked = create_media(client, auth_headers, media_type="GAME")
+    add_to_library(client, auth_headers, disliked["id"], status="DROPPED", rating=6)
+    near_disliked = create_media(client, auth_headers, media_type="SERIES")
+    near_liked = create_media(client, auth_headers, media_type="SERIES")
+    give_embedding(db, liked["id"], 1, 0)
+    give_embedding(db, disliked["id"], 0, 1)
+    give_embedding(db, near_disliked["id"], 0, 1)
+    give_embedding(db, near_liked["id"], 1, -0.2)
+
+    response = client.get(
+        "/recommendations", params={"target": "SERIES", "limit": 50}, headers=auth_headers
+    )
 
     assert response.status_code == 200
     ids = [item["id"] for item in response.json()]
-    assert ids.index(related["id"]) < ids.index(unrelated["id"])
-
-
-def test_a_higher_rating_gives_its_genre_more_weight(client, auth_headers, db):
-    """US-13: genres of a game rated 10 count more than genres of a game rated 2."""
-    loved = create_media(client, auth_headers, media_type="GAME")
-    give_genres(db, loved["id"], ["Mystery"])
-    add_to_library(client, auth_headers, loved["id"], status="COMPLETED", rating=10)
-    disliked = create_media(client, auth_headers, media_type="GAME")
-    give_genres(db, disliked["id"], ["Racing"])
-    add_to_library(client, auth_headers, disliked["id"], status="DROPPED", rating=2)
-    racing = create_media(client, auth_headers, media_type="SERIES")
-    give_genres(db, racing["id"], ["Racing"])
-    mystery = create_media(client, auth_headers, media_type="SERIES")
-    give_genres(db, mystery["id"], ["Mystery"])
-
-    ids = [
-        item["id"]
-        for item in client.get(
-            "/recommendations", params={"target": "SERIES"}, headers=auth_headers
-        ).json()
-    ]
-
-    assert ids.index(mystery["id"]) < ids.index(racing["id"])
+    assert ids.index(near_liked["id"]) < ids.index(near_disliked["id"])
 
 
 def test_recommendations_never_contain_a_title_of_the_library(client, auth_headers):
