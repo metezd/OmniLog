@@ -79,10 +79,6 @@ def remove_library_entry(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
 
 
-
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
-
-
 @router.post(
     "/{entry_id}/review",
     response_model=ReviewResponse,

@@ -49,7 +49,8 @@ export default defineConfig({
       provider: "v8",
       include: ["src/**/*.{ts,tsx}"],
       exclude: ["src/**/*.d.ts"],
-      reporter: ["text-summary", "json-summary", "html"],
+      // lcov is read by SonarQube (#299)
+      reporter: ["text-summary", "json-summary", "html", "lcov"],
       reportsDirectory: "./coverage",
       // The measured values minus a margin (#297, docs/tests/coverage.md). Raise them when tests
       // are added. Never lower them to make a change pass.
