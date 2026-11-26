@@ -13,6 +13,8 @@ Part of the review checklist in #252 (section D). The results feed the security 
 | Raw results | [`raw/results.json`](raw/results.json), [`raw/forwarded-header-proof.json`](raw/forwarded-header-proof.json) |
 | Automated checks | 28: 21 passed, 7 raised a finding |
 | Confirmed issues | 7: 1 high, 2 medium, 3 low, 1 informational |
+| **Retest after the fixes** | 25.11.2026 at `74f1f3a`: **31 checks, 31 passed, 0 findings**. All 7 issues are fixed. See [section 5](#5-retest-after-the-fixes) |
+| Retest raw results | [`raw/results-after-fixes.json`](raw/results-after-fixes.json) |
 
 The core protections held. No attack read or changed the data of another user, forged a token, or bypassed the login with SQL injection. The most important issue is that the login rate limit can be bypassed with the settings in `render.yaml`.
 
@@ -26,7 +28,7 @@ Not tested, so these results say nothing about them:
 - **The Caddy proxy and the Docker stack.** Docker was not available on the test computer.
 - **Redis.** It was off, so the rate limits used the in-process counter.
 - **pgvector.** The test database has no pgvector, so the `media_embeddings` table was left out and the vector query of `GET /recommendations` was not attacked.
-- **The frontend in a browser.** Its code was read for F3, but no browser attack was run.
+- **The frontend in a browser.** Its code was read for F3, but no browser attack was run. (Closed by the retest, section 5.)
 - **Automated scanners** such as OWASP ZAP or sqlmap. The checks are written by hand, so they cover only the listed attacks.
 
 ## 3. Findings
@@ -130,7 +132,58 @@ A list name of 3 MB is refused with 422, but the answer contains the full 3 MB v
 | CORS-01 | Calls from another origin and from `null` | Not allowed |
 | RATE-01, 03, 04 | Password guessing, mass registration, search flood | 429 |
 
-## 5. How to run it again
+## 5. Retest after the fixes
+
+Issue #306. Run on 25.11.2026 against `main` at `74f1f3a`, after #340, #341, #342 and #343 were merged.
+
+**Setup.** The backend ran on this computer with the options of `render.yaml`: `--proxy-headers --forwarded-allow-ips="*" --no-server-header`, `FORWARDED_TRUSTED_HOPS=1`, a `FRONTEND_PROXY_SECRET` and `ENABLE_DOCS=false`. `ALLOW_MEDIA_CREATE=true` was set so the script can add titles. A separate check showed that `POST /media` answers 404 with the default `false`. The frontend ran as a production build (`next build`, `next start`) against this backend. The database was PostgreSQL 17 without pgvector and Redis was off, as in the first run.
+
+### Before and after
+
+| ID | Before (23.11) | Fix | After (25.11) |
+|---|---|---|---|
+| F1 | 30 fake addresses, no 429 | #340 (#301) | **Fixed.** RATE-02: 429 at try 11 with a new fake first address each time |
+| F2 | `/docs` open with the settings of `render.yaml` | #260 | **Fixed.** CONF-01: `/docs`, `/redoc`, `/openapi.json` answer 404. A test checks both production files |
+| F3 | `javascript:` and outside image addresses stored (201) | #218, #342 (#303) | **Fixed.** XSS-01 and CAT-01: 422. `POST /media` is 404 by default |
+| F4 | NUL bytes and a huge id gave 500 | #341 (#302) | **Fixed.** INPUT-01: no 5xx in 12 malformed inputs |
+| F5 | A 422 repeated the rejected password | #341 (#302) | **Fixed.** DATA-02: the password is not in the answer |
+| F6 | A 3 MB value was refused and sent back (3 MB answer) | #341 (#302) | **Fixed.** INPUT-03: 413 with a 43 byte answer |
+| F7 | `Server: uvicorn` | #343 (#304) | **Fixed.** CONF-04: no `Server` header |
+
+### New checks in the retest
+
+| Check | Attack | Result |
+|---|---|---|
+| CONF-06 | `X-Frame-Options`, `Content-Security-Policy`, `Permissions-Policy` and `nosniff` on 200, 404 and 422 | All present |
+| INPUT-04 | JSON nested 3000 levels deep in a list name | 400 with a 48 byte answer |
+| RATE-05 | 12 wrong logins with a forged `X-Client-IP` and a wrong `X-Frontend-Key` | 429 at try 11, so the header is ignored without the key |
+
+All 28 checks of the first run passed again. With the 3 new ones the script now has 31 checks.
+
+### Frontend in a browser
+
+A user was created with `<img src=x onerror="window.__xss=1">` and `<script>window.__xss=2</script>` in a title, a review and a list name. The pages were opened in Chrome, logged in as that user.
+
+| Check | Result |
+|---|---|
+| `/library`, `/title/4`, `/lists`, `/lists/6`, `/diary` | The payloads show as text. `window.__xss` stayed unset and the pages have no injected `<img>` or `<script>` element |
+| Login token cookie | Not visible to JavaScript (`document.cookie` is empty after the login), so it is `HttpOnly` |
+| `SameSite` and `Secure` | Set in `frontend/src/lib/server/session.ts` (`sameSite: "lax"`, `secure` in production). Read in the code, not seen in the browser, because the test ran over HTTP |
+| Logged out | `/library`, `/lists`, `/lists/6`, `/diary`, `/stats`, `/recommendations`, `/title/4` and `/search` answer 307 to `/login` |
+| Frontend headers | `X-Frame-Options: DENY` and a `Content-Security-Policy` with a nonce and `strict-dynamic`, no `X-Powered-By` |
+
+**A false alarm that was checked:** on `/title/4` the text `window.__xss=2` was found inside one `<script>` element. It is the data that Next.js sends to the page (`self.__next_f.push`), where `<` is written as the escape `\u003c`, so it is a string and not a tag. The script did not set `window.__xss`.
+
+### Not tested yet
+
+These parts of #306 need Docker, which is not installed on the test computer (it needs WSL 2), or the agreement of the team:
+
+- **The production stack** of `docker-compose.prod.yml` with Caddy, Redis and the pgvector database. Section F7 says that `curl -I` on that stack showed no `Server` header, but the attack script was not run against it.
+- **`GET /recommendations` and the embedding paths with pgvector.** The `media_embeddings` table was still left out.
+- **OWASP ZAP**, or another automated scanner. The checks are still written by hand.
+- **The hosted system on Render.** No request was sent to it. F1 and the headers there need one harmless request each, after the team agrees.
+
+## 6. How to run it again
 
 Use a throwaway database, because the script creates users and titles. It refuses every address that is not local.
 
