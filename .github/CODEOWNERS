@@ -1,14 +1,37 @@
 # Every path has an owner, so GitHub asks for a review by itself (see CONTRIBUTING.md, Code review).
-# The last matching line wins.
+# Each member owns the area of their role in docs/CHARTER.md. Who reviews when the author is the
+# owner is in CONTRIBUTING.md, "Review rota". The last matching line wins, so the general lines
+# come first and the specific ones after them. tests/test_codeowners.py checks this file.
+
+# Architecture and CI: Mete Özdoğan
 *                       @metezd
-/frontend/              @metezd @KeremKenet
-/backend/               @metezd
-/tests/                 @metezd
-/docs/                  @metezd
 /.github/               @metezd
 /docker/                @metezd
 /docker-compose*.yml    @metezd
 /render.yaml            @metezd
+/docs/                  @metezd
 /README.md              @metezd
 /CONTRIBUTING.md        @metezd
 /CHANGELOG.md           @metezd
+
+# Frontend: Kerem Kenet
+/frontend/              @KeremKenet @metezd
+
+# Backend: Kağan Konuk
+/backend/               @KaganKonuk @metezd
+
+# IGDB and TMDB integrations: Musab Alperen Başol
+/backend/app/integrations/                  @musabalperenbasol @KaganKonuk
+/backend/app/services/catalog_service.py    @musabalperenbasol @KaganKonuk
+/backend/app/sync.py                        @musabalperenbasol @KaganKonuk
+
+# Embeddings and recommendations: Sidar Ürey
+/backend/app/integrations/openai_client.py          @sidarurey
+/backend/app/embeddings.py                          @sidarurey
+/backend/app/services/embedding_service.py          @sidarurey
+/backend/app/services/recommendations_service.py    @sidarurey
+/backend/app/api/recommendations.py                 @sidarurey
+
+# Tests and the penetration test: Mohammed Edris
+/tests/                 @Mhmd77Edrees @metezd
+/docs/tests/            @Mhmd77Edrees @metezd
