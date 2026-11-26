@@ -319,22 +319,22 @@ def test_the_password_comes_from_the_environment(monkeypatch):
     monkeypatch.setenv("OMNILOG_USERNAME", "alice")
     monkeypatch.setenv("OMNILOG_PASSWORD", "s3cret-pass")
 
-    args = import_lists.parse_args(["films.csv", "--list", "Favourites"])
+    args = import_lists.parse_args(["--list", "Favourites"])
 
     assert import_lists.credentials(args, prompt=lambda _: pytest.fail("no prompt")) == ("alice", "s3cret-pass")
 
 
 def test_the_password_is_asked_for_when_it_is_not_set(monkeypatch):
     monkeypatch.delenv("OMNILOG_PASSWORD", raising=False)
-    args = import_lists.parse_args(["films.csv", "--list", "Favourites", "--username", "bob"])
+    args = import_lists.parse_args(["--list", "Favourites", "--username", "bob"])
 
     assert import_lists.credentials(args, prompt=lambda _: "typed") == ("bob", "typed")
 
 
 def test_the_api_url_comes_from_an_argument_or_the_environment(monkeypatch):
     monkeypatch.setenv("OMNILOG_API_URL", "https://api.example.com/")
-    assert import_lists.parse_args(["f.csv", "--list", "L"]).api_url == "https://api.example.com/"
-    assert import_lists.parse_args(["f.csv", "--list", "L", "--api-url", "http://localhost:8000"]).api_url == "http://localhost:8000"
+    assert import_lists.parse_args(["--list", "L"]).api_url == "https://api.example.com/"
+    assert import_lists.parse_args(["--list", "L", "--api-url", "http://localhost:8000"]).api_url == "http://localhost:8000"
 
 
 def test_a_plain_http_url_is_allowed_only_for_this_computer():
