@@ -6,6 +6,7 @@ All notable changes to this project are written in this file. The format follows
 
 ### Added
 
+- `scripts/import_lists.py`, which imports a movie list from a CSV file or a Letterboxd export through the API, and the coverage of `scripts/` in CI and SonarQube (#336).
 - `Cache-Control: private, max-age=300, stale-while-revalidate=600` on successful catalog search and title details answers, and a warm-up ping from the login and register pages that wakes a sleeping backend, at most once a minute (#250).
 - `docs/design/render-pdf.sh`, which renders the Software Design Report to PDF with pandoc and Chromium in Docker (#295).
 - The check "AI disclosure" on pull requests: the section "AI assistance" must have one ticked box, and the label `ai-assisted` must be set when AI helped (#309).
