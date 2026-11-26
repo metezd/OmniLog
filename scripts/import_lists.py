@@ -11,8 +11,11 @@ The CSV needs a column `title` (or `Name`, as in a Letterboxd export) and may ha
 
     export OMNILOG_USERNAME=alice
     export OMNILOG_PASSWORD='...'            # or leave it out and type it when asked
-    python scripts/import_lists.py films.csv --list "Favourites"
-    python scripts/import_lists.py films.csv --list "Favourites" --api-url https://omnilog-api.onrender.com
+    python scripts/import_lists.py --list "Favourites" < films.csv
+    python scripts/import_lists.py --list "Favourites" --api-url https://omnilog-api.onrender.com < films.csv
+
+The CSV comes in on standard input, so the script opens no file path of its own: another program
+that starts it cannot make it read any other file.
 
 Running it again is safe: an existing list with the same name is used, and a film that is already
 in the list is not added twice. A film that is not found is listed at the end and does not stop the
@@ -23,6 +26,7 @@ from __future__ import annotations
 import argparse
 import csv
 import getpass
+import io
 import json
 import os
 import re
@@ -33,7 +37,6 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any, Callable, Optional
 
 DEFAULT_API_URL = "http://localhost:8000"
@@ -86,21 +89,6 @@ class Report:
 
 
 # ---------------------------------------------------------------- CSV
-def safe_csv_path(raw: str, base: Optional[Path] = None) -> str:
-    """The real path of a .csv file inside `base` (the current folder), or CsvError.
-
-    The script may be started by another program, so it reads no file outside the folder it runs
-    in, also not through a link, and no file that is not a .csv file (for example backend/.env).
-    """
-    root = os.path.realpath(base if base is not None else os.getcwd())
-    real = os.path.realpath(os.path.join(root, raw))
-    if os.path.commonpath([root, real]) != root:
-        raise CsvError(f"{raw}: the CSV file must be inside the current folder ({root})")
-    if not real.lower().endswith(".csv"):
-        raise CsvError(f"{raw}: only a .csv file can be read")
-    return real
-
-
 def _column(header: list[str], names: tuple[str, ...]) -> Optional[int]:
     cleaned = [name.strip().lower() for name in header]
     for name in names:
@@ -109,16 +97,15 @@ def _column(header: list[str], names: tuple[str, ...]) -> Optional[int]:
     return None
 
 
-def read_films(path: Path) -> list[Film]:
+def read_films(data: bytes, source: str = "standard input") -> list[Film]:
     """Read the films of a CSV file. Empty rows are skipped, a wrong year stops with the line."""
     try:
         # utf-8-sig also reads a file that starts with a byte order mark (Excel writes one)
-        with open(path, encoding="utf-8-sig", newline="") as handle:
-            rows = list(csv.reader(handle))
-    except FileNotFoundError as exc:
-        raise CsvError(f"{path}: file not found") from exc
+        text = data.decode("utf-8-sig")
     except UnicodeDecodeError as exc:
-        raise CsvError(f"{path}: the file is not UTF-8. Save it as UTF-8 and try again") from exc
+        raise CsvError(f"{source}: the file is not UTF-8. Save it as UTF-8 and try again") from exc
+    rows = list(csv.reader(io.StringIO(text, newline="")))
+    path = source
 
     if not rows:
         raise CsvError(f"{path}: the file is empty")
@@ -309,13 +296,15 @@ def check_api_url(url: str) -> str:
 
 def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Import a movie list from a CSV file (columns title and year, or a Letterboxd export).",
+        description=(
+            "Import a movie list from a CSV file (columns title and year, or a Letterboxd export). "
+            "The file comes in on standard input: import_lists.py --list NAME < films.csv"
+        ),
         epilog=(
             "The password is read from OMNILOG_PASSWORD, or asked for when it is not set. "
             "It is never an argument, so it does not show up in the shell history."
         ),
     )
-    parser.add_argument("csv_file", help="the CSV file, inside the current folder")
     parser.add_argument("--list", required=True, dest="list_name", help="the name of the list")
     parser.add_argument(
         "--api-url",
@@ -345,8 +334,11 @@ def credentials(args: argparse.Namespace, prompt: Callable[[str], str] = getpass
 
 def main(argv: Optional[list[str]] = None) -> int:
     args = parse_args(argv)
+    if sys.stdin.isatty():
+        print("error: send the CSV file on standard input, for example: --list NAME < films.csv", file=sys.stderr)
+        return 2
     try:
-        films = read_films(Path(safe_csv_path(args.csv_file)))
+        films = read_films(sys.stdin.buffer.read())
         api_url = check_api_url(args.api_url)
     except (CsvError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -362,7 +354,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     username, password = credentials(args)
     try:
         log_in(api, username, password)
-        print(f"{len(films)} films from {args.csv_file} into '{args.list_name}' on {api_url}")
+        print(f"{len(films)} films into '{args.list_name}' on {api_url}")
         report = import_list(api, args.list_name, films, delay=args.delay, dry_run=args.dry_run)
     except ApiError as exc:
         print(f"error: {exc}", file=sys.stderr)

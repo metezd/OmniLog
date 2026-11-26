@@ -208,12 +208,12 @@ alembic revision --autogenerate -m "describe the change"
 ```bash
 export OMNILOG_USERNAME=alice
 export OMNILOG_PASSWORD='your password'   # or leave it out and type it when asked
-python scripts/import_lists.py films.csv --list "Favourites"                       # http://localhost:8000
-python scripts/import_lists.py films.csv --list "Favourites" --dry-run             # only match, write nothing
-python scripts/import_lists.py films.csv --list "Favourites" --api-url https://<your-api>.onrender.com
+python scripts/import_lists.py --list "Favourites" < films.csv                       # http://localhost:8000
+python scripts/import_lists.py --list "Favourites" --dry-run < films.csv             # only match, write nothing
+python scripts/import_lists.py --list "Favourites" --api-url https://<your-api>.onrender.com < films.csv
 ```
 
-A film matches when the title is the same (case, accents and punctuation do not count) and the year is the same, or one year off when no film has the same year. A film that is not found, or whose search failed, is listed at the end and does not stop the import. Running the script again is safe: the list is found by its name, and a film that is already in it is not added twice. The searches are 2.5 seconds apart (`--delay`), because the backend allows 30 searches a minute for each user, and a 429 answer waits for its `Retry-After`. The password is never an argument, so it does not end up in the shell history, and a host other than this computer must use https. The script reads only a `.csv` file inside the folder it runs in (also after following links), so copy the export there first. The backend needs `TMDB_API_KEY` (or `public`) for movie searches; without it every search answers 503 and every film is listed as failed. The exit code is 0 when the import ran, 1 when the login or the list failed, and 2 for a wrong file or option.
+A film matches when the title is the same (case, accents and punctuation do not count) and the year is the same, or one year off when no film has the same year. A film that is not found, or whose search failed, is listed at the end and does not stop the import. Running the script again is safe: the list is found by its name, and a film that is already in it is not added twice. The searches are 2.5 seconds apart (`--delay`), because the backend allows 30 searches a minute for each user, and a 429 answer waits for its `Retry-After`. The password is never an argument, so it does not end up in the shell history, and a host other than this computer must use https. The CSV comes in on standard input (`< films.csv`), so the script opens no file path of its own and another program that starts it cannot make it read a different file. The backend needs `TMDB_API_KEY` (or `public`) for movie searches; without it every search answers 503 and every film is listed as failed. The exit code is 0 when the import ran, 1 when the login or the list failed, and 2 for a wrong file or option.
 
 ### Frontend
 
