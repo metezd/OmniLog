@@ -10,12 +10,14 @@ All notable changes to this project are written in this file. The format follows
 - The manual sync loads the details of many games with one IGDB query for every 100 games (`where id = (...)`) instead of one request per game. It falls back to one request per game when the batch fails.
 - Penetration retest after the fixes, with three new checks and a browser check of the frontend (#306).
 - The Software Testing Report (`docs/tests/software-testing-report.md`), which ties the tests, coverage, performance, security, SonarQube and TDD results together (#296).
+- The code review log (`docs/code-review-log.md`) with all merged pull requests and their reviews, and a review rota in `CONTRIBUTING.md` (#293).
 - HTTP load test (`tests/performance/load_test.py`), a script that runs it against the production stack (`tests/performance/run_stack.sh`) and the manual workflow "Performance". The results and the limit of the server are in `docs/tests/performance.md` (#298).
 - A CI check that every user story and non-functional requirement is named by tests (`tests/test_requirements_traceability.py`), the matrix in `docs/tests/traceability.md`, and new tests for US-01 and NFR-05 (#300).
 
 ### Changed
 
 - The AI usage page, the notes of Sidar Ürey and the register of AI mistakes show the work up to 2026-11-26: eight new caught mistakes (17 in all), the AI disclosure check and the current controls (#308, #310).
+- `.github/CODEOWNERS` gives each of the six members the area of their role in the Charter, and a test checks that every path in it exists (#293).
 - The backend coverage gate in CI is 90% instead of 70%, about 5 points under the measured 94.96%. The frontend has coverage with measured thresholds (`npm run test:coverage`). Every CI run writes the numbers to the job summary and keeps the HTML reports. The new tests also found double spaces in TVMaze descriptions, which are fixed (#297).
 
 ### Fixed
@@ -24,6 +26,7 @@ All notable changes to this project are written in this file. The format follows
 - The login and register limits on Render count the browser address again, not the address of the frontend for everybody. The new setting `FORWARDED_TRUSTED_HOPS` reads it from the right end of `X-Forwarded-For`, so a client cannot choose it by writing the left end (#251).
 - `docker-compose.yml` publishes PostgreSQL on `localhost:5432` again, which CI, `backend/.env.example` and the docs use. It was moved to `5433`, so the Docker Compose smoke test found no database, fell back to SQLite and failed on the migrations. `POSTGRES_PORT` now picks another port when 5432 is taken.
 - An empty `REDIS_URL` no longer stops the cache and the rate limits with an error. The in-process cache is used instead (#251).
+- `render.yaml` sets the health check path `/api/health` of the frontend service, as `docs/deployment.md` says. Before, Render had no health check for `omnilog-web` (#292).
 
 ### Security
 
