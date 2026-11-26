@@ -5,8 +5,10 @@ on:
     branches:
       - main
     paths:
-      - 'backend/alembic/**'
-      - 'backend/alembic.ini'
+      - 'backend/**'
+      - 'alembic/**'
+      - 'alembic.ini'
+  workflow_dispatch:
 
 jobs:
   migrate:
@@ -14,9 +16,6 @@ jobs:
     environment:
       name: supabase-production
       url: https://supabase.com/dashboard/project/wziszajksrinkubgswof/editor
-    defaults:
-      run:
-        working-directory: ./backend
 
     steps:
       - name: Checkout repository
@@ -30,7 +29,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r backend/requirements.txt
 
       - name: Run Alembic migrations
         env:
