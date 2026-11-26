@@ -86,6 +86,21 @@ class Report:
 
 
 # ---------------------------------------------------------------- CSV
+def safe_csv_path(raw: str, base: Optional[Path] = None) -> str:
+    """The real path of a .csv file inside `base` (the current folder), or CsvError.
+
+    The script may be started by another program, so it reads no file outside the folder it runs
+    in, also not through a link, and no file that is not a .csv file (for example backend/.env).
+    """
+    root = os.path.realpath(base if base is not None else os.getcwd())
+    real = os.path.realpath(os.path.join(root, raw))
+    if os.path.commonpath([root, real]) != root:
+        raise CsvError(f"{raw}: the CSV file must be inside the current folder ({root})")
+    if not real.lower().endswith(".csv"):
+        raise CsvError(f"{raw}: only a .csv file can be read")
+    return real
+
+
 def _column(header: list[str], names: tuple[str, ...]) -> Optional[int]:
     cleaned = [name.strip().lower() for name in header]
     for name in names:
@@ -300,7 +315,7 @@ def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
             "It is never an argument, so it does not show up in the shell history."
         ),
     )
-    parser.add_argument("csv_file", type=Path, help="the CSV file")
+    parser.add_argument("csv_file", help="the CSV file, inside the current folder")
     parser.add_argument("--list", required=True, dest="list_name", help="the name of the list")
     parser.add_argument(
         "--api-url",
@@ -331,7 +346,7 @@ def credentials(args: argparse.Namespace, prompt: Callable[[str], str] = getpass
 def main(argv: Optional[list[str]] = None) -> int:
     args = parse_args(argv)
     try:
-        films = read_films(args.csv_file)
+        films = read_films(Path(safe_csv_path(args.csv_file)))
         api_url = check_api_url(args.api_url)
     except (CsvError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
