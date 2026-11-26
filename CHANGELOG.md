@@ -6,6 +6,7 @@ All notable changes to this project are written in this file. The format follows
 
 ### Added
 
+- The register of AI mistakes that were caught, `docs/ai-usage/mistakes.md` (#310).
 - TDD evidence for every user story and the red then green cycles of the security fixes, and the test-first rule in `CONTRIBUTING.md` (#307).
 - HTTP load test (`tests/performance/load_test.py`), a script that runs it against the production stack (`tests/performance/run_stack.sh`) and the manual workflow "Performance". The results and the limit of the server are in `docs/tests/performance.md` (#298).
 - A CI check that every user story and non-functional requirement is named by tests (`tests/test_requirements_traceability.py`), the matrix in `docs/tests/traceability.md`, and new tests for US-01 and NFR-05 (#300).
