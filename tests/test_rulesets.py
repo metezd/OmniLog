@@ -86,3 +86,13 @@ def test_contributing_updates_the_existing_ruleset_of_main():
 def test_every_listed_check_is_named_in_contributing():
     for check in REQUIRED:
         assert check in CONTRIBUTING, f"{check} is required but CONTRIBUTING.md does not name it"
+
+
+def test_gitleaks_scans_only_the_history_of_the_checked_out_commit():
+    # The checkout fetches every branch (fetch-depth: 0), and gitleaks scans all of them by
+    # default. A dummy key on one branch then failed the check of every pull request and of main.
+    security = yaml.safe_load((WORKFLOWS / "security.yml").read_text(encoding="utf-8"))
+    commands = [step.get("run", "") for step in security["jobs"]["gitleaks"]["steps"]]
+    scan = next(command for command in commands if "gitleaks detect" in command)
+
+    assert '--log-opts="HEAD"' in scan
