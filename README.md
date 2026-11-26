@@ -85,7 +85,7 @@ Each step builds on the one before. A step is done when its tests pass.
 | 6 | Episodic logging: chapter ratings, playtime, decisions | US-10 to US-12 | Done |
 | 7 | Analytics: personal statistics with a Redis cache | US-15 | Done |
 | 8 | AI engine: spoiler detection, embeddings, recommendations | US-13, US-14 | Done. Embeddings are stored in `media_embeddings` and can be backfilled with `python -m app.embeddings`. US-13 uses embedding-based ranking with a popularity fallback |
-| 9 | Hardening: non-functional tests, 70% coverage, test report, code freeze | NFR-01 to NFR-05 | Partly done. The NFR tests exist. Coverage is 94.96% for the backend with a CI gate of 90%, and 31.33% for the frontend with a measured threshold ([coverage](docs/tests/coverage.md)). The [Software Testing Report](docs/tests/software-testing-report.md) is written; the code freeze is not done yet |
+| 9 | Hardening: non-functional tests, 70% coverage, test report, code freeze | NFR-01 to NFR-05 | Partly done. The NFR tests exist. Coverage is 95.86% for the backend with a CI gate of 90%, and 34.54% for the frontend with a measured threshold ([coverage](docs/tests/coverage.md), 26.11.2026). The [Software Testing Report](docs/tests/software-testing-report.md) is written; the code freeze is not done yet |
 
 ### Milestones
 
@@ -259,3 +259,5 @@ Dependabot opens pull requests for the Python packages, the frontend packages an
 | SonarQube analysis | [`docs/tests/sonarqube.md`](docs/tests/sonarqube.md) |
 | Code coverage | [`docs/tests/coverage.md`](docs/tests/coverage.md) |
 | Performance tests | [`docs/tests/performance.md`](docs/tests/performance.md) |
+| Static analysis | [`docs/tests/static-analysis.md`](docs/tests/static-analysis.md) |
+| Quality findings and mitigation plan | [`docs/tests/mitigation-plan.md`](docs/tests/mitigation-plan.md) |

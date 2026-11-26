@@ -1,0 +1,175 @@
+{
+  "endpoints": {
+    "GET /auth/me": {
+      "requests": 663,
+      "errors": 0,
+      "p50_ms": 202.6,
+      "p95_ms": 475.0,
+      "p99_ms": 762.0,
+      "max_ms": 938.2,
+      "mean_ms": 227.0,
+      "measured": true
+    },
+    "GET /diary": {
+      "requests": 561,
+      "errors": 0,
+      "p50_ms": 232.0,
+      "p95_ms": 519.0,
+      "p99_ms": 706.7,
+      "max_ms": 941.6,
+      "mean_ms": 253.8,
+      "measured": true
+    },
+    "GET /health": {
+      "requests": 448,
+      "errors": 0,
+      "p50_ms": 32.0,
+      "p95_ms": 161.2,
+      "p99_ms": 545.6,
+      "max_ms": 1190.7,
+      "mean_ms": 50.5,
+      "measured": true
+    },
+    "GET /library": {
+      "requests": 949,
+      "errors": 0,
+      "p50_ms": 241.5,
+      "p95_ms": 504.0,
+      "p99_ms": 690.2,
+      "max_ms": 1362.8,
+      "mean_ms": 261.8,
+      "measured": true
+    },
+    "GET /lists": {
+      "requests": 567,
+      "errors": 0,
+      "p50_ms": 241.9,
+      "p95_ms": 513.8,
+      "p99_ms": 725.0,
+      "max_ms": 1003.8,
+      "mean_ms": 271.3,
+      "measured": true
+    },
+    "GET /stats": {
+      "requests": 720,
+      "errors": 0,
+      "p50_ms": 225.5,
+      "p95_ms": 483.7,
+      "p99_ms": 666.0,
+      "max_ms": 1010.7,
+      "mean_ms": 245.2,
+      "measured": true
+    },
+    "PATCH /library/{id}": {
+      "requests": 668,
+      "errors": 0,
+      "p50_ms": 276.9,
+      "p95_ms": 579.2,
+      "p99_ms": 789.4,
+      "max_ms": 974.7,
+      "mean_ms": 300.8,
+      "measured": true
+    },
+    "POST /auth/login": {
+      "requests": 101,
+      "errors": 0,
+      "p50_ms": 1045.9,
+      "p95_ms": 1679.1,
+      "p99_ms": 1770.2,
+      "max_ms": 2093.2,
+      "mean_ms": 1077.9,
+      "measured": true
+    },
+    "setup POST /auth/login": {
+      "requests": 40,
+      "errors": 0,
+      "p50_ms": 1442.5,
+      "p95_ms": 1562.5,
+      "p99_ms": 1622.6,
+      "max_ms": 1622.6,
+      "mean_ms": 1355.5,
+      "measured": false
+    },
+    "setup POST /auth/register": {
+      "requests": 40,
+      "errors": 0,
+      "p50_ms": 1440.1,
+      "p95_ms": 1640.8,
+      "p99_ms": 1650.5,
+      "max_ms": 1650.5,
+      "mean_ms": 1389.2,
+      "measured": false
+    },
+    "setup POST /library": {
+      "requests": 120,
+      "errors": 0,
+      "p50_ms": 83.0,
+      "p95_ms": 134.8,
+      "p99_ms": 171.4,
+      "max_ms": 216.3,
+      "mean_ms": 82.9,
+      "measured": false
+    },
+    "setup POST /lists": {
+      "requests": 40,
+      "errors": 0,
+      "p50_ms": 50.7,
+      "p95_ms": 91.8,
+      "p99_ms": 118.0,
+      "max_ms": 118.0,
+      "mean_ms": 56.4,
+      "measured": false
+    },
+    "setup POST /media": {
+      "requests": 120,
+      "errors": 0,
+      "p50_ms": 52.9,
+      "p95_ms": 104.5,
+      "p99_ms": 125.3,
+      "max_ms": 135.1,
+      "mean_ms": 56.3,
+      "measured": false
+    }
+  },
+  "total": {
+    "requests": 4677,
+    "errors": 0,
+    "error_rate": 0.0,
+    "requests_per_second": 153.8,
+    "p50_ms": 226.0,
+    "p95_ms": 566.3,
+    "p99_ms": 1119.3
+  },
+  "error_examples": {},
+  "settings": {
+    "base_url": "http://127.0.0.1:8000",
+    "users": 40,
+    "seconds": 30.0,
+    "titles_per_user": 3,
+    "setup_concurrency": 10,
+    "search": null,
+    "p95_limit_ms": 500,
+    "error_limit": 0.01,
+    "mix": {
+      "GET /library": 20,
+      "GET /diary": 12,
+      "GET /lists": 12,
+      "GET /stats": 15,
+      "GET /auth/me": 15,
+      "GET /health": 10,
+      "PATCH /library/{id}": 14,
+      "POST /auth/login": 2
+    }
+  },
+  "run": {
+    "date": "2026-11-26T07:15:51+00:00",
+    "elapsed_seconds": 30.4,
+    "client_python": "3.15.0b4",
+    "client_cpus": 2,
+    "label": "cloud container, 2 vCPU, uvicorn 1 process, no Caddy, main+test_work c1fbcc9"
+  },
+  "passed": {
+    "p95": false,
+    "error_rate": true
+  }
+}

@@ -1,3 +1,0 @@
-[NFR-01] GET /catalog/search: p95=6.2 ms over 100 requests
-[NFR-01] GET /stats: p95=4.2 ms over 100 requests
-2 passed, 26 deselected, 6 warnings in 2.13s

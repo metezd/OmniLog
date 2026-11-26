@@ -1,6 +1,6 @@
 # Performance tests
 
-Issue #298. This feeds the Software Testing Report (#296). All numbers come from the runs of 2026-11-25. The raw results are the JSON files in [`tests/performance/results/2026-11-25`](../../tests/performance/results/2026-11-25).
+Issue #298. This feeds the Software Testing Report (#296). The main numbers come from the runs of 2026-11-25. The raw results are the JSON files in [`tests/performance/results/2026-11-25`](../../tests/performance/results/2026-11-25). After #234 was merged with `main`, the test was run again on 2026-11-26 with the current code (the last part of section 4, raw results in [`tests/performance/results/2026-11-26`](../../tests/performance/results/2026-11-26)).
 
 ## 1. Two kinds of evidence
 
@@ -66,6 +66,20 @@ Per endpoint at 20 users: every read had a p95 between 15 ms (`/health`) and 50 
 ### Cached catalog search
 
 10 users repeated `GET /catalog/search?q=Life is Strange&type=GAME` for 30 seconds after one call filled the cache (the keyless public sources, no CPU limit): **483 requests/s, p50 19.8 ms, p95 29.1 ms, p99 37.3 ms, no errors.** The cache works under load. A run with real IGDB and TMDB keys was not made, because the keys are only in the GitHub secrets. A manual CI run (#297) showed that the real services answer.
+
+### Re-run on 2026-11-26 with the current code
+
+The review of #234 asked for current numbers. The code changed after the runs of 2026-11-25 (`74f1f3a`): the duplicate list routes were removed (#344) and the security fixes #340 to #343 were merged. So the same script ran again against `test_work` at `c1fbcc9` (`main` at `e23f225` plus #234). Docker images could not be pulled on that machine, so the API ran as **one uvicorn process without Caddy**, on a Linux machine with **2 vCPU** that also ran the load generator, with PostgreSQL 16 and Redis 7. The details are in `environment.txt` next to the JSON files.
+
+| Users | Requests/s | p50 | p95 | p99 | Errors | Login p95 | Limits |
+|---|---|---|---|---|---|---|---|
+| 5 | 152.9 | 17.8 ms | 44.9 ms | 626.3 ms | 0% | 816 ms | passed |
+| 10 | 166.7 | 43.8 ms | 105.1 ms | 702.3 ms | 0% | 1 233 ms | passed |
+| 20 | 167.6 | 98.2 ms | 207.8 ms | 811.4 ms | 0% | 1 570 ms | passed |
+| 40 | 153.8 | 226.0 ms | **566.3 ms** | 1 119.3 ms | 0% | 1 679 ms | **failed** (p95) |
+| 80 | **5.0** | 30 001 ms | **30 082 ms** | 30 084 ms | **52.0%** | 30 076 ms | **failed** |
+
+The result has the same shape as the run with one CPU on 2026-11-25: the limits hold up to **20 users**, the p95 passes 500 ms at 40, and the API **locks up at 80 users** with the same error in the backend log (17 times `QueuePool limit of size 5 overflow 10 reached`). The throughput (about 150 to 170 requests/s) is between the two runs of 2026-11-25, as expected for 2 slower cores that the load generator shares. So the changes since 2026-11-25 did not change the performance, and the database pool (recommendation 1) is still the limit.
 
 ## 5. Analysis
 

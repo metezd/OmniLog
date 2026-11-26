@@ -1,0 +1,7 @@
+Load test re-run of 2026-11-26 (review of #234), code: test_work at c1fbcc9 (main e23f225 + #234).
+Machine: Ubuntu 24.04.5 LTS, Intel Xeon @ 2.10GHz, 2 vCPU, 7 GB. The load generator ran on the same machine.
+API: uvicorn app.main:app --host 127.0.0.1 --port 8000 --no-server-header (one process), no Caddy, no HTTPS.
+Settings for this test only: RATE_LIMIT_ENABLED=false, ALLOW_MEDIA_CREATE=true.
+Python 3.15.0b4 with backend/requirements.txt, PostgreSQL 16.15 + pgvector 0.6.0, Redis 7.0.15 (no Docker: images could not be pulled).
+Command per run: python tests/performance/load_test.py --base-url http://127.0.0.1:8000 --users N --seconds 30 --json users-N.json
+Backend log at 80 users: 17 times "sqlalchemy.exc.TimeoutError: QueuePool limit of size 5 overflow 10 reached, connection timed out, timeout 30.00".

@@ -1,46 +1,48 @@
 # Code coverage
 
-Issue #297. These numbers feed the Software Testing Report (#296). Every number below comes from a command that was run on 2026-11-25. The commands are in section 5.
+Issue #297. These numbers feed the Software Testing Report (#296). The first numbers were measured on 2026-11-25. They were measured again on **2026-11-26**, after #234 was merged with `main` (commit `c1fbcc9` of `test_work`), so that every number of the test documents comes from the same code. The commands are in section 5.
 
 ## 1. Summary
 
 | Part | Lines covered | Gate in CI | Where the gate is |
 |---|---|---|---|
-| Backend (`backend/app`) | **94.96%** (2769 of 2916 statements) | 90% | `--cov-fail-under=90` in `.github/workflows/ci.yml` |
-| Backend with the live API tests | **95.10%** | none (manual run only) | job summary of a manual CI run |
-| Frontend (`frontend/src`) | **31.33%** of lines (508 of 1621), 30.88% of statements, 51.73% of functions, 42.71% of branches | lines 25%, statements 25%, functions 40%, branches 35% | `coverage.thresholds` in `frontend/vitest.config.mts` |
+| Backend (`backend/app`) | **95.86%** (2847 of 2970 statements), 87.36% of branches | 90% | `--cov-fail-under=90` in `.github/workflows/ci.yml` |
+| Backend with the live API tests | **95.10%** (2026-11-25, before the duplicate list routes were removed) | none (manual run only) | job summary of a manual CI run |
+| Frontend (`frontend/src`) | **34.54%** of lines (533 of 1543), 34.09% of statements, 62.85% of functions, 46.65% of branches | lines 25%, statements 25%, functions 40%, branches 35% | `coverage.thresholds` in `frontend/vitest.config.mts` |
 
-Before this issue the backend measured **88.65%** with a gate of 70%. New tests for the keyless catalog sources and for the embeddings command raised it to 94.96%. No file was excluded to raise the number.
+Before #297 the backend measured **88.65%** with a gate of 70%. New tests for the keyless catalog sources and for the embeddings command raised it to 94.96% (2026-11-25). The removal of the dead list routes (#344) and the new tests of #234 raised it to 95.86%. No file was excluded to raise the number.
 
-NFR-05 asks for at least 70%. The CI gate is now stricter, about 5 points under the measured value, so the coverage cannot fall without notice. Raise the gates when tests are added. Never lower them to make a change pass.
+NFR-05 asks for at least 70%. The CI gate is stricter, about 5 points under the measured value, so the coverage cannot fall without notice. Raise the gates when tests are added. Never lower them to make a change pass.
 
 ## 2. Backend per package
 
-Measured in Docker, the same way as CI (section 5). 1009 passed, 4 skipped.
+2026-11-26, the same command as CI (section 5): **1106 passed, 0 failed, 4 skipped** (the 3 live API tests without keys, and 1 test that runs only when Redis is down).
 
 | Package | Statements | Missed | Covered |
 |---|---|---|---|
-| `api` | 331 | 12 | 96.37% |
-| `core` | 308 | 17 | 94.48% |
+| `api` | 322 | 3 | 99.07% |
+| `core` | 400 | 18 | 95.50% |
 | `integrations` | 592 | 45 | 92.40% |
 | `models` | 196 | 0 | 100.00% |
-| `schemas` | 209 | 1 | 99.52% |
+| `schemas` | 210 | 1 | 99.52% |
 | `seed` | 201 | 6 | 97.01% |
-| `services` | 935 | 63 | 93.26% |
-| top level files (`main.py`, `embeddings.py`, `sync.py`, ...) | 144 | 3 | 97.92% |
-| **Total** | **2916** | **147** | **94.96%** |
+| `services` | 912 | 47 | 94.85% |
+| top level files (`main.py`, `embeddings.py`, `sync.py`, ...) | 137 | 3 | 97.81% |
+| **Total** | **2970** | **123** | **95.86%** |
 
 ### What is not covered and why
 
 | File | Covered | Reason |
 |---|---|---|
-| `services/list_service.py` | 34.78% | Dead code. `journal.py` registers the same routes first, so these never run. #305 removes them |
-| `api/lists.py` | 60.00% | The same dead routes (#305) |
 | `integrations/openai_client.py` | 78.38% | Error paths of the real OpenAI client (timeouts, bad answers). The tests use the fake client in `tests/requirements/fake_openai.py` |
 | `services/media_service.py` | 80.00% | The duplicate check of `POST /media`, which is off by default since #218 |
-| `core/database.py` | 81.82% | The SQLite fallback for a local machine without PostgreSQL. CI always has PostgreSQL |
+| `core/errors.py` | 85.71% | Two branches of `_safe_text` (a NaN or Infinity, and a value that is not text or a number, in a validation error) and one line of the handler for an outside service error |
 | `seed/__main__.py` | 86.49% | Error output of the command line tool |
-| `integrations/igdb.py` | 91.53% | Error answers of the Twitch sign-in. Only the live IGDB gives them |
+| `integrations/genres.py` | 86.67% | Wrong data in a genre list: a name that is not text, an empty name, a name that is too long, more genres than the maximum |
+| `services/recommendations_service.py` | 88.24% | The early return when the vector query already fills the page, and the fallback after a failed vector query |
+| `core/database.py` | 90.91% | The SQLite fallback for a local machine without PostgreSQL. CI always has PostgreSQL |
+
+`services/list_service.py` and `api/lists.py` (35% and 60% on 2026-11-25) are gone: #344 removed the dead copies.
 
 ### The live API tests
 
@@ -50,28 +52,26 @@ The same run showed that the live IGDB test failed: IGDB now writes the name as 
 
 ## 3. Frontend per folder
 
-Measured with `npm run test:coverage` (Vitest 5.1.0 with `@vitest/coverage-v8`, a development tool only) on Node 24. 42 test files, 315 tests passed.
+2026-11-26, `npm run test:coverage` (Vitest 5.1.0 with `@vitest/coverage-v8`, a development tool only) on Node 24.22.3: **44 test files, 342 tests passed**.
 
 | Folder | Lines | Lines covered | Branches covered |
 |---|---|---|---|
-| `src/app` | 232 | 61.6% | 58.5% |
+| `src/app` | 226 | 63.7% | 59.6% |
 | `src/components/auth` | 11 | 100.0% | 100.0% |
 | `src/components/layout` | 819 | 5.0% | 8.6% |
 | `src/components/library` | 3 | 100.0% | 100.0% |
 | `src/components/lists` | 15 | 60.0% | 50.0% |
 | `src/components/search` | 8 | 100.0% | 100.0% |
-| `src/components/social` | 61 | 0.0% | 0.0% |
 | `src/components/states` | 15 | 100.0% | 100.0% |
 | `src/components/title` | 58 | 100.0% | 88.8% |
 | `src/context` | 7 | 85.7% | 50.0% |
 | `src/lib` | 18 | 94.4% | 100.0% |
 | `src/lib/actions` | 200 | 29.5% | 23.4% |
 | `src/lib/auth` | 15 | 100.0% | 100.0% |
-| `src/lib/server` | 120 | 99.2% | 97.1% |
-| `src/lib/services` | 35 | 0.0% | 0.0% |
-| `src/proxy.ts` | 4 | 100.0% | 100.0% |
+| `src/lib/server` | 128 | 99.2% | 97.3% |
+| `src/proxy.ts` | 20 | 100.0% | 81.8% |
 
-The total is low for two reasons. `src/components/layout` holds the animated background and the dashboard, half of all frontend lines, and no test renders them. `src/components/social` is the friends page, which still shows sample data. The code that talks to the backend (`src/lib/server`, `src/lib/auth`, `src/proxy.ts`) is close to 100%. The thresholds are a few points under the measured values, as the issue asks. They are not set higher than what the tests reach.
+The total is low because `src/components/layout` holds the animated background and the dashboard, more than half of all frontend lines, and no test renders them. The friends page (`src/components/social`, `src/lib/services`) was removed by #333. The code that talks to the backend (`src/lib/server`, `src/lib/auth`, `src/proxy.ts`) is close to 100%. Which frontend tests belong to which requirement is in section 4 of [traceability](traceability.md). The thresholds are a few points under the measured values. They are not set higher than what the tests reach.
 
 ## 4. In every CI run
 
@@ -81,7 +81,9 @@ The total is low for two reasons. `src/components/layout` holds the animated bac
 
 ## 5. How to repeat
 
-Environment of the numbers above: Apple M3 Pro, 11 cores, macOS 27.2.1, Docker Desktop with 11 CPUs and 7.7 GB. Backend in `python:3.15-slim` (Python 3.15.2, pytest 9.2.0, pytest-cov 7.1.0, coverage 7.17.3), PostgreSQL 16.16 with pgvector 0.8.7 and Redis 7.4.12 from `docker-compose.yml`. Frontend in `node:24-slim` (Node 24.22.3). CI runs on GitHub's `ubuntu-latest` and gave 95.06% for the same code.
+Environment of the numbers of 2026-11-26: a Linux machine (Ubuntu 24.04, Intel Xeon, 2 cores, 7 GB), Python 3.15.0b4 with the locked packages of `backend/requirements.txt` and `tests/requirements-test.txt` (pytest 9.2.0, pytest-cov 7.1.0, coverage 7.17.3), PostgreSQL 16.15 with pgvector 0.6.0, Redis 7.0.15, Node 24.22.3. The machine could not pull Docker images, so PostgreSQL and Redis ran without Docker. The coverage does not depend on the speed of the machine.
+
+Environment of the numbers of 2026-11-25: Apple M3 Pro, 11 cores, macOS 27.2.1, Docker Desktop with 11 CPUs and 7.7 GB. Backend in `python:3.15-slim` (Python 3.15.2), PostgreSQL 16.16 with pgvector 0.8.7 and Redis 7.4.12 from `docker-compose.yml`. Frontend in `node:24-slim` (Node 24.22.3). CI runs on GitHub's `ubuntu-latest` and gave 95.06% for the same code.
 
 Backend, from the repository root, with PostgreSQL and Redis running (`docker compose up -d`):
 
