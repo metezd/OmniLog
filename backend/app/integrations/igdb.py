@@ -6,7 +6,7 @@ sent with every request. See https://api-docs.igdb.com
 import logging
 import threading
 import time
-from typing import Any, Optional
+from typing import Any, Iterable, Optional
 
 import requests
 
@@ -25,6 +25,7 @@ from app.integrations.common import (
     is_safe_image_id,
     json_body,
     request_with_retry,
+    RequestLimiter,
 )
 
 logger = logging.getLogger(__name__)
@@ -37,7 +38,17 @@ COVER_URL = "https://images.igdb.com/igdb/image/upload/t_cover_big/{image_id}.jp
 # Renew the access token a little before it runs out
 _EXPIRY_MARGIN_SECONDS = 60
 
+# The fields of a game that the details need. An explicit list keeps the answer small (never
+# `fields *`). A search asks for fewer fields: the cover is built from its image_id.
+_SEARCH_FIELDS = "name,first_release_date,cover.image_id"
+_DETAILS_FIELDS = "summary,genres.name"
+
+# Games in one query of the batch. IGDB allows up to 500, a smaller query keeps the answer small.
+_MAX_BATCH_SIZE = 100
+
 _session = requests.Session()
+# Shared by all threads of the process: one slot every 1/IGDB_MAX_REQUESTS_PER_SECOND seconds
+_limiter = RequestLimiter(SOURCE, lambda: config.IGDB_MAX_REQUESTS_PER_SECOND)
 _auth_lock = threading.Lock()
 _access_token: Optional[str] = None
 _access_token_expires_at = 0.0
@@ -105,7 +116,7 @@ def search_games(query: str, limit: int) -> list[ExternalTitle]:
         return _search_steam_games(query, limit)
     games = _query(
         f"search {_quoted(query)}; "
-        "fields name,first_release_date,cover.image_id; "
+        f"fields {_SEARCH_FIELDS}; "
         f"limit {int(limit)};"
     )
     return dedupe([t for t in (_normalize(game) for game in games) if t])
@@ -118,10 +129,44 @@ def fetch_game_details(external_id: int) -> Optional[ExternalDetails]:
     """
     if config.IGDB_CLIENT_ID == "public":
         return _fetch_steam_game_details(external_id)
-    games = _query(f"fields summary,genres.name; where id = {int(external_id)}; limit 1;")
+    games = _query(f"fields {_DETAILS_FIELDS}; where id = {int(external_id)}; limit 1;")
     game = games[0] if games else None
     if not isinstance(game, dict):
         return None
+    return _details_from(game)
+
+
+def supports_batching() -> bool:
+    """True when many games can be asked for in one query. The keyless Steam mode has no such
+    call, so it asks for one game at a time."""
+    return is_configured() and config.IGDB_CLIENT_ID != "public"
+
+
+def fetch_games_details(external_ids: Iterable[int]) -> dict[int, ExternalDetails]:
+    """The description and the genres of many games, in one query for every 100 games
+    (`where id = (1,2,3)`), not one query for each game.
+
+    A game that IGDB does not know is missing from the answer. Raises ExternalServiceError when
+    IGDB fails. Only for a real IGDB (see supports_batching).
+    """
+    ids = list(dict.fromkeys(int(external_id) for external_id in external_ids))
+    found: dict[int, ExternalDetails] = {}
+    for start in range(0, len(ids), _MAX_BATCH_SIZE):
+        chunk = ids[start : start + _MAX_BATCH_SIZE]
+        wanted = set(chunk)
+        games = _query(
+            f"fields {_DETAILS_FIELDS}; "
+            f"where id = ({','.join(str(external_id) for external_id in chunk)}); "
+            f"limit {len(chunk)};"
+        )
+        for game in games:
+            game_id = clean_external_id(game.get("id")) if isinstance(game, dict) else None
+            if game_id in wanted:  # an id that was not asked for is not trusted
+                found[game_id] = _details_from(game)
+    return found
+
+
+def _details_from(game: dict) -> ExternalDetails:
     return ExternalDetails(
         description=clean_text(game.get("summary")),
         genres=genres_from_entries(game.get("genres")),
@@ -205,6 +250,7 @@ def _query(body: str) -> list:
             "POST",
             GAMES_URL,
             source=SOURCE,
+            limiter=_limiter,
             headers={
                 "Client-ID": config.IGDB_CLIENT_ID,
                 "Authorization": f"Bearer {access_token}",

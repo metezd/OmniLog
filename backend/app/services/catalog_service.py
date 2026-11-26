@@ -308,6 +308,8 @@ def sync_titles(
     items = query.all()
     item_ids = [item.id for item in items]
 
+    _prefetch_game_details(items)
+
     synced = unsynced = errors = 0
     for item_id in item_ids:
         item = db.get(MediaItem, item_id)
@@ -335,6 +337,41 @@ def sync_titles(
         errors=errors,
         not_selected=max(not_selected, 0),
     )
+
+
+def _prefetch_game_details(items: list[MediaItem]) -> None:
+    """Ask IGDB for the details of many games at once, and put them in the cache.
+
+    One query (`where id = (...)`) serves up to 100 games, so a sync of many games does not send
+    one request for each of them. The loop of the sync then finds every game in the cache, which
+    is the same path as a normal load. A game that IGDB does not know is cached as unknown, for the
+    short negative TTL. When the batch fails, nothing is cached and the loop asks for each game
+    on its own, as before. Games that are already in the cache are not asked for again.
+    """
+    if not igdb.supports_batching():
+        return
+    missing = [
+        item
+        for item in items
+        if item.media_type == MediaType.GAME
+        and _details_from_cache(cache.get_json(_metadata_cache_key(item))) is None
+    ]
+    if len(missing) < 2:
+        return  # one game costs one query either way
+
+    try:
+        found = igdb.fetch_games_details(item.external_api_id for item in missing)
+    except ExternalServiceError as exc:
+        logger.warning("Batch of %s games failed, loading them one by one: %s", len(missing), exc)
+        return
+    for item in missing:
+        details = found.get(item.external_api_id)
+        outside = (
+            _OutsideDetails(found=True, details=details)
+            if details is not None
+            else _OutsideDetails(found=False, details=_NO_DETAILS)
+        )
+        _cache_outside(_metadata_cache_key(item), _details_to_cache(outside), outside.found)
 
 
 def count_unsynced(

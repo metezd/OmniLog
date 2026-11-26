@@ -39,3 +39,12 @@ def db_cache_off(monkeypatch):
     from app.core import config
 
     monkeypatch.setattr(config, "DB_CACHE_TTL_DAYS", 0)
+
+
+@pytest.fixture(autouse=True)
+def igdb_limiter_off(monkeypatch):
+    """Turn the outgoing IGDB limit off. With it on, the tests that send many IGDB calls would
+    wait 1/3 second for each. tests/requirements/test_igdb_efficiency.py turns it on again."""
+    from app.core import config
+
+    monkeypatch.setattr(config, "IGDB_MAX_REQUESTS_PER_SECOND", 0)
