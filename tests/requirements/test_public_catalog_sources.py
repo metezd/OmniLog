@@ -233,6 +233,24 @@ def test_us08_public_movie_search_reads_wikidata(public_keys, monkeypatch):
     assert all(t.poster_url is None for t in titles)
 
 
+def test_us08_public_movie_search_reads_the_label_of_all_languages(public_keys, monkeypatch):
+    # Many well-known items keep their name only in the label "mul" (all languages), for
+    # example The Matrix (Q83495). Without it they were dropped
+    matrix = film("Q83495", "x", ("+1999-03-31T00:00:00Z", 11))
+    matrix["labels"] = {"mul": {"value": "The Matrix"}}
+    no_label = film("Q2", "x", ("+2000-01-01T00:00:00Z", 11))
+    no_label["labels"] = {}
+    router = use_wikidata(monkeypatch, WikidataRouter(
+        search=[{"id": "Q83495"}, {"id": "Q2", "label": "Label of the search"}],
+        entities={"Q83495": matrix, "Q2": no_label},
+    ))
+
+    titles = tmdb.search(MediaType.MOVIE, "the matrix", 5)
+
+    assert [(t.external_id, t.title) for t in titles] == [(83495, "The Matrix"), (2, "Label of the search")]
+    assert router.calls[1][1]["languages"] == "en|mul"
+
+
 def test_us08_public_movie_search_asks_in_english_and_names_the_client(public_keys, monkeypatch):
     router = use_wikidata(monkeypatch, WikidataRouter(search=[]))
 
