@@ -68,6 +68,8 @@ services:
     autoDeployTrigger: checksPass
     buildCommand: npm ci && npm run build
     startCommand: npm run start -- -p $PORT
+    # Answers without calling the backend (docs/deployment.md, section 7)
+    healthCheckPath: /api/health
     envVars:
       - key: NODE_VERSION
         value: 26

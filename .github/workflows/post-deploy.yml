@@ -1,0 +1,72 @@
+name: Post-deploy check
+
+# Run this by hand after a deploy on Render (docs/deployment.md, section 5). It calls the public
+# health paths of the deployed services and fails when one of them does not answer 200.
+# It needs no secret and no checkout: it only sends GET requests to the URLs that you enter.
+on:
+  workflow_dispatch:
+    inputs:
+      api_url:
+        description: "Public URL of the API, for example https://omnilog-api.onrender.com"
+        required: true
+      web_url:
+        description: "Public URL of the frontend (empty: skip the frontend)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Health of the deployed services
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # The URLs are user input, so they reach the script only through environment variables
+      - name: Call the health paths
+        env:
+          API_URL: ${{ inputs.api_url }}
+          WEB_URL: ${{ inputs.web_url }}
+        run: |
+          url_pattern='^https://[A-Za-z0-9.-]+(:[0-9]+)?$'
+          for name in API_URL WEB_URL; do
+            value="${!name}"
+            if [ -n "$value" ] && ! [[ "${value%/}" =~ $url_pattern ]]; then
+              echo "::error title=$name::Enter only https:// and a host name, with no path"
+              exit 1
+            fi
+          done
+
+          # A free service on Render sleeps when nobody uses it, and the first answer can take
+          # about a minute, so each path gets a few tries
+          status() {
+            curl --silent --output /dev/null --write-out '%{http_code}' \
+              --max-time 60 --retry 4 --retry-delay 10 --retry-all-errors "$1" || true
+          }
+
+          failed=0
+          check() {
+            code="$(status "$1")"
+            if [ "$code" = "$2" ]; then
+              echo "OK    $code  $1"
+            else
+              echo "::error title=Post-deploy check::$1 answered $code, expected $2"
+              failed=1
+            fi
+          }
+
+          api="${API_URL%/}"
+          check "$api/health" 200
+          check "$api/health/ready" 200
+          # The API documentation is off in production (ENABLE_DOCS=false in render.yaml)
+          check "$api/docs" 404
+          if [ -n "$WEB_URL" ]; then
+            check "${WEB_URL%/}/api/health" 200
+          fi
+
+          {
+            echo "### Post-deploy check"
+            echo "Run at $(date -u '+%Y-%m-%d %H:%M UTC') against \`$api\`${WEB_URL:+ and \`${WEB_URL%/}\`}."
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$failed"
