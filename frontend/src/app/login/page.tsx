@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { after, connection } from "next/server";
 
 import AuthBanner from "@/components/auth/AuthBanner";
 import LoginForm from "@/components/auth/LoginForm";
+import { warmUpBackend } from "@/lib/server/warmup";
 
 export const metadata: Metadata = {
   title: "Sign In | OmniLog",
@@ -14,6 +16,11 @@ export default async function LoginPage({
   searchParams: Promise<{ registered?: string; expired?: string }>;
 }) {
   const { registered, expired } = await searchParams;
+  // Wake a sleeping backend while the user types, after this page is sent (#250)
+  await connection();
+  after(() => {
+    warmUpBackend();
+  });
 
   return (
     <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center p-4">

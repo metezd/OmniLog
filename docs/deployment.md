@@ -238,6 +238,7 @@ The images have a health check, and `docker compose ps` shows `healthy` when it 
 ### Render
 
 - `render.yaml` sets the **Health Check Path** of each web service: `/health` for the backend and `/api/health` for the frontend. If you create a service by hand, set the same paths in its settings.
+- A free web service on Render sleeps when nobody uses it, and the first request wakes it, which can take about a minute. When the login or register page opens, the frontend sends one `GET /health` to the backend from its server, after the page is sent and at most once a minute (`frontend/src/lib/server/warmup.ts`), so the backend starts while the user types (#250).
 - Do not use `/health/ready` there. When the database is down, Render would mark the service as unhealthy and restart it, and a restart does not fix the database. Point an uptime monitor at `/health/ready` instead.
 - Third party APIs (TMDB, IGDB, OpenAI) are not checked on purpose. Their outages must not stop the service.
 - `render.yaml` sets `NODE_VERSION` to `26` for the frontend, the same major version as `frontend/Dockerfile`. If you create the service by hand, set the same value. Tailwind needs Node 20.19 or 22.12 and newer, and `frontend/package.json` asks for Node 24 or newer. An older Node stops the build with `require() of ES Module ... not supported`.
