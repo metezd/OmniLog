@@ -85,7 +85,7 @@ Each step builds on the one before. A step is done when its tests pass.
 | 6 | Episodic logging: chapter ratings, playtime, decisions | US-10 to US-12 | Done |
 | 7 | Analytics: personal statistics with a Redis cache | US-15 | Done |
 | 8 | AI engine: spoiler detection, embeddings, recommendations | US-13, US-14 | Done. Embeddings are stored in `media_embeddings` and can be backfilled with `python -m app.embeddings`. US-13 uses embedding-based ranking with a popularity fallback |
-| 9 | Hardening: non-functional tests, 70% coverage, test report, code freeze | NFR-01 to NFR-05 | Partly done. The NFR tests exist. Coverage is 94.96% for the backend with a CI gate of 90%, and 31.33% for the frontend with a measured threshold ([coverage](docs/tests/coverage.md)). The [Software Testing Report](docs/tests/software-testing-report.md) is written; the code freeze is not done yet |
+| 9 | Hardening: non-functional tests, 70% coverage, test report, code freeze | NFR-01 to NFR-05 | Partly done. The NFR tests exist. Coverage is 95.88% for the backend with a CI gate of 90%, and 34.54% of the lines for the frontend with a measured threshold ([coverage](docs/tests/coverage.md)). The [Software Testing Report](docs/tests/software-testing-report.md) is written; the code freeze is not done yet |
 
 ### Milestones
 
@@ -100,7 +100,7 @@ Each step builds on the one before. A step is done when its tests pass.
 
 ## Project status
 
-The backend is built for every story except the parts listed at the end of this paragraph. All six epics have endpoints and tests: registration and login (`POST /auth/register`, `POST /auth/login`, `GET /auth/me`), the catalog (`GET /catalog/search`, `GET /catalog/{id}`, and `POST /media`, which is off by default and used only by the tests), the library (`/library`), custom lists and the activity diary (`/lists`, `/diary`), chapter ratings, playtime and decisions (`/library/{id}/chapters/{chapter_id}/...`, US-10 to US-12), personal statistics with a Redis cache (`GET /stats`, US-15), reviews with spoiler detection (`POST` and `GET /library/{id}/review`, US-14) and recommendations (`GET /recommendations`, US-13). The last full local test run gave 885 passed and 20 skipped, with 2 warnings.
+The backend is built for every story except the parts listed at the end of this paragraph. All six epics have endpoints and tests: registration and login (`POST /auth/register`, `POST /auth/login`, `GET /auth/me`), the catalog (`GET /catalog/search`, `GET /catalog/{id}`, and `POST /media`, which is off by default and used only by the tests), the library (`/library`), custom lists and the activity diary (`/lists`, `/diary`), chapter ratings, playtime and decisions (`/library/{id}/chapters/{chapter_id}/...`, US-10 to US-12), personal statistics with a Redis cache (`GET /stats`, US-15), reviews with spoiler detection (`POST` and `GET /library/{id}/review`, US-14) and recommendations (`GET /recommendations`, US-13). The last full local test run (2026-11-26) gave 1145 passed and 4 skipped, with 2 warnings.
 
 Recommendations use the title embeddings to personalize the ranking. If no usable taste vector exists or the vector search fails, the service falls back to a popularity ranking.
 
@@ -108,7 +108,7 @@ Not built yet:
 
 - The Operator role (`is_admin`), the sync job log, the scheduled sync and the admin endpoints of the design. The manual sync is a command and needs none of them.
 
-The frontend calls the backend from its server code (see [Frontend](#frontend)). The friends page still shows sample data.
+The frontend calls the backend from its server code (see [Frontend](#frontend)).
 
 Latest release: [v0.8.0](https://github.com/metezd/OmniLog/releases/tag/v0.8.0) (pre-release, Step 8). The changes of every version are in [`CHANGELOG.md`](CHANGELOG.md), and the next planned releases are `v0.9.0` (Step 9 done) and `v1.0.0` (code freeze, 30.11.2026).
 
@@ -209,7 +209,7 @@ npm install
 npm run dev
 ```
 
-The app runs at `http://localhost:3000`. The server code of Next.js (Server Components and Server Actions) calls the backend, and the JWT is kept in a cookie that the browser cannot read. The address of the backend is `BACKEND_URL` (default `http://localhost:8000` in development, required in production, see `frontend/.env.example`). No code reads `NEXT_PUBLIC_API_URL` any more, because the Axios client `src/lib/api.ts` was removed in `f7cf8fd`. The production Docker build still requires it (`frontend/Dockerfile`). The friends page uses sample data.
+The app runs at `http://localhost:3000`. The server code of Next.js (Server Components and Server Actions) calls the backend, and the JWT is kept in a cookie that the browser cannot read. The address of the backend is `BACKEND_URL` (default `http://localhost:8000` in development, required in production, see `frontend/.env.example`). No code reads `NEXT_PUBLIC_API_URL` any more, because the Axios client `src/lib/api.ts` was removed in `f7cf8fd`. The production Docker build still requires it (`frontend/Dockerfile`).
 
 ### Tests
 
