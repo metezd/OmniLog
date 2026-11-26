@@ -6,6 +6,7 @@ All notable changes to this project are written in this file. The format follows
 
 ### Added
 
+- Penetration retest after the fixes, with three new checks and a browser check of the frontend (#306).
 - The Software Testing Report (`docs/tests/software-testing-report.md`), which ties the tests, coverage, performance, security, SonarQube and TDD results together (#296).
 - HTTP load test (`tests/performance/load_test.py`), a script that runs it against the production stack (`tests/performance/run_stack.sh`) and the manual workflow "Performance". The results and the limit of the server are in `docs/tests/performance.md` (#298).
 - A CI check that every user story and non-functional requirement is named by tests (`tests/test_requirements_traceability.py`), the matrix in `docs/tests/traceability.md`, and new tests for US-01 and NFR-05 (#300).
