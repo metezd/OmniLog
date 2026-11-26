@@ -1,7 +1,11 @@
 """scripts/import_lists.py: import a movie list from a CSV file through the API (#336).
 
+The CSV comes in on standard input, so the script opens no file path of its own.
+
 The API is replaced by a fake that keeps lists in memory, so no server and no network are needed.
 """
+import ast
+import io
 import sys
 from pathlib import Path
 
@@ -22,10 +26,16 @@ from import_lists import (  # noqa: E402
 
 
 # ---------------------------------------------------------------- CSV
+def feed_stdin(monkeypatch, data):
+    """Send the bytes of a CSV file to the standard input of the script."""
+    stream = io.TextIOWrapper(io.BytesIO(data))
+    stream.isatty = lambda: False
+    monkeypatch.setattr(import_lists.sys, "stdin", stream)
+
+
 def write(tmp_path, text, name="films.csv", encoding="utf-8"):
-    path = tmp_path / name
-    path.write_text(text, encoding=encoding)
-    return path
+    """The bytes of a CSV file, as they come in on standard input."""
+    return text.encode(encoding)
 
 
 def test_reads_title_and_year(tmp_path):
@@ -83,17 +93,14 @@ def test_a_wrong_year_names_the_line(tmp_path, year):
         read_films(path)
 
 
-def test_a_file_that_is_not_utf8_is_refused(tmp_path):
-    path = tmp_path / "films.csv"
-    path.write_bytes("title,year\nAmélie,2001\n".encode("latin-1"))
-
+def test_a_file_that_is_not_utf8_is_refused():
     with pytest.raises(CsvError, match="UTF-8"):
-        read_films(path)
+        read_films("title,year\nAmélie,2001\n".encode("latin-1"))
 
 
-def test_a_missing_file_is_refused(tmp_path):
-    with pytest.raises(CsvError, match="not found"):
-        read_films(tmp_path / "nothing.csv")
+def test_empty_input_is_refused():
+    with pytest.raises(CsvError, match="empty"):
+        read_films(b"")
 
 
 # ---------------------------------------------------------------- matching
@@ -483,9 +490,10 @@ def test_the_command_imports_the_file(local_api, tmp_path, monkeypatch, capsys):
     path = write(tmp_path, "Date,Name,Year\n2026-01-01,Inception,2010\n2026-01-02,Unknown Film,2001\n")
     monkeypatch.setenv("OMNILOG_PASSWORD", "right-pass")
     monkeypatch.setattr(import_lists.time, "sleep", lambda _: None)
-    monkeypatch.chdir(tmp_path)
 
-    code = import_lists.main([path.name, "--list", "Favourites", "--api-url", local_api, "--username", "alice"])
+    feed_stdin(monkeypatch, path)
+
+    code = import_lists.main(["--list", "Favourites", "--api-url", local_api, "--username", "alice"])
 
     out = capsys.readouterr().out
     assert code == 0
@@ -498,9 +506,10 @@ def test_the_command_imports_the_file(local_api, tmp_path, monkeypatch, capsys):
 def test_the_command_stops_on_a_wrong_password(local_api, tmp_path, monkeypatch, capsys):
     path = write(tmp_path, "title,year\nInception,2010\n")
     monkeypatch.setenv("OMNILOG_PASSWORD", "wrong-pass")
-    monkeypatch.chdir(tmp_path)
 
-    code = import_lists.main([path.name, "--list", "Favourites", "--api-url", local_api, "--username", "alice"])
+    feed_stdin(monkeypatch, path)
+
+    code = import_lists.main(["--list", "Favourites", "--api-url", local_api, "--username", "alice"])
 
     assert code == 1
     assert "Invalid credentials" in capsys.readouterr().err
@@ -517,54 +526,38 @@ def test_the_command_stops_on_a_wrong_password(local_api, tmp_path, monkeypatch,
     ],
 )
 def test_the_command_refuses_bad_input_before_it_logs_in(tmp_path, monkeypatch, capsys, csv_text, extra, message):
-    path = write(tmp_path, csv_text)
-    monkeypatch.chdir(tmp_path)
+    feed_stdin(monkeypatch, write(tmp_path, csv_text))
 
-    code = import_lists.main([path.name, "--list", "L", "--username", "alice", *extra])
+    code = import_lists.main(["--list", "L", "--username", "alice", *extra])
 
     assert code == 2
     assert message in capsys.readouterr().err
 
 
-# ---------------------------------------------------------------- the path of the CSV file
-def test_a_csv_file_in_the_current_folder_is_accepted(tmp_path):
-    (tmp_path / "lists").mkdir()
-    target = tmp_path / "lists" / "films.csv"
-    target.write_text("title,year\n")
-
-    assert import_lists.safe_csv_path("lists/films.csv", base=tmp_path) == str(target.resolve())
+# ---------------------------------------------------------------- standard input
+def test_the_command_takes_no_file_path():
+    # The CSV comes in on standard input, so no program can make the script read another file
+    with pytest.raises(SystemExit):
+        import_lists.parse_args(["backend/.env", "--list", "L"])
 
 
-@pytest.mark.parametrize("raw", ["../films.csv", "/etc/passwd.csv", "lists/../../films.csv"])
-def test_a_path_outside_the_current_folder_is_refused(tmp_path, raw):
-    with pytest.raises(CsvError, match="inside the current folder"):
-        import_lists.safe_csv_path(raw, base=tmp_path / "work")
+def test_the_script_opens_no_file_itself():
+    tree = ast.parse(Path(import_lists.__file__).read_text(encoding="utf-8"))
+    calls = {
+        node.func.id if isinstance(node.func, ast.Name) else node.func.attr
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, (ast.Name, ast.Attribute))
+    }
+
+    assert not calls & {"open", "read_text", "read_bytes", "write_text", "write_bytes"}
 
 
-def test_a_link_that_points_outside_is_refused(tmp_path):
-    outside = tmp_path / "secret.csv"
-    outside.write_text("title,year\n")
-    work = tmp_path / "work"
-    work.mkdir()
-    (work / "films.csv").symlink_to(outside)
+def test_the_command_asks_for_the_file_when_nothing_is_piped_in(monkeypatch, capsys):
+    terminal = io.TextIOWrapper(io.BytesIO(b""))
+    terminal.isatty = lambda: True
+    monkeypatch.setattr(import_lists.sys, "stdin", terminal)
 
-    with pytest.raises(CsvError, match="inside the current folder"):
-        import_lists.safe_csv_path("films.csv", base=work)
-
-
-@pytest.mark.parametrize("raw", ["films.txt", "films", ".env"])
-def test_only_a_csv_file_is_read(tmp_path, raw):
-    with pytest.raises(CsvError, match=".csv"):
-        import_lists.safe_csv_path(raw, base=tmp_path)
-
-
-def test_the_command_refuses_a_file_outside_the_current_folder(tmp_path, monkeypatch, capsys):
-    work = tmp_path / "work"
-    work.mkdir()
-    write(tmp_path, "title,year\nAlien,1979\n")
-    monkeypatch.chdir(work)
-
-    code = import_lists.main(["../films.csv", "--list", "L", "--username", "alice"])
+    code = import_lists.main(["--list", "L", "--username", "alice"])
 
     assert code == 2
-    assert "inside the current folder" in capsys.readouterr().err
+    assert "< films.csv" in capsys.readouterr().err
