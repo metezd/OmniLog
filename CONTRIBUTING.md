@@ -153,6 +153,8 @@ gh api repos/metezd/OmniLog/rulesets --method POST --input .github/rulesets/bran
 
 ## Checks before you push
 
+**Test first, in its own commit.** A bug fix or a new behavior starts with a `test:` commit that holds only the new tests. Run it and check that the tests fail for the reason you expect, not because of a typo or a missing import. Then make them pass in a `fix:` or `feat:` commit. A new test that passes at once tests nothing new: change it, or say in the pull request that it is a guard. Examples are in [`docs/tests/tdd-evidence.md`](docs/tests/tdd-evidence.md), section 4.
+
 The CI runs the same checks. Running them first saves a round trip.
 
 ```bash
