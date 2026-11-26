@@ -35,6 +35,8 @@ export async function GET(request: NextRequest) {
   try {
     const upstream = await fetch(upstreamUrl, {
       headers: { Accept: "image/*" },
+      // The host was checked above, a redirect would skip that check (SSRF), so none is followed
+      redirect: "error",
       signal: AbortSignal.timeout(8000),
     });
 

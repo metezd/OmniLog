@@ -39,6 +39,7 @@ All notable changes to this project are written in this file. The format follows
 
 ### Security
 
+- The poster proxy `GET /api/poster` no longer follows a redirect of the poster host, so a redirect cannot lead the server to another address. More tests for the proxy (#332).
 - Penetration finding F7 is fixed and the missing headers are added: no `Server` or `X-Powered-By` header, `X-Frame-Options`, `Content-Security-Policy` and `Permissions-Policy` from the API on every answer (also on a 500), the browser headers from the frontend, and HSTS and the same headers from Caddy (#304).
 - Penetration finding F3 is fixed: the update schema of a title checks `poster_url` too, and the frontend sends a Content-Security-Policy with a nonce for scripts and only the app, `data:`, `blob:` and the TMDB and IGDB image hosts for images (#303).
 - Penetration finding F1 is fixed: on Render the login and register limits count the right-most address of `X-Forwarded-For`, which the proxy writes, and the browser address that the frontend sends with the new shared key `FRONTEND_PROXY_SECRET`. A fake first address no longer resets the limit (#301).
