@@ -335,3 +335,189 @@ def test_a_plain_http_url_is_allowed_only_for_this_computer():
     assert import_lists.check_api_url("https://omnilog-api.onrender.com/") == "https://omnilog-api.onrender.com"
     with pytest.raises(ValueError, match="https"):
         import_lists.check_api_url("http://omnilog-api.onrender.com")
+
+
+# ---------------------------------------------------------------- retries
+class FlakyApi(FakeApi):
+    """Answers the first searches with 429 and Retry-After."""
+
+    def __init__(self, catalog, busy_times):
+        super().__init__(catalog)
+        self.busy_times = busy_times
+
+    def request(self, method, path, *, params=None, body=None):
+        if path == "/catalog/search" and self.busy_times:
+            self.busy_times -= 1
+            raise ApiError(429, "Too many requests", retry_after=7)
+        return super().request(method, path, params=params, body=body)
+
+
+def test_a_429_waits_for_retry_after_and_tries_again():
+    api = FlakyApi(CATALOG, busy_times=1)
+    waits = []
+
+    report = import_list(api, "Favourites", [Film("Inception", 2010)], delay=0, sleep=waits.append, log=lambda _: None)
+
+    assert waits == [7]
+    assert report.added == 1
+
+
+def test_after_three_429_answers_the_film_counts_as_failed():
+    api = FlakyApi(CATALOG, busy_times=import_lists.MAX_TRIES)
+
+    report = import_list(api, "Favourites", [Film("Inception", 2010)], delay=0, sleep=lambda _: None, log=lambda _: None)
+
+    assert report.failed == [Film("Inception", 2010)]
+
+
+# ---------------------------------------------------------------- the HTTP client and the command
+import json as _json  # noqa: E402
+import threading  # noqa: E402
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer  # noqa: E402
+from urllib.parse import parse_qs, urlparse  # noqa: E402
+
+
+class LocalOmniLog(BaseHTTPRequestHandler):
+    """A tiny OmniLog API on 127.0.0.1 for the real HTTP client. No network is used."""
+
+    lists: dict = {}
+    seen: list = []
+
+    def log_message(self, *args):  # keep the test output clean
+        pass
+
+    def _send(self, status, body=None, headers=None):
+        raw = _json.dumps(body).encode() if body is not None else b""
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        for name, value in (headers or {}).items():
+            self.send_header(name, value)
+        self.send_header("Content-Length", str(len(raw)))
+        self.end_headers()
+        self.wfile.write(raw)
+
+    def _body(self):
+        length = int(self.headers.get("Content-Length") or 0)
+        return _json.loads(self.rfile.read(length)) if length else None
+
+    def do_POST(self):
+        path, body = urlparse(self.path).path, self._body()
+        self.seen.append(("POST", path, self.headers.get("Authorization")))
+        if path == "/auth/login":
+            if body == {"username": "alice", "password": "right-pass"}:
+                return self._send(200, {"access_token": "tok-123", "token_type": "bearer"})
+            return self._send(401, {"detail": "Invalid credentials"})
+        if path == "/lists":
+            new = {"id": len(self.lists) + 1, "name": body["name"], "items": []}
+            self.lists[new["id"]] = new
+            return self._send(201, new)
+        if path.endswith("/items"):
+            self.lists[int(path.split("/")[2])]["items"].append({"media_item_id": body["media_item_id"]})
+            return self._send(201, {})
+        return self._send(404, {"detail": "Not Found"})
+
+    def do_GET(self):
+        url = urlparse(self.path)
+        query = {key: values[0] for key, values in parse_qs(url.query).items()}
+        self.seen.append(("GET", url.path, self.headers.get("Authorization")))
+        if self.headers.get("Authorization") != "Bearer tok-123":
+            return self._send(401, {"detail": "Not authenticated"})
+        if url.path == "/lists":
+            return self._send(200, list(self.lists.values())[int(query["offset"]):])
+        if url.path == "/catalog/search":
+            if query["q"] == "Busy":
+                return self._send(429, {"detail": "Too many requests"}, {"Retry-After": "1"})
+            return self._send(200, [item for item in CATALOG if item["title"] == query["q"]])
+        return self._send(404, {"detail": "Not Found"})
+
+
+@pytest.fixture
+def local_api():
+    LocalOmniLog.lists = {}
+    LocalOmniLog.seen = []
+    server = ThreadingHTTPServer(("127.0.0.1", 0), LocalOmniLog)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    yield f"http://127.0.0.1:{server.server_address[1]}"
+    server.shutdown()
+    server.server_close()
+
+
+def test_the_client_sends_json_and_the_token(local_api):
+    api = import_lists.Api(local_api)
+    import_lists.log_in(api, "alice", "right-pass")
+
+    answer = api.request("GET", "/catalog/search", params={"q": "Arrival", "type": "MOVIE"})
+
+    assert [item["id"] for item in answer] == [102]
+    assert LocalOmniLog.seen[-1] == ("GET", "/catalog/search", "Bearer tok-123")
+
+
+def test_the_client_turns_an_error_into_api_error(local_api):
+    api = import_lists.Api(local_api)
+
+    with pytest.raises(ApiError) as caught:
+        import_lists.log_in(api, "alice", "wrong-pass")
+
+    assert caught.value.status == 401
+    assert "Invalid credentials" in str(caught.value)
+
+
+def test_the_client_reads_retry_after(local_api):
+    api = import_lists.Api(local_api, token="tok-123")  # noqa: S106 (the token of the local test server)
+
+    with pytest.raises(ApiError) as caught:
+        api.request("GET", "/catalog/search", params={"q": "Busy", "type": "MOVIE"})
+
+    assert (caught.value.status, caught.value.retry_after) == (429, 1.0)
+
+
+def test_a_server_that_does_not_answer_gives_status_0():
+    with pytest.raises(ApiError) as caught:
+        import_lists.Api("http://127.0.0.1:1").request("GET", "/health")
+
+    assert caught.value.status == 0
+
+
+def test_the_command_imports_the_file(local_api, tmp_path, monkeypatch, capsys):
+    path = write(tmp_path, "Date,Name,Year\n2026-01-01,Inception,2010\n2026-01-02,Unknown Film,2001\n")
+    monkeypatch.setenv("OMNILOG_PASSWORD", "right-pass")
+    monkeypatch.setattr(import_lists.time, "sleep", lambda _: None)
+
+    code = import_lists.main([str(path), "--list", "Favourites", "--api-url", local_api, "--username", "alice"])
+
+    out = capsys.readouterr().out
+    assert code == 0
+    assert LocalOmniLog.lists[1]["items"] == [{"media_item_id": 101}]
+    assert "1 added, 0 already in the list, 1 not found, 0 failed" in out
+    assert "not found: Unknown Film (2001)" in out
+    assert "right-pass" not in out
+
+
+def test_the_command_stops_on_a_wrong_password(local_api, tmp_path, monkeypatch, capsys):
+    path = write(tmp_path, "title,year\nInception,2010\n")
+    monkeypatch.setenv("OMNILOG_PASSWORD", "wrong-pass")
+
+    code = import_lists.main([str(path), "--list", "Favourites", "--api-url", local_api, "--username", "alice"])
+
+    assert code == 1
+    assert "Invalid credentials" in capsys.readouterr().err
+    assert LocalOmniLog.lists == {}
+
+
+@pytest.mark.parametrize(
+    ("csv_text", "extra", "message"),
+    [
+        ("film,year\nAlien,1979\n", [], "no column 'title'"),
+        ("title,year\n", [], "no films"),
+        ("title,year\nAlien,1979\n", ["--api-url", "http://omnilog.example.com"], "use https"),
+        ("title,year\nAlien,1979\n", ["--delay", "-1"], "cannot be negative"),
+    ],
+)
+def test_the_command_refuses_bad_input_before_it_logs_in(tmp_path, capsys, csv_text, extra, message):
+    path = write(tmp_path, csv_text)
+
+    code = import_lists.main([str(path), "--list", "L", "--username", "alice", *extra])
+
+    assert code == 2
+    assert message in capsys.readouterr().err
