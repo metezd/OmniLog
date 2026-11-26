@@ -14,7 +14,7 @@ rectangle "**Business layer** (backend/app/services)\nUse-case logic, transactio
 
 rectangle "**Integration layer** (backend/app/integrations)\nExternal catalog clients, retry with exponential backoff, input sanitization & genre normalization\n\nigdb | tmdb | common | genres" as INT #FFF3E0
 
-rectangle "**Core / infrastructure** (backend/app/core)\nconfig (env settings) | security (passlib/bcrypt, PyJWT) | cache (Redis + in-process fallback)\ndatabase (engine, SessionLocal, Base, get_db) | errors (register_exception_handlers) | usernames (canonical_username)" as CORE #F3E5F5
+rectangle "**Core / infrastructure** (backend/app/core)\nconfig (env settings) | security (bcrypt, PyJWT) | cache (Redis + in-process fallback)\ndatabase (engine, SessionLocal, Base, get_db) | errors (register_exception_handlers) | usernames (canonical_username)" as CORE #F3E5F5
 
 rectangle "**Persistence** (backend/app/models, backend/migrations, backend/app/seed)\nmodels/entities.py (14 entities + media_item_genres) | migrations/versions (0001..0011) | seed (loader, schema, game_chapters.json)" as MOD #FCE4EC
 

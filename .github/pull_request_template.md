@@ -14,7 +14,7 @@ Closes #
 
 ## How it was tested
 
-- [ ] Backend: `python -m pytest tests/requirements -v --cov=backend/app --cov-fail-under=70`
+- [ ] Backend: `python -m pytest tests -v --cov=backend/app --cov-fail-under=90`
 - [ ] Database: `alembic upgrade head` and `alembic check` (when models or migrations changed)
 - [ ] Frontend: `npm run lint`, `npx tsc --noEmit`, `npm test` and `npm run build`
 - [ ] Not run locally (write which checks and why)
