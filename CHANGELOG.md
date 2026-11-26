@@ -18,6 +18,7 @@ All notable changes to this project are written in this file. The format follows
 
 ### Changed
 
+- The AI usage page, the notes of Sidar Ürey and the register of AI mistakes show the work up to 2026-11-26: eight new caught mistakes (17 in all), the AI disclosure check and the current controls (#308, #310).
 - `.github/CODEOWNERS` gives each of the six members the area of their role in the Charter, and a test checks that every path in it exists (#293).
 - The design report PDF and the architecture diagrams show the current stack (Node 26, Python 3.15, bcrypt, migrations up to 0013, the OpenAI API in use), and the docs give the real coverage gate of CI, 90% (#295).
 - The backend coverage gate in CI is 90% instead of 70%, about 5 points under the measured 94.96%. The frontend has coverage with measured thresholds (`npm run test:coverage`). Every CI run writes the numbers to the job summary and keeps the HTML reports. The new tests also found double spaces in TVMaze descriptions, which are fixed (#297).

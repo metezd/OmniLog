@@ -7,7 +7,7 @@ Part of the review checklist in [#252] (section E). Issue: [#308]. This page exp
 | Tool | Model | Who | How it is used | Source |
 |---|---|---|---|---|
 | Claude Code | Claude Opus 5.5 | `Mhmd77Edrees` | Agent with the repository, a shell and the browser: reads the issue, writes code, tests and docs, opens the pull request | [`mhmd-edrees.md`](mhmd-edrees.md), trailers in [#235], [#236], [#237] |
-| Claude Code | Claude Opus 5.5 | `sidarurey` | Agent for documents ([#318], [#319]) | [`sidar-urey.md`][sidar] ([#319]) |
+| Claude Code | Claude Opus 5.5 | `sidarurey` | Agent with the repository, a shell, Docker and the browser: CI checks, security fixes, tests, test documents and reports, from [#318] to [#363] | [`sidar-urey.md`][sidar], trailers in every commit of [#349] to [#363] |
 | Codex desktop app (ChatGPT) | `gpt-6-luna` | `sidarurey` | Agent for US-13 ([#258]): code, tests, commits after approval | [`sidar-urey.md`][sidar] ([#319]) |
 | ChatGPT | not recorded | `sidarurey` | Chat for [#186], [#187], [#238], [#247] | [`sidar-urey.md`][sidar] ([#319]) |
 | Claude | Claude Sonnet 5.5 | `KeremKenet` | Tests of the statistics screen ([#255]). The tool is **pending** ([#313]) | `Co-Authored-By` trailer of [`8335c9d`][8335c9d] |
@@ -22,8 +22,8 @@ Part of the review checklist in [#252] (section E). Issue: [#308]. This page exp
 flowchart LR
     I["Issue<br/>(the requirement)"] --> B["Agent or assistant<br/>on a type/short-name branch<br/>with the instruction files"]
     B --> T["Local tests<br/>(numbers in the description)"]
-    T --> P["Pull request<br/>template + AI disclosure (#309)<br/>label ai-assisted"]
-    P --> C["CI: tests, coverage 70%,<br/>Ruff S rules, Gitleaks, Trivy,<br/>zizmor, SonarQube (#322)"]
+    T --> P["Pull request<br/>template + AI disclosure (#324)<br/>label ai-assisted, check (#309)"]
+    P --> C["CI: tests, coverage 90%,<br/>Ruff S rules, Gitleaks, Trivy,<br/>zizmor, SonarQube (#322)"]
     C --> R["Copilot review (optional)<br/>+ human review by CODEOWNERS"]
     R --> M["Merge by the author<br/>(Rebase and merge)"]
     R -. "changes requested" .-> B
@@ -33,9 +33,9 @@ flowchart LR
 1. **Issue.** The issue is the specification. The agent reads it and does what it says, so the issue names the files, the rules and the definition of done (for example [#311], [#294]).
 2. **Branch.** The agent works on a branch named `type/short-description` ([CONTRIBUTING.md](../../CONTRIBUTING.md#branch-names), checked by [#320]). It never works on `main`.
 3. **Local tests.** The agent runs the tests and writes the numbers in the pull request, for example "768 passed, 16 skipped, coverage 91%" in [#236].
-4. **Pull request.** The [template](../../.github/pull_request_template.md) asks what changed and how it was tested. A section about AI help and the label `ai-assisted` are added by [#309]. The label is also on the merged pull requests where the member notes, a commit trailer or the description show AI help. List them with `gh pr list --label ai-assisted --state all`.
+4. **Pull request.** The [template](../../.github/pull_request_template.md) asks what changed and how it was tested. The section "AI assistance" and the label `ai-assisted` came with [#324], and the check "AI disclosure" fails when the section is not filled in or the label is missing ([#309]). The label is also on the merged pull requests where the member notes, a commit trailer or the description show AI help. List them with `gh pr list --label ai-assisted --state all`.
 5. **CI.** The required checks are in [`.github/rulesets/main.json`](../../.github/rulesets/main.json). SonarQube is prepared in [#322].
-6. **Review.** CODEOWNERS asks `metezd` (and `KeremKenet` for the frontend) for a review. One approval from a teammate is required. A Copilot review is optional and is not an approval.
+6. **Review.** CODEOWNERS asks the owner of the changed area for a review, and the review rota of [CONTRIBUTING.md](../../CONTRIBUTING.md#review-rota) names a second reviewer when the author owns the area ([#293]). How every merged pull request was reviewed is in the [code review log](../code-review-log.md). One approval from a teammate is required. A Copilot review is optional and is not an approval.
 7. **Merge.** The author merges after the approval and the green checks.
 
 ## 3. Instruction files
@@ -67,7 +67,8 @@ What AI may do, and what stays with a person:
 | Running the whole test suite, not only the new tests | A test of [#258] that depended on the order of other tests | [`sidar-urey.md`][sidar] |
 | Penetration test | `ENABLE_DOCS` was set in one deployment file but not in `render.yaml` ([#231], fixed in [#260]) | [`docs/tests/penetration`](../tests/penetration/README.md) |
 | Copilot review | A guessable `SECRET_KEY` default, an open Redis port, a password check that a long suffix could pass | [#41], [#66], [`evidence.md`][evidence] |
-| Test-first rule | Tests are written before the code. The rule for fixes is being written in [#307] | [`docs/tests/tdd-evidence.md`](../tests/tdd-evidence.md) |
+| Test-first rule | Tests are written before the code, and a fix starts with a test that fails for the right reason. Nine red then green cycles are recorded ([#307], [#345], [#350]) | [`docs/tests/tdd-evidence.md`](../tests/tdd-evidence.md) |
+| Production stack smoke test in CI | Removing the last file of `frontend/public` removed the folder, and the production image did not build ([#362], M10 in the register) | [`mistakes.md`](mistakes.md) |
 | Review checklist | The template and the review skill above | Section 3 |
 
 The full list of mistakes is the register of [#310]: [`mistakes.md`](mistakes.md).
@@ -148,3 +149,9 @@ Each member confirms the row of their own use in section 1 in the review of this
 [e97895e]: https://github.com/metezd/OmniLog/commit/e97895e
 [7a1082d]: https://github.com/metezd/OmniLog/commit/7a1082d
 [c841987]: https://github.com/metezd/OmniLog/commit/c841987
+[#345]: https://github.com/metezd/OmniLog/pull/345
+[#349]: https://github.com/metezd/OmniLog/pull/349
+[#350]: https://github.com/metezd/OmniLog/pull/350
+[#362]: https://github.com/metezd/OmniLog/pull/362
+[#363]: https://github.com/metezd/OmniLog/pull/363
+[#324]: https://github.com/metezd/OmniLog/pull/324

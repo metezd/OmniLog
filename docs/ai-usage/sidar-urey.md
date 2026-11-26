@@ -8,7 +8,7 @@ Part of the review checklist in [#252] (section E). Issue: [#315]. These notes r
 |---|---|---|---|
 | ChatGPT (chat) | not recorded | Questions and answers in the chat. Everything from it reached the repository through my own commits | Up to 2026-11-22: [#186], [#187], [#238], [#247] |
 | Codex desktop app (ChatGPT) | `gpt-6-luna` | An agent with access to the repository and a shell: read the issue, wrote code, tests and docs, ran the tests, committed and pushed after my approval | 2026-11-23: [#258] |
-| Claude Code (desktop app) | Claude Opus 5.5 | An agent with access to the repository, a shell and `gh`: read the issue, collected the data, wrote the document, opened the pull request | 2026-11-24: [#318], this file |
+| Claude Code (desktop app) | Claude Opus 5.5 | An agent with access to the repository, a shell, Docker, a browser and `gh`: read the issue, wrote code, tests and documents, ran the tests locally and in Docker, committed with the `Assisted-by` trailer and opened the pull request | 2026-11-24 to 2026-11-26: [#318] to [#363], see the list below |
 
 The model and the steps of the Codex and Claude Code work are taken from the session logs on my computer. For the ChatGPT chats there is no saved log, so the table below does not claim more than what the pull requests show.
 
@@ -23,6 +23,7 @@ The model and the steps of the Codex and Claude Code work are taken from the ses
 | [#258] Personalized recommendations, US-13 (closes [#153]) | Codex agent: checked the existing endpoint and service, added the tests (validation, fixed-vector order, user isolation, fallback, a 5,000-title catalog with a bounded number of queries), fixed the fallback after a vector query error, updated the README, the Epic 5 DFD and the changelog, made both commits and pushed the branch | The agent could not run the tests at first (no pgvector, no Docker). It installed pgvector for the local PostgreSQL 16 and ran the 33 related tests, then the full suite: 811 passed, 18 skipped. Approved by `metezd`. CI did not run (GitHub Actions billing stop) |
 | [#318] Evidence page, [#311] | Claude Code agent: read the issue and the related issues, read the reviews and comments of the pull requests with `gh api`, compared each Copilot comment with the merged code, wrote `docs/ai-usage/evidence.md` | Every link was opened with `gh api`. The counts can be repeated with the commands on the page. Waiting for the review of `metezd`. CI did not run (billing stop) |
 | This file, [#315] | Claude Code agent: read the session logs on my computer and the pull requests, drafted the file | I confirmed the tools and the pull requests. Every row has a link |
+| [#320] to [#363], 23 pull requests from 2026-11-24 to 2026-11-26 | Claude Code agent: the CI checks (branch names and titles, SonarQube, coverage gate, post-deploy check, AI disclosure), the fixes of the penetration test (F1 to F7), the performance, traceability, SonarQube, TDD and penetration retest documents, the Software Testing Report, the code review log and CODEOWNERS, and the clean-up for the submission | Every one carries the label `ai-assisted` and its commits the trailer `Assisted-by: Claude Code (Claude Opus 5.5)`. Each description lists the test runs (locally and in Docker) and what the AI got wrong. List: `gh pr list --author sidarurey --label ai-assisted --state all` |
 
 ### Embeddings, recommendations and spoiler detection
 
@@ -38,11 +39,11 @@ The model and the steps of the Codex and Claude Code work are taken from the ses
 | In [#258] the fallback did not recover after a PostgreSQL error in the vector query | The agent found it while reviewing its own diff, before the tests could run | Fixed in [`5ab0ee7`][5ab0ee7] before the commit | Medium: the endpoint could fail instead of using the popularity ranking |
 | While writing [#318] the agent wrote two claims that the data did not show (that the team "stopped asking" for Copilot reviews, and that issues "are written in more detail") | The agent's own check of every claim against the data, before the commit | Both sentences were changed before the commit | Minor |
 
-The serious one is also for the team register ([#310]).
+The serious one is also for the team register ([#310]). The mistakes of the later Claude Code work are in the register too ([`mistakes.md`](mistakes.md), M10 to M15).
 
 ## Limits
 
-- AI never merged anything. All my pull requests were reviewed and merged by `metezd`.
+- AI never merged anything. All my pull requests were merged by `metezd`. Eight of them ([#318] to [#324] and [#328]) were merged without a recorded approval ([code review log](../code-review-log.md)).
 - In Codex every write outside the workspace, every commit and every push needed an approval. The push to `main` shows that this approval is not enough on its own, and the branch rules of GitHub are the real control.
 - I would not trust AI with: pushing to `main`, design decisions without the team (the embedding model was decided in [#44]), or deciding that results are good when only fake clients were used.
 - The agents ran on my computer with a shell, so they can read any local file. The checkout has no `backend/.env` today, but a session that runs with a real key in that file could read the key. Real keys should not be in the checkout while an agent works.
@@ -61,4 +62,8 @@ The serious one is also for the team register ([#310]).
 [#311]: https://github.com/metezd/OmniLog/issues/311
 [#315]: https://github.com/metezd/OmniLog/issues/315
 [#318]: https://github.com/metezd/OmniLog/pull/318
+[#320]: https://github.com/metezd/OmniLog/pull/320
+[#324]: https://github.com/metezd/OmniLog/pull/324
+[#328]: https://github.com/metezd/OmniLog/pull/328
+[#363]: https://github.com/metezd/OmniLog/pull/363
 [5ab0ee7]: https://github.com/metezd/OmniLog/commit/5ab0ee7
