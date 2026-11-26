@@ -1,10 +1,11 @@
 """Shared pieces for the IGDB and TMDB clients."""
 import logging
 import re
+import threading
 import time
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 import requests
 
@@ -32,6 +33,9 @@ MAX_EPISODES_PER_SEASON = 1000
 
 # Replaced in tests, so retries do not really wait
 sleep = time.sleep
+
+# A call that would wait longer than this for its turn in a RequestLimiter fails at once
+_MAX_LIMITER_WAIT_SECONDS = 5.0
 
 
 class ExternalServiceError(Exception):
@@ -89,18 +93,64 @@ class ExternalSeries:
     details: ExternalDetails
 
 
+class RequestLimiter:
+    """Spaces the calls to one outside service, so the service never answers 429 for too many
+    requests per second.
+
+    Every call takes the next free time slot, one slot every 1/rate seconds, and waits for it. This
+    is safe for the threads of one process. The rate is read on every call, so a change of the
+    setting (or a test) takes effect at once. A rate of 0 or less turns the limit off.
+    """
+
+    def __init__(self, source: str, rate: Callable[[], float]) -> None:
+        self._source = source
+        self._rate = rate
+        self._lock = threading.Lock()
+        self._next_slot = 0.0
+        # Replaced in tests, so a test neither waits nor depends on the real time
+        self.clock: Callable[[], float] = time.monotonic
+        self.sleep: Callable[[float], None] = time.sleep
+
+    def acquire(self) -> None:
+        """Wait for the turn of this call. Raises ExternalServiceError when the wait would be too
+        long: the service is then used by more calls than it allows, and a failure is better than
+        a queue that grows (the caller falls back to the saved copy, NFR-04)."""
+        rate = self._rate()
+        if rate <= 0:
+            return
+        with self._lock:
+            now = self.clock()
+            slot = max(now, self._next_slot)
+            wait = slot - now
+            if wait > _MAX_LIMITER_WAIT_SECONDS:
+                raise ExternalServiceError(f"{self._source} has too many requests waiting")
+            self._next_slot = slot + 1.0 / rate
+        if wait > 0:
+            self.sleep(wait)
+
+
 def request_with_retry(
-    session: requests.Session, method: str, url: str, *, source: str, **kwargs: Any
+    session: requests.Session,
+    method: str,
+    url: str,
+    *,
+    source: str,
+    limiter: Optional[RequestLimiter] = None,
+    **kwargs: Any,
 ) -> requests.Response:
     """Send a request. Timeouts, connection errors, HTTP 429 and 5xx are tried again with a
     growing wait (NFR-04). Any other answer is returned as it is, for the caller to judge.
     Raises ExternalServiceError when all tries fail.
+
+    With a limiter, every try (a retry too) waits for its turn first.
     """
     tries = max(config.EXTERNAL_API_MAX_RETRIES, 0) + 1
     reason = f"{source} did not answer"
 
     for attempt in range(tries):
         retry_after = None
+        if limiter is not None:
+            limiter.acquire()
         try:
             response = session.request(
                 method,
