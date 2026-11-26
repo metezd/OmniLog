@@ -16,7 +16,7 @@ def _require(name: str) -> str:
 
 
 # PostgreSQL connection string, e.g.
-# postgresql+psycopg2://<user>:<password>@localhost:5432/omnilog
+# postgresql+psycopg2://omnilog:omnilog@localhost:5432/omnilog
 DATABASE_URL = _require("DATABASE_URL")
 
 # Secret used to sign JWT tokens. It has no default on purpose: a public
@@ -48,10 +48,10 @@ ENABLE_DOCS = os.getenv("ENABLE_DOCS", "true").strip().lower() in ("1", "true", 
 # route answers 404: titles come from the catalog search. The tests turn it on to make fixtures.
 ALLOW_MEDIA_CREATE = os.getenv("ALLOW_MEDIA_CREATE", "false").strip().lower() in ("1", "true", "yes", "on")
 
-# How many proxies add an address to X-Forwarded-For in front of the backend (#251, #301). The
-# client address is read that many places from the right end of the header, because a client can
-# write anything at the left end. 0 (default) uses the address that uvicorn gives, which is right
-# for development and for the Docker setup (FORWARDED_ALLOW_IPS). render.yaml sets 1.
+# How many proxies add an address to X-Forwarded-For in front of the backend (#251). The client
+# address is read that many places from the right end of the header, because a client can write
+# anything at the left end. 0 (default) uses the address that uvicorn gives, which is right for
+# development and for the Docker setup (FORWARDED_ALLOW_IPS). render.yaml sets 2.
 FORWARDED_TRUSTED_HOPS = int(os.getenv("FORWARDED_TRUSTED_HOPS", "0"))
 if FORWARDED_TRUSTED_HOPS < 0:
     raise RuntimeError("FORWARDED_TRUSTED_HOPS must be 0 or more.")
@@ -79,8 +79,29 @@ TMDB_API_KEY = os.getenv("TMDB_API_KEY", "").strip()
 # An empty value turns Redis off, so the in-process cache is used from the start (#251).
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0").strip()
 
+# Redis can be a managed service such as Upstash. Use its connection string, for example
+# rediss://default:<token>@<name>.upstash.io:6379 (the double s turns TLS on). A managed Redis is
+# farther away than a local one, so the timeout of one Redis call can be raised here (seconds).
+REDIS_SOCKET_TIMEOUT_SECONDS = float(os.getenv("REDIS_SOCKET_TIMEOUT_SECONDS", "0.5"))
+if REDIS_SOCKET_TIMEOUT_SECONDS <= 0:
+    raise RuntimeError("REDIS_SOCKET_TIMEOUT_SECONDS must be more than 0.")
+
 # How long a search result stays cached, in seconds (default: 1 hour)
 CACHE_TTL_SECONDS = int(os.getenv("CACHE_TTL_SECONDS", "3600"))
+
+# Negative cache: how long an empty answer from IGDB or TMDB (no search results, or an id that
+# the service does not know) stays cached, in seconds (default: 5 minutes). It is short on
+# purpose, because a title can appear at the source soon after. 0 turns the negative cache off.
+NEGATIVE_CACHE_TTL_SECONDS = int(os.getenv("NEGATIVE_CACHE_TTL_SECONDS", "300"))
+if NEGATIVE_CACHE_TTL_SECONDS < 0:
+    raise RuntimeError("NEGATIVE_CACHE_TTL_SECONDS must be 0 or more.")
+
+# Database cache (L2): a title whose details were loaded less than this many days ago is served
+# from PostgreSQL (media_items.last_synced) without a call to IGDB or TMDB, even when Redis (L1)
+# has lost the entry. Default: 7 days. 0 turns it off, so every cache miss calls the outside API.
+DB_CACHE_TTL_DAYS = float(os.getenv("DB_CACHE_TTL_DAYS", "7"))
+if DB_CACHE_TTL_DAYS < 0:
+    raise RuntimeError("DB_CACHE_TTL_DAYS must be 0 or more.")
 
 # How long the seasons and episodes of a series stay cached, in seconds (default: 24 hours).
 # They change rarely, so this is longer than the search cache (US-09).
