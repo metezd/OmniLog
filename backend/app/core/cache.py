@@ -49,8 +49,8 @@ def _redis() -> Optional[redis.Redis]:
                 # Short timeouts: a cache must never make a request wait long
                 _client = redis.Redis.from_url(
                     url,
-                    socket_connect_timeout=0.5,
-                    socket_timeout=0.5,
+                    socket_connect_timeout=config.REDIS_SOCKET_TIMEOUT_SECONDS,
+                    socket_timeout=config.REDIS_SOCKET_TIMEOUT_SECONDS,
                     decode_responses=True,
                 )
             except ValueError as exc:  # a value that is not a Redis address
