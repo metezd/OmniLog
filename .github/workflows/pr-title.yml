@@ -2,7 +2,8 @@ name: Pull request names
 
 on:
   pull_request:
-    types: [opened, edited, synchronize, reopened]
+    # labeled and unlabeled run the AI disclosure check again when ai-assisted is added or removed
+    types: [opened, edited, synchronize, reopened, labeled, unlabeled]
 
 permissions:
   contents: read
@@ -49,3 +50,37 @@ jobs:
             echo "::error title=Branch name::The branch name does not follow type/short-description. Allowed types: feat, fix, chore, docs, test, in lower case with hyphens, for example 'feat/my-work'."
             exit 1
           fi
+
+  # The section "AI assistance" of the pull request template (CONTRIBUTING.md, "AI assistance", #309).
+  # Exactly one box must be ticked, and the label ai-assisted must be set when AI helped.
+  # Dependabot pull requests have no template, so they are skipped.
+  ai-disclosure:
+    name: AI disclosure
+    if: github.event.pull_request.user.login != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      # The description is user input, so it reaches the script only through an environment
+      # variable, and the script never prints it
+      - name: Check the AI assistance section
+        env:
+          BODY: ${{ github.event.pull_request.body }}
+          HAS_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'ai-assisted') }}
+        run: |
+          section="$(printf '%s\n' "$BODY" | tr -d '\r' \
+            | awk '/^## AI assistance[[:space:]]*$/ { found = 1; next } /^## / { found = 0 } found')"
+          if [ -z "$section" ]; then
+            echo "::error title=AI disclosure::The description has no section '## AI assistance'. Copy it from .github/pull_request_template.md."
+            exit 1
+          fi
+          ticked="$(printf '%s\n' "$section" | grep -E '^- \[[xX]\] (None|AI helped|AI wrote most of it)[[:space:]]*$' || true)"
+          count="$(printf '%s' "$ticked" | grep -c . || true)"
+          if [ "$count" != "1" ]; then
+            echo "::error title=AI disclosure::Tick one box in '## AI assistance': None, AI helped or AI wrote most of it ($count ticked)."
+            exit 1
+          fi
+          if ! printf '%s' "$ticked" | grep -q 'None' && [ "$HAS_LABEL" != "true" ]; then
+            echo "::error title=AI disclosure::AI helped with this change, so add the label ai-assisted."
+            exit 1
+          fi
+          echo "The AI assistance section is filled in."
