@@ -1,0 +1,226 @@
+{
+  "date": "2026-11-25",
+  "target": "http://127.0.0.1:58000",
+  "checks": 31,
+  "passed": 31,
+  "findings": 0,
+  "results": [
+    {
+      "id": "AUTH-01",
+      "owasp": "A01",
+      "name": "17 protected endpoints refuse a call without a token",
+      "result": "PASS",
+      "evidence": "all 401"
+    },
+    {
+      "id": "AUTH-02",
+      "owasp": "A07",
+      "name": "10 forged or broken tokens get 401",
+      "result": "PASS",
+      "evidence": "{'alg none': 401, 'wrong key': 401, 'tampered payload': 401, 'HS384 with real key': 401, 'expired': 401, 'no exp': 401, 'no sub': 401, 'text sub': 401, 'unknown user': 401, 'huge sub': 401}"
+    },
+    {
+      "id": "AUTH-03",
+      "owasp": "A07",
+      "name": "Login answer is the same for a wrong password and an unknown user",
+      "result": "PASS",
+      "evidence": "known=401 unknown=401"
+    },
+    {
+      "id": "AUTH-04",
+      "owasp": "A07",
+      "name": "Login time does not reveal if a user exists",
+      "result": "PASS",
+      "evidence": "median gap 4 ms of 196 ms"
+    },
+    {
+      "id": "IDOR-01",
+      "owasp": "A01",
+      "name": "User B cannot read, change or delete the data of user A",
+      "result": "PASS",
+      "evidence": "{'read review': 404, 'write review': 404, 'update entry': 404, 'delete entry': 404, 'chapter read': 404, 'chapter rate': 404, 'read list': 404, 'add list item': 404, 'remove list item': 404, 'delete list': 404}"
+    },
+    {
+      "id": "IDOR-02",
+      "owasp": "A01",
+      "name": "The data of user A is unchanged after the attacks",
+      "result": "PASS",
+      "evidence": "list=200 review=200"
+    },
+    {
+      "id": "IDOR-03",
+      "owasp": "A01",
+      "name": "The lists of user B never contain data of user A",
+      "result": "PASS",
+      "evidence": "no leak"
+    },
+    {
+      "id": "MASS-01",
+      "owasp": "A08",
+      "name": "Registration ignores id, is_admin and hashed_password",
+      "result": "PASS",
+      "evidence": "{'id': 3, 'is_admin': None}"
+    },
+    {
+      "id": "DATA-01",
+      "owasp": "A02",
+      "name": "No answer contains a password or a password hash",
+      "result": "PASS",
+      "evidence": "register answer checked"
+    },
+    {
+      "id": "SQLI-01",
+      "owasp": "A03",
+      "name": "SQL injection does not bypass the login",
+      "result": "PASS",
+      "evidence": "all refused"
+    },
+    {
+      "id": "SQLI-02",
+      "owasp": "A03",
+      "name": "SQL payloads in search, names and paths cause no error",
+      "result": "PASS",
+      "evidence": "no 500, users table intact"
+    },
+    {
+      "id": "INPUT-01",
+      "owasp": "A04",
+      "name": "12 malformed inputs never cause a server error",
+      "result": "PASS",
+      "evidence": "no 5xx"
+    },
+    {
+      "id": "INPUT-02",
+      "owasp": "A04",
+      "name": "NUL bytes in the login cause no server error",
+      "result": "PASS",
+      "evidence": "422"
+    },
+    {
+      "id": "DATA-02",
+      "owasp": "A09",
+      "name": "A validation error does not repeat the password",
+      "result": "PASS",
+      "evidence": "status 422"
+    },
+    {
+      "id": "INPUT-04",
+      "owasp": "A04",
+      "name": "JSON nested 3000 levels deep gives a 4xx with a small answer",
+      "result": "PASS",
+      "evidence": "status 400, answer 48 bytes"
+    },
+    {
+      "id": "INPUT-03",
+      "owasp": "A04",
+      "name": "A 3 MB value is refused without repeating it in the answer",
+      "result": "PASS",
+      "evidence": "status 413, answer 43 bytes"
+    },
+    {
+      "id": "XSS-01",
+      "owasp": "A03",
+      "name": "A javascript: address is refused as poster_url",
+      "result": "PASS",
+      "evidence": "status 422"
+    },
+    {
+      "id": "XSS-02",
+      "owasp": "A03",
+      "name": "HTML in a title comes back only as JSON, never as a page",
+      "result": "PASS",
+      "evidence": "application/json"
+    },
+    {
+      "id": "CAT-01",
+      "owasp": "A01",
+      "name": "A normal user cannot add titles with any image address to the shared catalog",
+      "result": "PASS",
+      "evidence": "status 422"
+    },
+    {
+      "id": "CONF-01",
+      "owasp": "A05",
+      "name": "API documentation is off when ENABLE_DOCS=false",
+      "result": "PASS",
+      "evidence": "{'/docs': 404, '/redoc': 404, '/openapi.json': 404}"
+    },
+    {
+      "id": "CONF-02",
+      "owasp": "A05",
+      "name": "Secret files and paths cannot be read",
+      "result": "PASS",
+      "evidence": "{'/.env': 404, '/.git/config': 404, '/backend/.env': 404, '/../../etc/passwd': 404}"
+    },
+    {
+      "id": "CONF-03",
+      "owasp": "A05",
+      "name": "Security headers are present",
+      "result": "PASS",
+      "evidence": "{'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer'}"
+    },
+    {
+      "id": "CONF-06",
+      "owasp": "A05",
+      "name": "Frame, content and permission policies are on 200, 404 and 422",
+      "result": "PASS",
+      "evidence": "{'x-frame-options': 'DENY', 'permissions-policy': 'camera=(), microphone=(), geolocation=(), payment=()'}"
+    },
+    {
+      "id": "CONF-04",
+      "owasp": "A05",
+      "name": "The answer does not name the server software",
+      "result": "PASS",
+      "evidence": "no Server header"
+    },
+    {
+      "id": "CONF-05",
+      "owasp": "A05",
+      "name": "TRACE is refused",
+      "result": "PASS",
+      "evidence": "405"
+    },
+    {
+      "id": "CORS-01",
+      "owasp": "A05",
+      "name": "Other websites are not allowed by CORS",
+      "result": "PASS",
+      "evidence": "[None, None, None]"
+    },
+    {
+      "id": "RATE-01",
+      "owasp": "A07",
+      "name": "Password guessing is stopped with 429",
+      "result": "PASS",
+      "evidence": "first 429 at try 11"
+    },
+    {
+      "id": "RATE-02",
+      "owasp": "A07",
+      "name": "Fake X-Forwarded-For addresses do not reset the login limit",
+      "result": "PASS",
+      "evidence": "first 429 at try 11"
+    },
+    {
+      "id": "RATE-05",
+      "owasp": "A07",
+      "name": "A forged X-Client-IP without the frontend key does not reset the login limit",
+      "result": "PASS",
+      "evidence": "first 429 at try 11"
+    },
+    {
+      "id": "RATE-03",
+      "owasp": "A04",
+      "name": "Mass registration is stopped with 429",
+      "result": "PASS",
+      "evidence": "[201, 429, 429, 429, 429, 429]"
+    },
+    {
+      "id": "RATE-04",
+      "owasp": "A04",
+      "name": "Search is limited per user",
+      "result": "PASS",
+      "evidence": "first 429 at call 31"
+    }
+  ]
+}
