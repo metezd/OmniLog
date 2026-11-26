@@ -25,6 +25,7 @@ All notable changes to this project are written in this file. The format follows
 - The login and register limits on Render count the browser address again, not the address of the frontend for everybody. The new setting `FORWARDED_TRUSTED_HOPS` reads it from the right end of `X-Forwarded-For`, so a client cannot choose it by writing the left end (#251).
 - `docker-compose.yml` publishes PostgreSQL on `localhost:5432` again, which CI, `backend/.env.example` and the docs use. It was moved to `5433`, so the Docker Compose smoke test found no database, fell back to SQLite and failed on the migrations. `POSTGRES_PORT` now picks another port when 5432 is taken.
 - An empty `REDIS_URL` no longer stops the cache and the rate limits with an error. The in-process cache is used instead (#251).
+- `render.yaml` sets the health check path `/api/health` of the frontend service, as `docs/deployment.md` says. Before, Render had no health check for `omnilog-web` (#292).
 
 ### Security
 

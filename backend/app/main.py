@@ -1,5 +1,6 @@
 from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
@@ -33,6 +34,11 @@ app = FastAPI(
 # (#302). The security headers are on every answer, also on an unhandled error (#220, #304).
 app.add_middleware(BodySizeLimitMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
+
+# Catalog search and title details can be large JSON answers (a series with all its seasons and
+# episodes). Answers of at least 1000 bytes are compressed when the client accepts gzip (#250).
+# Small answers stay plain, because the compression would cost more than it saves.
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 app.add_middleware(
     CORSMiddleware,
