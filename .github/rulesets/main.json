@@ -12,16 +12,15 @@
   "rules": [
     { "type": "deletion" },
     { "type": "non_fast_forward" },
-    { "type": "required_linear_history" },
     {
       "type": "pull_request",
       "parameters": {
         "required_approving_review_count": 1,
         "dismiss_stale_reviews_on_push": true,
         "require_code_owner_review": false,
-        "require_last_push_approval": false,
+        "require_last_push_approval": true,
         "required_review_thread_resolution": true,
-        "allowed_merge_methods": ["rebase"]
+        "allowed_merge_methods": ["merge"]
       }
     },
     {
@@ -37,7 +36,8 @@
           { "context": "trivy" },
           { "context": "zizmor" },
           { "context": "PR title" },
-          { "context": "Branch name" }
+          { "context": "Branch name" },
+          { "context": "AI disclosure" }
         ]
       }
     }

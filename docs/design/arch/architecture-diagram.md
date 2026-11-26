@@ -36,7 +36,7 @@ flowchart LR
   end
 
   subgraph ExternalAPIs["External Catalog Providers"]
-    TMDB["TMDB API + TVMaze / iTunes Fallback\n(TV Series & Movies)"]
+    TMDB["TMDB API + TVMaze / Wikidata Fallback\n(TV Series & Movies)"]
     IGDB["IGDB API (Twitch OAuth) + Steam Store Fallback\n(Video Games)"]
   end
 

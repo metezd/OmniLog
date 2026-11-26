@@ -48,9 +48,12 @@ jobs:
           rm gitleaks gitleaks.tar.gz
           gitleaks version
 
-      # --redact keeps the secret values out of the public job log
+      # --redact keeps the secret values out of the public job log. The checkout above fetches every
+      # branch, and gitleaks scans all refs by default, so --log-opts="HEAD" keeps the scan to the
+      # history of this commit: the whole history of main plus the commits of the pull request.
+      # A finding on another open branch no longer fails this check.
       - name: Scan for leaked secrets
-        run: gitleaks detect --source . --verbose --redact
+        run: gitleaks detect --source . --verbose --redact --log-opts="HEAD"
 
   trivy:
     name: trivy

@@ -20,7 +20,7 @@ node "Docker host (docker-compose.prod.yml, network: internal)" {
 
 cloud "External catalog & AI providers" {
   component "IGDB API (Twitch OAuth)\n+ Steam Store API fallback\n(app/integrations/igdb.py)" as IGDB
-  component "TMDB API\n+ TVMaze / iTunes fallback\n(app/integrations/tmdb.py)" as TMDB
+  component "TMDB API\n+ TVMaze / Wikidata fallback\n(app/integrations/tmdb.py)" as TMDB
   component "OpenAI API (optional key)\nembeddings: text-embedding-3-small (1536d, pgvector)\nspoiler check: gpt-4o-mini\n(app/integrations/openai_client.py)" as AI
 }
 
