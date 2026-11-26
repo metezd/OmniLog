@@ -44,5 +44,22 @@ export default defineConfig({
     restoreMocks: true,
     // vi.stubEnv() changes are undone after each test
     unstubEnvs: true,
+    // `npm run test:coverage` (#297). Every file in src/ counts, also the ones no test imports.
+    coverage: {
+      provider: "v8",
+      include: ["src/**/*.{ts,tsx}"],
+      exclude: ["src/**/*.d.ts"],
+      // lcov is read by SonarQube (#299)
+      reporter: ["text-summary", "json-summary", "html", "lcov"],
+      reportsDirectory: "./coverage",
+      // The measured values minus a margin (#297, docs/tests/coverage.md). Raise them when tests
+      // are added. Never lower them to make a change pass.
+      thresholds: {
+        lines: 25,
+        statements: 25,
+        functions: 40,
+        branches: 35,
+      },
+    },
   },
 });

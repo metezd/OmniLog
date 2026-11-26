@@ -1,33 +1,63 @@
 from typing import List, Optional
+from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.core.validation import ExternalId, NoNulStr
 from app.models.entities import ChapterKind, MediaType
 
 
 class MediaItemBase(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True)
 
-    title: str = Field(min_length=1, max_length=200)
+    title: NoNulStr = Field(min_length=1, max_length=200)
     media_type: MediaType
-    poster_url: Optional[str] = Field(default=None, min_length=1, max_length=500)
-    release_date: Optional[str] = Field(default=None, min_length=1, max_length=50)
-    external_api_id: Optional[int] = None
+    poster_url: Optional[NoNulStr] = Field(default=None, min_length=1, max_length=500)
+    release_date: Optional[NoNulStr] = Field(default=None, min_length=1, max_length=50)
+    external_api_id: Optional[ExternalId] = None
+
+
+# The image hosts of TMDB and IGDB. A title that a user adds may only point to these (#218).
+POSTER_HOSTS = frozenset({"image.tmdb.org", "images.igdb.com"})
+
+
+def poster_from_known_host(value: Optional[str]) -> Optional[str]:
+    """Accept only an https address on the TMDB or IGDB image host (#218, #303).
+
+    Every user loads the poster of a title, so an outside address would tell its owner who
+    looked at the title, and a `javascript:` address has no place in an image. The address is
+    taken apart with urllib, not matched with a regular expression, so a host that only starts
+    like an allowed one, user info, or a port is refused.
+    """
+    if value is None:
+        return value
+    parts = urlsplit(value)
+    if (
+        parts.scheme != "https"
+        or parts.hostname not in POSTER_HOSTS
+        or parts.port is not None
+        or parts.username is not None
+        or parts.password is not None
+    ):
+        raise ValueError("poster_url must be an https address on image.tmdb.org or images.igdb.com")
+    return value
 
 
 class MediaItemCreate(MediaItemBase):
-    pass
+    poster_host_check = field_validator("poster_url")(poster_from_known_host)
 
 
 class MediaItemUpdate(BaseModel):
     """Partial Update. All areas are optional"""
     model_config = ConfigDict(str_strip_whitespace=True)
 
-    title: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    title: Optional[NoNulStr] = Field(default=None, min_length=1, max_length=200)
     media_type: Optional[MediaType] = None
-    poster_url: Optional[str] = Field(default=None, min_length=1, max_length=500)
-    release_date: Optional[str] = Field(default=None, min_length=1, max_length=50)
-    external_api_id: Optional[int] = None
+    poster_url: Optional[NoNulStr] = Field(default=None, min_length=1, max_length=500)
+    release_date: Optional[NoNulStr] = Field(default=None, min_length=1, max_length=50)
+    external_api_id: Optional[ExternalId] = None
+
+    poster_host_check = field_validator("poster_url")(poster_from_known_host)
 
 
 class MediaItemResponse(MediaItemBase):

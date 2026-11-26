@@ -159,13 +159,23 @@ jobs:
           alembic upgrade head
           alembic check
 
+      # The gate is about 5 points under the measured value, so coverage cannot fall without
+      # notice (#297). Change it together with CONTRIBUTING.md and docs/tests/coverage.md.
       - name: Run backend tests
         run: |
           python -m pytest tests -v \
             --cov=backend/app \
             --cov-report=term-missing \
             --cov-report=xml \
-            --cov-fail-under=70
+            --cov-report=html \
+            --cov-fail-under=90
+
+      - name: Write backend coverage to the job summary
+        if: always()
+        run: |
+          if [ -f coverage.xml ]; then
+            python -c "import xml.etree.ElementTree as E; r=float(E.parse('coverage.xml').getroot().get('line-rate')); print(f'### Backend coverage: {r*100:.2f}% of lines (gate 90%)')" >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       # Real IGDB and TMDB calls. Only on a manual run, so normal runs never use the keys.
       # The `secrets` context cannot be used in an `if`, so a first step looks at the secrets and
@@ -197,15 +207,87 @@ jobs:
           IGDB_CLIENT_ID: ${{ secrets.IGDB_ID }}
           IGDB_CLIENT_SECRET: ${{ secrets.IGDB_API_KEY }}
           TMDB_API_KEY: ${{ secrets.TMDB_API }}
-        run: python -m pytest tests/requirements/test_epic3_catalog_live.py -v
+        # --cov-append adds the live paths to the coverage of the normal run, so the summary
+        # shows how much the live tests add (#297)
+        run: |
+          status=0
+          python -m pytest tests/requirements/test_epic3_catalog_live.py -v --cov=backend/app --cov-append --cov-report=xml || status=$?
+          python -c "import xml.etree.ElementTree as E; r=float(E.parse('coverage.xml').getroot().get('line-rate')); print(f'### Backend coverage with the live tests: {r*100:.2f}% of lines')" >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
 
       - name: Upload backend coverage
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: backend-coverage
-          path: coverage.xml
+          path: |
+            coverage.xml
+            htmlcov/
           if-no-files-found: ignore
+
+  # SonarQube analysis on SonarCloud with the coverage of the backend job (#299). Skipped while the
+  # secret SONAR_TOKEN is not set (also for Dependabot), and for pull requests from forks, which
+  # get no secrets. The project key and the organization are repository variables.
+  sonarqube:
+    name: SonarQube
+    needs: [backend, frontend]
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check the SonarQube token
+        id: sonar
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          if [ -n "$SONAR_TOKEN" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice title=SonarQube::The secret SONAR_TOKEN is not set, so the scan is skipped."
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # The full history lets SonarQube find new code and the authors of the lines
+      - name: Checkout
+        if: steps.sonar.outputs.available == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Download backend coverage
+        if: steps.sonar.outputs.available == 'true'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: backend-coverage
+
+      - name: Download frontend coverage
+        if: steps.sonar.outputs.available == 'true'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: frontend-coverage
+          path: frontend/coverage
+
+      # Vitest writes the paths relative to frontend/, SonarQube reads them from the repository root
+      - name: Point the frontend coverage at the repository root
+        if: steps.sonar.outputs.available == 'true'
+        run: |
+          if [ -f frontend/coverage/lcov.info ]; then
+            sed 's#^SF:src/#SF:frontend/src/#' frontend/coverage/lcov.info > frontend/coverage/lcov-root.info
+          fi
+
+      # Fails the job when the quality gate fails
+      - name: SonarQube scan
+        if: steps.sonar.outputs.available == 'true'
+        uses: SonarSource/sonarqube-scan-action@e805d875275f728fac1885b413934be6d7c63f65 # v8.4.1
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
+            -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }}
+            -Dsonar.qualitygate.wait=true
 
   docker-compose:
     name: Docker Compose smoke test
@@ -311,8 +393,24 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
-      - name: Run frontend tests
-        run: npm run test --if-present
+      # The thresholds are in vitest.config.mts (#297)
+      - name: Run frontend tests with coverage
+        run: npm run test:coverage
+
+      - name: Write frontend coverage to the job summary
+        if: always()
+        run: |
+          if [ -f coverage/coverage-summary.json ]; then
+            node -e 'const t=require("./coverage/coverage-summary.json").total; console.log(`### Frontend coverage: ${t.lines.pct}% of lines, ${t.statements.pct}% of statements, ${t.functions.pct}% of functions, ${t.branches.pct}% of branches`)' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload frontend coverage
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: frontend-coverage
+          path: frontend/coverage/
+          if-no-files-found: ignore
 
       - name: Build
         run: npm run build

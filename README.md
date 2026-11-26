@@ -16,7 +16,7 @@ CMPE 331 Software Engineering Concepts, Fall 2026-2027
 - Custom lists & history: Organize content your way and view your activity log.
 - All in one search: Find games and shows instantly with cached IGDB and TMDB data.
 - Episode & chapter tracking: Log playtimes, rate individual chapters, and save choice paths.
-- Cross media recommendations: Titles you do not own yet, ranked by the genres of your library and your ratings.
+- Cross media recommendations: Personalized, embedding-based recommendations for titles you do not own, with a popularity-based fallback.
 - Automatic spoiler shield: Plot-revealing reviews are flagged automatically.
 - Insights dashboard: Track genre breakdowns, rating trends, and total playtime stats.
 
@@ -25,7 +25,7 @@ CMPE 331 Software Engineering Concepts, Fall 2026-2027
 ```mermaid
 flowchart LR
     subgraph Client
-        UI["Next.js Frontend<br/>React, TypeScript, Tailwind, Recharts"]
+        UI["Next.js Frontend<br/>React, TypeScript, Tailwind"]
     end
 
     subgraph Backend["FastAPI Backend"]
@@ -68,7 +68,7 @@ flowchart LR
     AI -->|"spoiler check"| EMB
 ```
 
-The backend is a single FastAPI application. It is split into modules that match the six epics. The recommendations do not use the embedding service yet. They read the genres in PostgreSQL. Only the spoiler check calls OpenAI. The detailed data flow diagrams are in [`docs/analysis/behavior`](docs/analysis/behavior/dfd-level0-1.md).
+The backend is a single FastAPI application. It is split into modules that match the six epics. Title details create or refresh media embeddings using OpenAI when the title has genres or a description. Recommendations use embeddings from positively rated or completed library titles when available, and fall back to popularity-based ranking when needed. The detailed data flow diagrams are in [`docs/analysis/behavior`](docs/analysis/behavior/dfd-level0-1.md).
 
 ## Roadmap
 
@@ -84,8 +84,8 @@ Each step builds on the one before. A step is done when its tests pass.
 | 5 | External catalog: IGDB and TMDB, Redis cache, search, details | US-08, US-09 | Done. The manual sync is a command (`python -m app.sync`). There is no sync endpoint and no job log |
 | 6 | Episodic logging: chapter ratings, playtime, decisions | US-10 to US-12 | Done |
 | 7 | Analytics: personal statistics with a Redis cache | US-15 | Done |
-| 8 | AI engine: spoiler detection, embeddings, recommendations | US-13, US-14 | US-14 done. US-13 is partly done: the recommendations rank by genre and nothing creates or stores embeddings (no `media_embeddings` table) |
-| 9 | Hardening: non-functional tests, 70% coverage, test report, code freeze | NFR-01 to NFR-05 | Partly done. The NFR tests exist and the coverage gate of 70% is in CI (the last local run measured 91%). The Software Testing Report and the code freeze are not in the repository |
+| 8 | AI engine: spoiler detection, embeddings, recommendations | US-13, US-14 | Done. Embeddings are stored in `media_embeddings` and can be backfilled with `python -m app.embeddings`. US-13 uses embedding-based ranking with a popularity fallback |
+| 9 | Hardening: non-functional tests, 70% coverage, test report, code freeze | NFR-01 to NFR-05 | Partly done. The NFR tests exist. Coverage is 94.96% for the backend with a CI gate of 90%, and 31.33% for the frontend with a measured threshold ([coverage](docs/tests/coverage.md)). The [Software Testing Report](docs/tests/software-testing-report.md) is written; the code freeze is not done yet |
 
 ### Milestones
 
@@ -100,14 +100,17 @@ Each step builds on the one before. A step is done when its tests pass.
 
 ## Project status
 
-The backend is built for every story except the parts listed at the end of this paragraph. All six epics have endpoints and tests: registration and login (`POST /auth/register`, `POST /auth/login`, `GET /auth/me`), the catalog (`POST /media`, `GET /catalog/search`, `GET /catalog/{id}`), the library (`/library`), custom lists and the activity diary (`/lists`, `/diary`), chapter ratings, playtime and decisions (`/library/{id}/chapters/{chapter_id}/...`, US-10 to US-12), personal statistics with a Redis cache (`GET /stats`, US-15), reviews with spoiler detection (`POST` and `GET /library/{id}/review`, US-14) and recommendations (`GET /recommendations`, US-13). The tests pass: the last full run of the suite gave 735 passed and 7 skipped (the live API tests), with 91% line coverage of `backend/app`.
+The backend is built for every story except the parts listed at the end of this paragraph. All six epics have endpoints and tests: registration and login (`POST /auth/register`, `POST /auth/login`, `GET /auth/me`), the catalog (`GET /catalog/search`, `GET /catalog/{id}`, and `POST /media`, which is off by default and used only by the tests), the library (`/library`), custom lists and the activity diary (`/lists`, `/diary`), chapter ratings, playtime and decisions (`/library/{id}/chapters/{chapter_id}/...`, US-10 to US-12), personal statistics with a Redis cache (`GET /stats`, US-15), reviews with spoiler detection (`POST` and `GET /library/{id}/review`, US-14) and recommendations (`GET /recommendations`, US-13). The last full local test run gave 885 passed and 20 skipped, with 2 warnings.
+
+Recommendations use the title embeddings to personalize the ranking. If no usable taste vector exists or the vector search fails, the service falls back to a popularity ranking.
 
 Not built yet:
 
-- Embeddings. The OpenAI client has a function for them, but nothing in the API calls it and there is no `media_embeddings` table. The recommendations rank the titles that the user does not own by the genres of the library, weighted by the ratings.
 - The Operator role (`is_admin`), the sync job log, the scheduled sync and the admin endpoints of the design. The manual sync is a command and needs none of them.
 
 The frontend calls the backend from its server code (see [Frontend](#frontend)). The friends page still shows sample data.
+
+Latest release: [v0.8.0](https://github.com/metezd/OmniLog/releases/tag/v0.8.0) (pre-release, Step 8). The changes of every version are in [`CHANGELOG.md`](CHANGELOG.md), and the next planned releases are `v0.9.0` (Step 9 done) and `v1.0.0` (code freeze, 30.11.2026).
 
 ## Getting started
 
@@ -118,6 +121,8 @@ Start PostgreSQL and Redis first (the first start also creates the `omnilog_test
 ```bash
 docker compose up -d
 ```
+
+PostgreSQL listens on `localhost:5432`. If another PostgreSQL on your machine already uses that port, start with `POSTGRES_PORT=5433 docker compose up -d` and use port `5433` in `DATABASE_URL` and `TEST_DATABASE_URL`.
 
 Then set up the backend:
 
@@ -137,7 +142,7 @@ uvicorn app.main:app --reload
 
 The API runs at `http://localhost:8000`. Interactive docs are at `http://localhost:8000/docs`.
 
-`DATABASE_URL` and `SECRET_KEY` are required, and the app stops with a clear error if either is missing. `DATABASE_URL` must point to PostgreSQL and `SECRET_KEY` must be at least 32 characters. `ACCESS_TOKEN_EXPIRE_MINUTES` is optional and defaults to 90. It sets how long a login token stays valid. The settings are read from `backend/.env` (see `backend/.env.example`). Start PostgreSQL before the API. When nothing listens on `localhost:5432`, `backend/app/core/database.py` falls back to a local SQLite file for development and drops the CHECK constraints of the models. This is a leftover and the team decision is PostgreSQL only, so the tests and the migrations are written for PostgreSQL.
+`DATABASE_URL` and `SECRET_KEY` are required, and the app stops with a clear error if either is missing. `DATABASE_URL` must point to PostgreSQL (a URL without a driver, such as the `postgresql://...` that Render gives, is used with psycopg2) and `SECRET_KEY` must be at least 32 characters. `ACCESS_TOKEN_EXPIRE_MINUTES` is optional and defaults to 90. It sets how long a login token stays valid. The settings are read from `backend/.env` (see `backend/.env.example`). Start PostgreSQL before the API. When nothing listens on `localhost:5432`, `backend/app/core/database.py` falls back to a local SQLite file for development and drops the CHECK constraints of the models. This is a leftover and the team decision is PostgreSQL only, so the tests and the migrations are written for PostgreSQL.
 
 **Catalog search keys.** `GET /catalog/search` needs keys for the outside services: `IGDB_CLIENT_ID` and `IGDB_CLIENT_SECRET` for games (a Twitch application, see the comments in `.env.example`) and `TMDB_API_KEY` for series and movies. A source without keys is turned off and its searches return 503. Search results are cached in Redis (`REDIS_URL`, `CACHE_TTL_SECONDS`). If Redis is down, an in-process cache is used. Calls to IGDB and TMDB time out after `EXTERNAL_API_TIMEOUT_SECONDS` and are tried again up to `EXTERNAL_API_MAX_RETRIES` times when they time out or answer 429 or 5xx, with a wait that starts at `EXTERNAL_API_BACKOFF_SECONDS` and doubles (a `Retry-After` header is used when the service sends one). Never commit real keys. **Keyless mode for demos.** Set `IGDB_CLIENT_ID=public` (with any value in `IGDB_CLIENT_SECRET`, because the source counts as set up only when both are filled) to search and load games from the Steam Store instead of IGDB. Set `TMDB_API_KEY=public` to use TVMaze for series and iTunes for movies instead of TMDB. No keys are needed then, but the ids are the ids of those services (a Steam app id, a TVMaze id, an iTunes id), not IGDB or TMDB ids. A database should therefore be filled in one mode only, and the IGDB id of the seed file does not match a game that was saved in the Steam mode.
 
@@ -167,10 +172,10 @@ It prints how many titles were selected and synced. A title that the outside ser
 
 A game is joined to the catalog by its IGDB id (`external_api_id`). To find it, search the title with `GET /catalog/search?type=GAME` and read `external_api_id` in the result. The file is checked before anything is written, and a file with an error saves nothing. The load is one transaction and can be run again: a row is found by its key (chapter number, position of the decision point, label of the option) and only changed when a value differs. Nothing is ever deleted, because the choices of users point to these rows. Rows that are in the database but not in the file are listed as warnings. A game that a search has already saved keeps its title and poster, and a warning appears when the title in the file is different, which usually means a wrong id. Each decision point needs at least two options with different labels.
 
-The shipped file holds one game: Life is Strange (`external_api_id` 7599), with 5 chapters and 6 decision points. The chapter titles and decisions are written by the team and no data source confirms them, so check them against the game before a demo. The command refuses a game with `external_api_id` 0. To change the content, edit the file and run the command again. There is no command for embeddings, because the API does not create them.
+The shipped file holds one game: Life is Strange (`external_api_id` 7599), with 5 chapters and 6 decision points. The chapter titles and decisions are written by the team and no data source confirms them, so check them against the game before a demo. The command refuses a game with `external_api_id` 0. To change the content, edit the file and run the command again. To create or refresh embeddings in bulk, run `python -m app.embeddings` from `backend`. The command skips titles without genres and descriptions, and skips embeddings whose source text has not changed.
 
 **Rating scales.** The team chose two scales (point 2 in [`docs/analysis/data/domain-model.md`](docs/analysis/data/domain-model.md)). A rating of a library entry is a whole number from 1 to 10 (`POST /library`, `PATCH /library/{id}`). A rating of a chapter or episode is a whole number from 1 to 5 (`PUT /library/{id}/chapters/{chapter_id}/rating`). A value outside the range, or a value that is not a JSON number, is refused with 422. Sending `null` for the rating of a library entry in `PATCH` clears it.
-**Reviews.** `POST /library/{entry_id}/review` creates or updates a review for a library entry owned by the authenticated user. The request body is `{"text": "Your review text"}`. A new review returns 201, and updating an existing review returns 200. Review text must not be blank or longer than 5000 characters (422). Requests without authentication return 401, and entries that do not exist or belong to another user return 404. `GET /library/{entry_id}/review` returns the review, or 404 if no review exists. Posting a review adds a `REVIEW_POSTED` diary event. Spoiler detection is not implemented yet; the spoiler fields remain `null` until it is implemented.
+**Reviews.** `POST /library/{entry_id}/review` creates or updates a review for a library entry owned by the authenticated user. The request body is `{"text": "Your review text"}`. A new review returns 201, and updating an existing review returns 200. Review text must not be blank or longer than 5000 characters (422). Requests without authentication return 401, and entries that do not exist or belong to another user return 404. `GET /library/{entry_id}/review` returns the review, or 404 if no review exists. Posting a review adds a `REVIEW_POSTED` diary event. The spoiler check is described in "Reviews and spoiler detection (US-14)" below.
 
 **Paging of long lists.** `GET /diary`, `GET /library` and `GET /lists` take two optional query parameters: `limit` (1 to 500) and `offset` (0 or more, the number of rows to skip). The default `limit` is 100 for `/diary` and 200 for `/library` and `/lists`, so a client that sends nothing gets a first page and no screen has to change for a user with fewer rows. A `limit` above 500, a `limit` below 1 and a negative `offset` answer 422. The answer stays a plain JSON list, and the order does not change: `/diary` is newest first (ties are ordered by `id`, newest first), `/library` and `/lists` are oldest first. An `offset` after the last row gives an empty list. To read the next page, add the number of rows you got to the `offset`; a page with fewer rows than `limit` is the last one. A client that must show everything reads pages until it gets a short page. The diary has two indexes, `(user_id, created_at DESC)` for this list and `media_item_id` for the delete cascade of a title (migration `0013`).
 
@@ -178,11 +183,11 @@ The shipped file holds one game: Life is Strange (`external_api_id` 7599), with 
 
 **Statistics.** `GET /stats` needs a token and returns the numbers of the logged-in user's library only: `total_items`, `media_split` (whole percents of `GAME`, `SERIES` and `MOVIE` that add up to 100), `rating_distribution` (the keys `"1"` to `"10"`), `genre_breakdown` (largest first) and `playtime` (`total_minutes` and a `histogram` of the titles in buckets of 5 hours). An empty library gives zeros and an empty list, not an error. The answer is cached in Redis under `omni:stats:{user_id}` for 24 hours. The cache is cleared when the user adds, changes or removes a library entry, rates a chapter, logs playtime, makes a decision, or removes a list item or a list. If Redis is down, an in-process cache is used. The genres of a title that is opened for the first time do not clear the cache, so the `genre_breakdown` can be up to 24 hours old in that case.
 
-**Reviews and spoiler detection (US-14).** `POST /library/{id}/review` takes `{"text": "..."}` (1 to 5000 characters, not blank) and answers 201 with the review: `contains_spoiler`, `spoiler_score` (0 to 1) and `spoiler_model_version`. A library entry has one review, so a second `POST` replaces the first one. `GET /library/{id}/review` returns the review or `null`. Both answer 404 for an entry that is not the user's. With `OPENAI_API_KEY` set, the text goes to the model in `SPOILER_MODEL`. The review is flagged when the model says it has a spoiler and its score is `SPOILER_THRESHOLD` or more. Without a key, or when OpenAI does not answer, the review is still saved and checked with a list of local patterns (the model version is then `omnilog-nlp-spoiler-v1`). Each review adds a `REVIEW_POSTED` diary event.
+**Reviews and spoiler detection (US-14).** `POST /library/{id}/review` takes `{"text": "..."}` (1 to 5000 characters, not blank) and answers 201 with the review: `contains_spoiler`, `spoiler_score` (0 to 1) and `spoiler_model_version`. A library entry has one review, so a second `POST` replaces the first one. `GET /library/{id}/review` returns the review or `null`. Both answer 404 for an entry that is not the user's. With `OPENAI_API_KEY` set, the text goes to the model in `SPOILER_MODEL`. The review is flagged when the model says it has a spoiler and its score is `SPOILER_THRESHOLD` or more. Without a key, a list of local patterns checks the review (the model version is then `omnilog-nlp-spoiler-v1`). The review is saved first and checked afterwards, without an open database transaction. When OpenAI is set up but does not answer, the review is still saved and the answer is a normal 201 or 200: `contains_spoiler`, `spoiler_score` and `spoiler_model_version` are then `null` (not checked). Each review adds a `REVIEW_POSTED` diary event.
 
-**Recommendations (US-13).** `GET /recommendations` needs a token and returns every title in the catalog that the user does not own, best first. The score of a title is the sum of the weights of its genres. A genre weighs the rating of the library entry that has it (5 when the entry has no rating), added up over the library. Titles with the same score are sorted by id. The optional `target` parameter (`GAME`, `SERIES` or `MOVIE`) keeps one media type. The answer is not cached and has no embeddings.
+**Recommendations (US-13).** `GET /recommendations` requires authentication and a `target` (`GAME`, `SERIES` or `MOVIE`). The optional `limit` defaults to 10 and must be between 1 and 50. The service excludes titles already in the current user's library. When embeddings are available for positively rated titles (rating 7 or higher) or completed titles without a rating, it averages those vectors and ranks candidates of the requested type by cosine distance. Candidates without embeddings can fill remaining slots. If no usable taste vector is available, or vector ranking fails, recommendations fall back to popularity-based ranking with a stable ID tie-breaker. The response is not cached.
 
-**OpenAI settings.** `OPENAI_API_KEY` (empty turns OpenAI off), `SPOILER_MODEL` (default `gpt-4o-mini`), `SPOILER_THRESHOLD` (default 0.5), `OPENAI_TIMEOUT_SECONDS` (8) and `OPENAI_MAX_RETRIES` (2) are used by the spoiler check. `EMBEDDING_MODEL` (`text-embedding-3-small`) and `EMBEDDING_DIMENSIONS` (1536) are read by the OpenAI client, but no endpoint uses them yet.
+**OpenAI settings.** `OPENAI_API_KEY` (empty turns OpenAI off), `SPOILER_MODEL` (default `gpt-4o-mini`), `SPOILER_THRESHOLD` (default 0.5), `OPENAI_TIMEOUT_SECONDS` (8) and `OPENAI_MAX_RETRIES` (2) are used by the spoiler check. `EMBEDDING_MODEL` (`text-embedding-3-small`) and `EMBEDDING_DIMENSIONS` (1536) configure title embeddings. Opening title details creates or refreshes an embedding when its source text changes. Embedding failures are logged and do not block the title details response.
 
 The tests do not call IGDB, TMDB or OpenAI. They use fakes at the HTTP level (`tests/requirements/fake_external_apis.py` and `tests/requirements/fake_openai.py`), so no keys are needed. To check the real services once, put real keys in `backend/.env` and run:
 
@@ -204,7 +209,7 @@ npm install
 npm run dev
 ```
 
-The app runs at `http://localhost:3000`. The server code of Next.js (Server Components and Server Actions) calls the backend, and the JWT is kept in a cookie that the browser cannot read. The address of the backend is `BACKEND_URL` (default `http://localhost:8000` in development, required in production, see `frontend/.env.example`). `NEXT_PUBLIC_API_URL` is only for the Axios client in `src/lib/api.ts` and the production Docker build needs it. The friends page uses sample data.
+The app runs at `http://localhost:3000`. The server code of Next.js (Server Components and Server Actions) calls the backend, and the JWT is kept in a cookie that the browser cannot read. The address of the backend is `BACKEND_URL` (default `http://localhost:8000` in development, required in production, see `frontend/.env.example`). No code reads `NEXT_PUBLIC_API_URL` any more, because the Axios client `src/lib/api.ts` was removed in `f7cf8fd`. The production Docker build still requires it (`frontend/Dockerfile`). The friends page uses sample data.
 
 ### Tests
 
@@ -217,6 +222,16 @@ python -m pytest tests -v --tb=short
 
 CI runs the same suite with `--cov-fail-under=70`. The stories are linked to the test functions in [`docs/analysis/data/traceability.md`](docs/analysis/data/traceability.md). The frontend tests run with Vitest in happy-dom (`cd frontend && npm test`). The settings that keep happy-dom from running code of a page are in `frontend/vitest.config.mts` and are checked by `frontend/tests/security/happy-dom.test.ts`.
 
+### Code quality (SonarQube)
+
+The job "SonarQube" in `.github/workflows/ci.yml` scans the code on SonarCloud after the backend tests, with their coverage (`coverage.xml`), and fails when the quality gate fails. The settings are in [`sonar-project.properties`](sonar-project.properties). The job is skipped, with a notice, while the secret `SONAR_TOKEN` is not set, and for pull requests from forks. To turn it on (needs admin rights on the repository):
+
+1. Sign in to [SonarCloud](https://sonarcloud.io) with GitHub, import `metezd/OmniLog` and turn off "Automatic Analysis" (Administration > Analysis Method), so that only CI scans.
+2. Create a token (My Account > Security) and add it as the repository secret `SONAR_TOKEN`.
+3. Add the repository variables `SONAR_PROJECT_KEY` and `SONAR_ORGANIZATION` with the values that SonarCloud shows.
+
+SonarCloud is free for public repositories only. While this repository is private, it needs a paid SonarCloud plan, or a local SonarQube Community Build for a check by hand: `docker run -d --name sonarqube -p 9000:9000 sonarqube:community`, then run the scanner with `-Dsonar.host.url=http://localhost:9000` and a token of that server.
+
 ### Dependency security
 
 Dependabot opens pull requests for the Python packages, the frontend packages and the GitHub Actions (`.github/dependabot.yml`). Next.js and `eslint-config-next` are pinned to the same exact version and are updated together. The CI job for the frontend runs `npm audit --omit=dev --audit-level=high` and fails on a known high or critical problem in a package that runs in production. Development tools are not part of that check. Vitest 3 and 4 have open advisories that are fixed only in Vitest 5, a major upgrade that is planned as separate work, so `npm audit` (without `--omit=dev`) still lists them.
@@ -226,6 +241,10 @@ Dependabot opens pull requests for the Python packages, the frontend packages an
 | Document | Location |
 |---|---|
 | Project Charter | [`docs/CHARTER.md`](docs/CHARTER.md) |
+| Contribution rules (branching, commits, reviews, versions, releases) | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
+| Changelog | [`CHANGELOG.md`](CHANGELOG.md) |
+| AI usage: tools, pipeline, rules and member notes | [`docs/ai-usage`](docs/ai-usage/README.md) |
+| Deployment and the deployment pipeline | [`docs/deployment.md`](docs/deployment.md) |
 | Requirement Specification | [`docs/requirements/requirements-specification.md`](docs/requirements/requirements-specification.md) |
 | User stories | [`docs/requirements/user-stories.md`](docs/requirements/user-stories.md) |
 | Project plan (WBS, PERT, Gantt) | [`docs/plan`](docs/plan) |
@@ -233,3 +252,10 @@ Dependabot opens pull requests for the Python packages, the frontend packages an
 | Domain model and E-R diagram | [`docs/analysis/data`](docs/analysis/data) |
 | Data flow diagrams | [`docs/analysis/behavior`](docs/analysis/behavior) |
 | UI screen list | [`docs/analysis/ui/screen-list.md`](docs/analysis/ui/screen-list.md) |
+| Software Testing Report | [`docs/tests/software-testing-report.md`](docs/tests/software-testing-report.md) |
+| Penetration test report | [`docs/tests/penetration`](docs/tests/penetration/README.md) |
+| TDD evidence | [`docs/tests/tdd-evidence.md`](docs/tests/tdd-evidence.md) |
+| Requirements traceability | [`docs/tests/traceability.md`](docs/tests/traceability.md) |
+| SonarQube analysis | [`docs/tests/sonarqube.md`](docs/tests/sonarqube.md) |
+| Code coverage | [`docs/tests/coverage.md`](docs/tests/coverage.md) |
+| Performance tests | [`docs/tests/performance.md`](docs/tests/performance.md) |

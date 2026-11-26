@@ -1,4 +1,4 @@
-﻿"""Security verification tests for Software Testing Report (Item 6.3)."""
+"""Security verification tests for Software Testing Report (Item 6.3)."""
 from datetime import datetime, timezone
 import re
 from unittest.mock import MagicMock

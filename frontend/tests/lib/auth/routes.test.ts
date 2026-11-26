@@ -9,7 +9,7 @@ describe("isProtectedPath", () => {
     expect(isProtectedPath(`${prefix}/12`)).toBe(true);
   });
 
-  it.each(["/", "/login", "/register", "/friends", "/session-expired"])("leaves %s open", (path) => {
+  it.each(["/", "/login", "/register", "/session-expired"])("leaves %s open", (path) => {
     expect(isProtectedPath(path)).toBe(false);
   });
 

@@ -1,4 +1,4 @@
-﻿import { render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import TitleDetailPage from "@/app/title/[id]/page";
@@ -102,6 +102,7 @@ describe("TitleDetailPage", () => {
     expect(screen.getByRole("button", { name: "+ Add to Library" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Chapters & Narrative Choices" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Chrysalis" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /Your Journal Review/i })).not.toBeInTheDocument();
   });
 
   it("renders LibraryControls, seasons and episodes when a series is in the user's library", async () => {
@@ -148,6 +149,8 @@ describe("TitleDetailPage", () => {
     await renderTitle("7");
 
     expect(screen.getByRole("heading", { name: "Your Library Status" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Your Journal Review/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Seasons & Episodes" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Season 1: Season One" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Good News About Hell" })).toBeInTheDocument();
@@ -186,6 +189,36 @@ describe("TitleDetailPage", () => {
     catalogMock.mockRejectedValueOnce(new BackendError(404, "Title not found"));
     libraryMock.mockResolvedValueOnce([]);
     await renderTitle("999");
+    expect(screen.getByRole("alert")).toHaveTextContent("We could not find what you were looking for.");
+  });
+
+  it("renders a saved review with spoiler warning when the title is in the library", async () => {
+    catalogMock.mockResolvedValue(makeDetail({ seasons: [], chapters: [] }));
+    libraryMock.mockResolvedValue([makeEntry(42)]);
+    reviewMock.mockResolvedValue({
+      id: 5,
+      library_entry_id: 10,
+      text: "The final twist changed everything.",
+      contains_spoiler: true,
+      spoiler_score: 0.88,
+      spoiler_model_version: "omnilog-nlp-spoiler-v1",
+      created_at: "2026-11-20T12:00:00Z",
+      updated_at: null,
+    });
+
+    await renderTitle("42");
+
+    expect(screen.getByText("The final twist changed everything.")).toBeInTheDocument();
+    expect(screen.getByText(/Spoiler Warning/i)).toBeInTheDocument();
+  });
+
+  it("shows not_found ErrorState when fetching the review fails with 404 for a missing library entry", async () => {
+    catalogMock.mockResolvedValue(makeDetail({ seasons: [], chapters: [] }));
+    libraryMock.mockResolvedValue([makeEntry(42)]);
+    reviewMock.mockRejectedValueOnce(new BackendError(404, "Library entry not found"));
+
+    await renderTitle("42");
+
     expect(screen.getByRole("alert")).toHaveTextContent("We could not find what you were looking for.");
   });
 });

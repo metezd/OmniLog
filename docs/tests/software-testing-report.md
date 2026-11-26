@@ -1,155 +1,240 @@
-# OmniLog - Software Testing Report
+# Software Testing Report
 
-**Course:** CMPE 331 Software Engineering Concepts, Fall 2026-2027  
-**Deliverable:** Software Testing Report (pull request deadline 25.11.2026, PDF deadline 29.11.2026)  
-**Repository branch:** `test_work`  
-**Test run:** 19.11.2026, commit base `main`
+Issue #296, part of #252 (section D). Related: #157, #234.
 
-| Team member | Role |
-|---|---|
-| Mete Özdoğan | Product Owner, Full-Stack Architect |
-| Kerem Kenet | Frontend Lead |
-| Kağan Konuk | Backend Engineer |
-| Sidar Ürey | ML Engineer |
-| Musab Alperen Başol | API Integration and Backend Engineer |
-| Mohammad Edris | Backend/QA Engineer |
+This report ties the test work of the project together. It links to the detailed documents and does not copy them. Every number comes from a command that was run, and the command and the date are next to it (section 12). The code is `main` at `74f1f3a` (25.11.2026). Some results come from pull requests that were still open on 26.11.2026; they are marked with their number.
 
----
+## 1. Summary
 
-## 1. Introduction
-
-This report presents the tests of OmniLog, the results of the latest run, and how to interpret them. The detail is in dedicated folders of the repository, and this report links to them.
-
-| Part of the assignment | Where |
-|---|---|
-| Traceability matrix (tests to requirements, requirement and code coverage) | [`coverage/traceability-matrix.md`](coverage/traceability-matrix.md), [`coverage/coverage-report.md`](coverage/coverage-report.md) |
-| Non-functional tests and their results | [`non-func-tests/README.md`](non-func-tests/README.md), [`non-func-tests/results/`](non-func-tests/results/) |
-| SonarQube, static analysis, mitigation of high-severity issues | [`quality/README.md`](quality/README.md), [`quality/mitigation-plan.md`](quality/mitigation-plan.md) |
-| This report | `software-testing-report.md` |
-
-### 1.1 Result at a glance
-
-| Question | Answer |
-|---|---|
-| Do the tests pass? | **Yes.** Backend: 753 passed, 0 failed, 3 skipped (live tests that need real API keys). Frontend: 251 passed, 0 failed |
-| Are the requirements covered? | **Yes.** 20 of 20 requirements (15 user stories, 5 NFRs) and 40 of 40 acceptance criteria have a passing test |
-| How much code is covered? | Backend **91.3 %** of statements, **78.3 %** of branches (target 70 %). Frontend 32.8 % of lines (no target) |
-| Non-functional requirements met? | Yes. NFR-01 p95 6.2 ms (limit 500 ms). 0 errors in 4 500 load-test requests |
-| Vulnerabilities? | None found by Ruff, Bandit, `pip-audit` and `npm audit` |
-| What is open? | Two High findings (dead duplicate code, unbounded recommendations endpoint), the SonarQube scan, and frontend coverage. See section 6 |
-
-## 2. Test strategy
-
-The tests are **black-box tests of the public behaviour**: they send HTTP requests to the FastAPI application and check the status code, the body, the database rows and the diary events. They do not test private functions.
-
-| Level | What | Tools | Count |
-|---|---|---|---:|
-| Requirement tests | One or more tests for every acceptance criterion of a user story, in files named after the epic (`test_epic2_users.py`) | pytest, FastAPI `TestClient`, PostgreSQL 16, Redis | about 40 core tests |
-| Edge-case tests | Boundaries, invalid input, other users' data, failures of outside services, concurrency | pytest (many parametrized) | 700 + |
-| Non-functional tests | Performance, security, reliability (section 3.3) | pytest, a load-test script, static analysers | see section 3.3 |
-| Frontend tests | Components, forms, route protection, API layer | Vitest, Testing Library, MSW | 251 |
-| Static checks | Lint, types, security rules | Ruff, Bandit, ESLint, `tsc` | CI on every pull request |
-
-Design decisions that make the tests reliable:
-
-- **A real database.** Tests run on PostgreSQL 16, the same engine as production. The schema is dropped and created again at the start of every session, and every test registers its own new user with random credentials, so tests do not see each other's data.
-- **Outside services are faked.** IGDB, TMDB and OpenAI are replaced by fakes that can also fail on purpose. No test needs the internet, so the results are the same on every machine and in CI.
-- **Tests state the requirement.** The name or docstring of a test names its user story (`test_us05_rating_out_of_range_rejected`), which is what makes the generated traceability matrix possible.
-- **CI gate.** The workflow `ci.yml` runs all tests and fails below 70 % coverage.
-
-## 3. Important tests and how to interpret them
-
-### 3.1 Traceability and coverage
-
-![Passing test cases per requirement](coverage/charts/tests-per-requirement.png)
-
-**What the numbers say.** Every requirement has passing tests, including the Could-have US-14. US-04 to US-07 and US-10 to US-12 have 17 to 186 test cases each. These stories are about the user's own data, where the main risks are wrong values, other users' data and data loss. US-01 has few core tests because its behaviour is one answer, but the health checks also have their own tests of a failing database and Redis.
-
-**How to interpret.** The count of test cases per story is a measure of how many different situations are tried, not of how important the story is. A low count (US-13: 14) is not a gap by itself, but US-13 is the place where the first coverage run showed untested behaviour (ranking), which is why tests were added (section 5).
-
-![Backend coverage per package](coverage/charts/backend-coverage-by-package.png)
-
-**Coverage.** 91.3 % of backend statements and 78.3 % of branches are executed. The packages with the highest risk (`api` 97 %, `services` 96 %, `core` 95 %, `schemas` and `models` 100 %) are at 95 to 100 %. The `integrations` package, which talks to outside services, is lower (72.5 %), because the fallback providers have few tests. Coverage shows what was **not** tested. It cannot show that what was tested is correct, so it is read together with the requirement and acceptance-criteria matrix, where the answer is "40 of 40 criteria are checked by a test that asserts the result".
-
-### 3.2 Important functional tests
-
-| Test (file) | Requirement | Why it matters | Result |
+| Area | Result | Date | Details |
 |---|---|---|---|
-| `test_us05_cannot_update_other_users_entry` (`test_epic2_users.py`) | US-05, NFR-02 | A user must never change another user's data. The answer is 404, so the existence of the entry is not revealed | Pass |
-| `test_the_review_of_another_users_entry_cannot_be_read` (`test_epic5_review_and_recommendation_edge_cases.py`, new) | US-14, NFR-02 | The same rule for reviews. The review text must not leak | Pass |
-| `test_us11_log_playtime` and `test_entries_add_up_and_every_answer_shows_the_running_total` | US-11 | 90 + 30 minutes must give 120. Sums are easy to get wrong | Pass |
-| `test_us12_decision_can_be_changed` | US-12 | Only the last choice may be kept, so statistics and diary do not double count | Pass |
-| `test_us15_personal_statistics` | US-15 | 3 games and 1 series must give 75 % and 25 %, and the ratings 8, 8, 6 the right distribution | Pass |
-| `test_the_percents_are_whole_numbers_that_add_up_to_100` (`test_epic6_stats_edge_cases.py`) | US-15 | Rounding must not give 99 % or 101 % in the dashboard | Pass |
-| `test_a_second_request_does_not_call_tmdb` | US-09, NFR-01 | Proves that the cache works and that outside quotas are saved | Pass |
-| `test_duplicate_list_name_returns_409` and the concurrency tests | US-06 | Two simultaneous requests must not create a duplicate or a 500. The database constraint is the last line of defence | Pass |
-| `test_us03_unknown_user_gets_same_response_as_wrong_password` | US-03, NFR-02 | An attacker cannot learn which user names exist | Pass |
+| Backend tests | **1093 passed, 0 failed, 4 skipped** (3 live API tests without keys, 1 test that runs only when Redis is down) | 26.11.2026 | Section 4 |
+| Frontend tests | **340 passed, 0 failed** in 44 files | 26.11.2026 | Section 4 |
+| Requirement traceability | Every user story (15) and NFR (5) is named by tests, checked in CI | 26.11.2026 | Section 4, [traceability](traceability.md) |
+| Coverage | Backend **94.99%** (CI gate 90%), frontend **34.45%** of lines (thresholds 25 to 40%) | 26.11.2026 | Section 5, [coverage](coverage.md) |
+| Performance | p95 under 500 ms up to **40 users** on one uvicorn process (20 users with one CPU), about 500 requests/s; the API **locks up at 80 users** (database pool) | 25.11.2026 | Section 6, [performance](performance.md) |
+| Penetration test | First run 7 findings (1 high). Retest: **31 of 31** checks passed locally and **31 of 31** through Caddy on the production stack, **7 of 7** pgvector checks, OWASP ZAP **0 failed** | 25./26.11.2026 | Section 7, [penetration](penetration/README.md) |
+| SonarQube | Quality gate passed. After the fixes **0 bugs, 0 vulnerabilities, 0 hotspots, 0 code smells**, ratings A/A/A (#349). The CI job is ready but waits for a token | 25.11.2026 | Section 8 |
+| TDD | 14 of 15 stories had their test first. **9 fix cycles** have a red `test:` commit and a green `fix:` commit | 25./26.11.2026 | Section 9, [TDD evidence](tdd-evidence.md) |
 
-**How to interpret.** The common point of these tests is that they check a *bad* case (other user, duplicate, rounding), where the code is most likely to be wrong. The tests that pass on the "happy path" alone would give a high coverage but say little about quality.
+## 2. Strategy
 
-### 3.3 Non-functional tests
-
-Details and method: [`non-func-tests/README.md`](non-func-tests/README.md).
-
-**Performance (NFR-01).** The cached search needs a p95 of 6.2 ms and the cached statistics 4.2 ms over 100 requests, against a limit of 500 ms. The p95 is the time that 95 % of requests stay under, so it shows the slow tail that users notice and not only the average.
-
-![Load test p95](non-func-tests/results/load-test-p95.png)
-
-**Load test.** 4 500 requests over real HTTP with 1, 10 and 25 parallel users: **0 errors, 0 timeouts**. Reading endpoints stay below 212 ms at p95 with 25 users (`/health` 30 ms, `/stats` 118 ms, `/diary` 157 ms, `/library` 212 ms). **Two results need attention:**
-
-1. `GET /recommendations` reaches only about 21 requests per second and p95 587 ms with 10 users (1.6 s with 25). The line in the chart that crosses the red limit is this endpoint. The reason is in the code (no limit, no cache, all titles are loaded) and is described in finding Q-02.
-2. Login takes about 250 ms per request on purpose, because of bcrypt (NFR-03). One core manages 4 logins per second. This is a trade-off between NFR-03 and availability, and a rate limit is proposed (Q-03).
-
-*How to interpret:* the test machine had one CPU core that was shared by the server and the load generator, so absolute numbers are worse than on a production host. The *shape* is what counts: linear growth of the response time with the number of users is normal for one core, and an endpoint that is much slower than the others (recommendations) is the first one to fix.
-
-**Security (NFR-02, NFR-03).** 22 of 22 protected endpoints refuse a request without a token. Five kinds of forged token (expired, wrong signature, `alg: none`, wrong algorithm, no subject) are refused. Passwords are never returned and are stored as bcrypt hashes. 64 static checks, Ruff, Bandit, `pip-audit` and `npm audit` report no finding. *Interpretation:* a clean result means that the known classes of problems that these tools look for are absent. It does not replace a penetration test.
-
-**Reliability (NFR-04).** When IGDB, TMDB, OpenAI or Redis fail, OmniLog answers from saved data or with a clear 503, and never with an unhandled 500. A failed load is not cached. If the database is down, `/health` still answers (the process is alive) and `/health/ready` returns 503, so a hosting platform can tell the two apart.
-
-### 3.4 Code quality
-
-Details: [`quality/README.md`](quality/README.md), [`quality/static-analysis-results.md`](quality/static-analysis-results.md).
-
-Average cyclomatic complexity is 3.05 (grade A). Six functions are grade C (11 to 14); none is higher. ESLint reports 0 errors, TypeScript 0 errors. The SonarQube scan still has to be run (see the status note in `quality/README.md`) and its results added to `quality/sonarqube-results.md`.
-
-## 4. Findings
-
-Full list with mitigation: [`quality/mitigation-plan.md`](quality/mitigation-plan.md).
-
-| Id | Severity | Finding | Mitigation |
+| Level | What it checks | Tool | Where |
 |---|---|---|---|
-| Q-01 | High | `api/lists.py` and `services/list_service.py` are dead copies of code that exists in `journal.py`. The router is shadowed. The copy forgets to clear the stats cache | Delete both files and the three lines in `main.py` |
-| Q-02 | High | `GET /recommendations` loads all titles, ranks them in Python, has no limit or cache. p95 587 ms at 10 users | Limit, eager loading of genres, per-user cache, move the ranking to a service |
-| Q-03 | Medium | No rate limit on login | Rate limit at the proxy, several workers |
-| Q-04 | Medium | Silent switch to SQLite when a `localhost` PostgreSQL is not running | Only with an explicit variable |
-| Q-05 to Q-10 | Medium, Low | BOM in 7 files, six complex functions, `utcnow()`, frontend coverage, `<img>` warnings, fallback tests | See plan |
+| Requirement tests | Each user story and NFR, with positive, negative and edge cases | pytest with FastAPI's test client | `tests/requirements/` |
+| Traceability check | Every story and NFR is named by at least two test files, or a reason is written | pytest | `tests/test_requirements_traceability.py` |
+| Static security tests | Dangerous code patterns (secrets in logs, raw SQL, eval), configuration of production files | pytest reading the source | `tests/test_security_static.py`, `tests/test_security_checks.py` |
+| Hardening tests | Security headers on every status, tokens, docs switch, uvicorn options | pytest | `tests/test_security_hardening.py`, `tests/test_security_tokens.py` |
+| Frontend tests | Components, server actions, the backend client, the proxy and its Content-Security-Policy | Vitest with Testing Library, happy-dom, MSW | `frontend/tests/` |
+| Performance | NFR-01 in process, and an HTTP load test of the production stack | pytest; a script with httpx and asyncio | `tests/requirements/test_nfr.py`, `tests/performance/` |
+| Penetration | Black-box attacks over HTTP, an automated scanner, a browser check | Python script, OWASP ZAP, Chrome | `tests/pentest/`, [penetration](penetration/README.md) |
+| Static analysis | Bugs, vulnerabilities, smells, duplication, coverage | SonarQube Community Build, Ruff, ESLint, Semgrep, zizmor, Gitleaks, Trivy | `sonar-project.properties`, `.github/workflows/` |
 
-**How to read the severity.** *High* means that the finding can cause wrong behaviour or an outage under realistic conditions if it is not fixed; *Medium* means a risk that needs a trigger (a misconfiguration, an attacker); *Low* is hygiene. No finding is a Blocker, and the test suite found no functional defect in the requirements.
+The backend tests use a real **PostgreSQL** (with pgvector in Docker and CI) and **Redis** when it runs; when Redis is down they use the in-process fallback, which is also tested. The outside services are replaced: IGDB and TMDB by a fake at the HTTP level (`tests/requirements/fake_external_apis.py`), OpenAI by `tests/requirements/fake_openai.py`. Three live tests call the real IGDB and TMDB on a manual CI run only.
 
-## 5. Changes made during the test phase
+## 3. Environment
 
-1. **14 new test cases** (`tests/requirements/test_epic5_review_and_recommendation_edge_cases.py`) for the untested "not found" and ownership paths of reviews and the ranking of recommendations (US-13, US-14). All pass.
-2. **Load-test script** `tests/nonfunctional/run_load_test.py` (not collected by pytest, needs a running server).
-3. **Documentation** in `docs/tests/` and the SonarQube configuration `sonar-project.properties`.
-4. No production code was changed. The fixes in section 4 are proposed for separate pull requests.
+| | Numbers of this report | CI |
+|---|---|---|
+| Machine | Apple M3 Pro, 11 cores, 18 GB, macOS 27.2.1, Docker Desktop with 11 CPUs and 7.7 GB. **Not the production machine** | GitHub `ubuntu-latest` |
+| Backend | `python:3.15-slim` (Python 3.15.2), the version of `backend/Dockerfile`; pytest 9.2.0, pytest-cov 7.1.0 | Python 3.15 |
+| Database | PostgreSQL 16.16 with pgvector 0.8.7 (`docker-compose.yml`) | the same image |
+| Redis | 7.4.12 | 7 |
+| Frontend | `node:24-slim` (Node 24.22.3), Vitest 5.1.0 | Node 24 |
+| Production | Render free plan (`render.yaml`) or the Docker stack (`docker-compose.prod.yml`) | |
 
-## 6. Limits and open work
+The TDD runs of #345 were made on Windows 11 with Python 3.13.9 and PostgreSQL 17, and repeated on the machine above. Render has far less CPU than this machine, so the performance numbers are an upper bound for it (section 6).
 
-- **SonarQube** has not been run (no server in the test environment). The procedure and the template are ready. This is the main open item of the assignment (step 4).
-- **Frontend coverage** is 32.8 %, and has no target in the requirements (Q-08).
-- **3 live tests are skipped** in normal runs because they need real IGDB and TMDB keys; they run on demand in CI.
-- **Load test** was done on one shared CPU core and with up to 25 users. No stress or endurance test and no penetration test of a deployed system were done.
-- The tests prove that the *specified* behaviour works. They cannot find a requirement that was never written.
+## 4. Requirement tests
 
-## 7. How to reproduce
+The matrix is generated by `python tests/tools/requirements_matrix.py` and kept in [traceability](traceability.md). Run on 26.11.2026 against `74f1f3a`:
+
+| Requirement | Subject | Test files | Tests that name it |
+|---|---|---|---|
+| US-01 | Service health check | 2 | 11 |
+| US-02 | Register an account | 3 | 56 |
+| US-03 | Log in | 5 | 51 |
+| US-04 | Add a title to my library with a status | 4 | 80 |
+| US-05 | Rate a title and update its status | 2 | 25 |
+| US-06 | Create custom lists | 4 | 85 |
+| US-07 | View my activity diary | 6 | 205 |
+| US-08 | Search the catalog | 7 | 52 |
+| US-09 | View title details with seasons and chapters | 9 | 216 |
+| US-10 | Rate an individual chapter or episode | 2 | 56 |
+| US-11 | Log playtime per chapter | 2 | 36 |
+| US-12 | Record branching decisions | 5 | 97 |
+| US-13 | Cross-media recommendations | 2 | 31 |
+| US-14 | Spoiler detection in reviews | 3 | 47 |
+| US-15 | View personal statistics | 3 | 37 |
+| NFR-01 | Cached catalog searches are fast | 5 | 173 |
+| NFR-02 | Protected endpoints require authentication | 12 | 185 |
+| NFR-03 | Passwords are never stored or returned in plain text | 3 | 33 |
+| NFR-04 | The API survives external API failures | 5 | 179 |
+| NFR-05 | Backend code is covered by automated tests | 1 | 4 |
+
+A module or class docstring counts for every test in it, so the test numbers are an upper bound. NFR-05 has one file on purpose: it is a property of the whole suite, measured by the CI gate (the reason is written in the check). No test is marked `xfail` or `not_built`.
+
+The NFRs with the measured value:
+
+| NFR | Limit | Measured |
+|---|---|---|
+| NFR-01 | p95 under 500 ms over 100 requests | 3.3 to 3.4 ms (cached search) and 2.6 to 2.7 ms (`/stats`) in process; over HTTP p95 29 ms for the cached search with 10 users |
+| NFR-02 | 401 without a valid token | 23 of 23 protected endpoints |
+| NFR-03 | No plain password stored or returned | Passed |
+| NFR-04 | Cached data or 503, never an unhandled 500 | Passed for IGDB, TMDB and OpenAI down |
+| NFR-05 | At least 70% line coverage | 94.99% |
+
+## 5. Coverage
+
+Measured on 26.11.2026 in Docker (section 12). Details, the lowest files and the reasons are in [coverage](coverage.md).
+
+| Backend package | Statements | Missed | Covered |
+|---|---|---|---|
+| `api` | 342 | 12 | 96.49% |
+| `core` | 400 | 21 | 94.75% |
+| `integrations` | 592 | 45 | 92.40% |
+| `models` | 196 | 0 | 100.00% |
+| `schemas` | 210 | 1 | 99.52% |
+| `seed` | 201 | 6 | 97.01% |
+| `services` | 935 | 63 | 93.26% |
+| top level files | 139 | 3 | 97.84% |
+| **Total** | **3015** | **151** | **94.99%** |
+
+What is not covered: the dead list routes of `api/lists.py` and `services/list_service.py` (removed by #344), the error paths of the real OpenAI client (the tests use a fake), the SQLite fallback for a machine without PostgreSQL, and a few error outputs of command line tools. With the live API tests the total was 95.10% (25.11.2026). No file is left out of the measurement (checked by `tests/test_coverage_gate.py`).
+
+Frontend: **34.45%** of lines (531 of 1541) and 33.97% of statements. The code that talks to the backend (`src/lib/server`, `src/lib/auth`, `src/proxy.ts`) is near 100%. The total is low because the animated background in `src/components/layout` (about half of the frontend lines) has no tests. The thresholds in `vitest.config.mts` sit a few points under the measured values.
+
+## 6. Performance
+
+Two kinds of evidence: the NFR-01 tests in process (section 4) and an HTTP load test of the production stack (`docker-compose.prod.yml`, Caddy with HTTPS, one uvicorn process), 30 seconds per run, on 25.11.2026. Details in [performance](performance.md).
+
+| Users | Requests/s | p95, no CPU limit | p95, backend on 1 CPU | Errors |
+|---|---|---|---|---|
+| 5 | 536 | 12 ms | 92 ms | 0% |
+| 10 | 495 | 31 ms | 197 ms | 0% |
+| 20 | 542 | 60 ms | 486 ms | 0% |
+| 40 | 508 | 177 ms | **1 109 ms** | 0% |
+| 80 | **6** | **30 203 ms** | **30 118 ms** | **43%** / **52%** |
+
+**Conclusion.** The limits (p95 under 500 ms, errors under 1%) hold up to 40 users without a CPU limit and up to 20 users with one CPU. One process serves about 500 requests/s here and about 120 with one CPU. At 80 users the API locked up in all three tries: the SQLAlchemy pool has 15 connections while FastAPI runs up to 40 requests at once, and the waiting threads time out after 30 seconds (`QueuePool limit of size 5 overflow 10 reached`). This limit is not hidden: it is the first next step in section 11. Render's free plan has much less CPU, so the knee there is lower.
+
+## 7. Security tests and penetration test
+
+**Static and hardening tests** run in every CI run: secrets and dangerous calls in the code, the production settings (`ENABLE_DOCS=false`, no wildcard CORS, `--no-server-header`), the security headers on 200, 404, 422, 429 and 500 answers, forged and expired tokens, and the Content-Security-Policy of the frontend. CI also runs Gitleaks, Trivy, Semgrep, zizmor, Ruff security rules, ESLint security rules, `pip-audit` and `npm audit`.
+
+**The penetration test** (23.11.2026, [report](penetration/README.md)) found 7 issues. Their status now:
+
+| ID | Severity | Finding | Status | Pull request |
+|---|---|---|---|---|
+| F1 | High | Login limit could be bypassed with a fake `X-Forwarded-For` on Render | Fixed. The backend counts the address that the proxy writes, the frontend sends the browser address with a shared key | #340 (first step #329) |
+| F2 | Medium | API documentation public on Render | Fixed | #260 |
+| F3 | Medium | Any user could add titles with any image address | Fixed. `POST /media` off by default, `poster_url` only from the TMDB and IGDB image hosts, a Content-Security-Policy in the frontend | #328, #342 |
+| F4 | Low | NUL bytes and a too large id gave 500 | Fixed | #341 |
+| F5 | Low | A 422 repeated the rejected password | Fixed | #341 |
+| F6 | Low | No body size limit, large values sent back | Fixed, 413 in the API and in Caddy | #341 |
+| F7 | Info | `Server: uvicorn` | Fixed, with the missing browser headers | #343 |
+| new | Low | JSON nested 3000 levels deep gave 500 | Fixed | #341 |
+
+**Retest.** Locally after the fixes: 31 checks, 31 passed (25.11.2026, #348). On the production stack with Docker (26.11.2026, #351): through Caddy **31 of 31**, `GET /recommendations` with pgvector **7 of 7** (a known-vector check shows that the vector query really runs), and an **OWASP ZAP** API scan of all 30 operations with **0 failed and 118 passed** rules. Its 3 warnings were triaged: SQL injection is a false positive (the 429 and 422 answers differ, every query uses bound parameters), the "server error" is the expected 503 of the search without keys, and a missing `Cross-Origin-Resource-Policy` header is accepted as low. A browser check showed injected HTML as text, an `HttpOnly` login cookie, redirects when logged out, and a blocked image from another host.
+
+**Not tested:** the hosted system on Render. It needs the agreement of the team and one harmless request each for F1 and the headers.
+
+## 8. SonarQube
+
+The CI job "SonarQube" is ready (#322) but is skipped while the secret `SONAR_TOKEN` is not set: SonarCloud is free only for public repositories, and this one is private. So the analysis ran with SonarQube Community Build 26.11 in Docker on 25.11.2026 (#349):
+
+| Measure | First scan | After #349 |
+|---|---|---|
+| Quality gate | Passed | Passed |
+| Bugs / vulnerabilities / hotspots | 2 / 1 (Blocker) / 0 | **0 / 0 / 0** |
+| Code smells / duplication | 12 / 0.0% | **0 / 0.0%** |
+| Ratings (reliability / security / maintainability) | C / E / A | **A / A / A** |
+| Coverage of `backend/app` | 95.0% | 95.0% |
+| Coverage of `frontend/src` (lines and conditions) | 41.6% | 41.6% |
+
+The Blocker was a development password in an example comment, the two bugs an unreachable `raise` and a test assertion with the same expression on both sides (a false positive, rewritten). The measures were read from the SonarQube API; there is no screenshot, because the local server needs a login and was removed after the scan. The steps to repeat the scan and to turn the CI job on are in `docs/tests/sonarqube.md` (#349).
+
+## 9. TDD evidence
+
+Details in [TDD evidence](tdd-evidence.md) (#345, #350).
+
+- The requirement tests were written on 12.10.2026, before the code of 14 of the 15 user stories. Only US-01 came before its test.
+- Five story groups were run again from the real commits: the tests failed on the code before the feature and passed with it.
+- Nine fixes of the testing phase (F1, F3, F4, F5 with deep JSON, F6, F7, D10 and two SonarQube findings) each have a red `test:` commit and a green `fix:` commit, in the backend and, where they changed it, in the frontend.
+
+## 10. Defects found by testing
+
+| ID | What | Found by | Severity | Fix | Test |
+|---|---|---|---|---|---|
+| F1 | Login and register limits could be bypassed with a fake `X-Forwarded-For` on Render | Penetration test | High | #340 | `test_f1_render_rate_limit.py`, RATE-02 |
+| F1b | The first F1 fix (#329) still let a direct call choose its address | New tests of #340 | High | #340 | `test_f1_us03_thirty_fake_forwarded_addresses_are_limited` |
+| F2 | `/docs` public on Render | Penetration test (config review) | Medium | #260 | `test_docs_are_off_in_every_production_config` |
+| F3 | Any image address in `poster_url`, open catalog writes | Penetration test | Medium | #328, #342 | `test_media_access.py`, `test_poster_url.py`, `proxy.test.ts` |
+| F4 | NUL bytes and large ids gave 500 | Penetration test | Low | #341 | `test_malformed_input.py` |
+| F5 | Password repeated in a 422 | Penetration test | Low | #341 | `test_f5_nfr03_a_rejected_password_is_not_repeated` |
+| F6 | No body size limit | Penetration test | Low | #341 | `test_f6_*` |
+| F7 | `Server` header, missing browser headers, no headers on a 500 | Penetration test, hardening tests | Info | #343 | `test_security_hardening.py`, `next-config.test.ts` |
+| DJ | JSON nested 3000 levels deep gave 500 | Extra penetration run | Low | #341 | `test_us06_deeply_nested_json_*` |
+| D10 | Duplicate list delete routes | Coverage and OpenAPI warning | Low | #344 | `test_route_registration.py` |
+| P1 | API locks up at 80 users (database pool smaller than the thread pool) | Load test | Medium | Open, section 11 | `tests/performance/load_test.py` |
+| C1 | `docker-compose.yml` published PostgreSQL on 5433, so the Compose smoke test fell back to SQLite | CI Docker Compose smoke test | Medium (CI) | #329 | the smoke test |
+| C2 | A rate limit test failed when 11 bcrypt logins crossed a minute | CI backend tests (flaky) | Low (test) | #331 | the same tests with a fixed clock |
+| C3 | The live IGDB test compared the exact case of "Life is Strange" | Manual CI run with real keys | Low (test) | #334 | `test_epic3_catalog_live.py` |
+| C4 | TVMaze descriptions kept double spaces | New coverage tests | Low | #334 | `test_public_catalog_sources.py` |
+| S1 | Unreachable `raise`, a password in a comment, a label without its field, a regex that could backtrack | SonarQube | Low to Blocker (comment) | #349 | `ChapterProgressCard.test.tsx`, `backend.test.ts` |
+
+## 11. Residual risks and next steps
+
+1. **Database pool (P1).** Give the SQLAlchemy pool at least as many connections as the thread pool, with a short `pool_timeout`, check the connection limit of the database plan, and run the load test again. Consider 2 to 4 uvicorn workers on a plan with more cores.
+2. **Render not checked.** How the proxy of Render fills `X-Forwarded-For`, and which headers it adds, were not checked on the deployed service. One harmless request each, after the team agrees.
+3. **SonarQube in CI.** A repository admin must make the repository public or choose a paid plan or a reachable server, then set `SONAR_TOKEN`, `SONAR_PROJECT_KEY` and `SONAR_ORGANIZATION`.
+4. **Frontend coverage** is 34%. Tests for the layout and the dashboard would raise it.
+5. **Small hardening:** `Cross-Origin-Resource-Policy` on the API, and HSTS raised from one day to one year after a week without problems.
+6. **Live API tests** need the keys and run only on a manual CI run.
+7. **Review (#293):** this report needs a review by a teammate who did not write it.
+
+## 12. How to repeat
+
+The backend and frontend numbers of sections 1, 4 and 5 (26.11.2026), as CI runs them, from the repository root with `docker compose up -d` running:
 
 ```bash
-git checkout test_work
-docker compose up -d                     # PostgreSQL 16 and Redis
-python -m venv .venv && . .venv/bin/activate
-pip install -r backend/requirements.txt -r tests/requirements-test.txt
-python -m pytest tests -v --cov=backend/app --cov-branch --cov-report=term-missing
-cd frontend && npm ci && npx vitest run
-# load test (second terminal: cd backend && uvicorn app.main:app)
-python tests/nonfunctional/run_load_test.py --out docs/tests/non-func-tests/results
+python -m pytest tests -v --cov=backend/app --cov-report=term-missing --cov-report=xml --cov-fail-under=90
 ```
+
+```bash
+cd backend && alembic upgrade head && alembic check
+```
+
+```bash
+cd frontend && npm ci && npm run lint && npx tsc --noEmit && npm run test:coverage && npm run build
+```
+
+The traceability matrix (section 4):
+
+```bash
+python tests/tools/requirements_matrix.py
+```
+
+The load test of the production stack (section 6, 25.11.2026):
+
+```bash
+SECONDS_PER_RUN=30 tests/performance/run_stack.sh tests/performance/results/local 5 10 20 40 80
+```
+
+```bash
+BACKEND_CPUS=1 SECONDS_PER_RUN=30 tests/performance/run_stack.sh tests/performance/results/local-1-cpu 5 10 20 40 80
+```
+
+The penetration retest on the production stack with pgvector and ZAP (section 7, 26.11.2026, #351):
+
+```bash
+tests/pentest/run_stack.sh
+```
+
+The penetration script against a local API (section 7, see the start options in the [report](penetration/README.md)):
+
+```bash
+PENTEST_SECRET=<SECRET_KEY of the local API> python tests/pentest/run_pentest.py --base-url http://127.0.0.1:8000 --out results.json
+```
+
+SonarQube (section 8): the steps are in `docs/tests/sonarqube.md` (#349). The red and green runs (section 9): the commands are in section 6 of the [TDD evidence](tdd-evidence.md).

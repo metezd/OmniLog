@@ -6,10 +6,11 @@ databases:
     plan: free
 
 services:
-  - type: redis
+  - type: keyvalue
     name: omnilog-redis
     region: frankfurt
     plan: free
+    maxmemoryPolicy: allkeys-lru
     ipAllowList: []
 
   - type: web
@@ -18,25 +19,37 @@ services:
     region: frankfurt
     rootDir: backend
     plan: free
+    # Deploy main only after its GitHub checks pass (see docs/deployment.md, section 5)
+    autoDeployTrigger: checksPass
     buildCommand: pip install --require-hashes -r requirements.txt
-    startCommand: alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    startCommand: alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips="*" --no-server-header
     healthCheckPath: /health
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11.9
+        value: 3.15.0
       - key: DATABASE_URL
         fromDatabase:
           name: omnilog-db
           property: connectionString
       - key: REDIS_URL
         fromService:
-          type: redis
+          type: keyvalue
           name: omnilog-redis
           property: connectionString
       - key: SECRET_KEY
         generateValue: true
       - key: CORS_ORIGINS
         sync: false
+      # Count the right-most address of X-Forwarded-For, the one that the proxy of Render writes.
+      # Calls from the frontend send the browser address with the shared key instead (#301,
+      # docs/deployment.md section 9.1).
+      - key: FORWARDED_TRUSTED_HOPS
+        value: "1"
+      - key: FRONTEND_PROXY_SECRET
+        generateValue: true
+      # The API documentation is not public in production
+      - key: ENABLE_DOCS
+        value: "false"
       - key: IGDB_CLIENT_ID
         sync: false
       - key: IGDB_CLIENT_SECRET
@@ -52,6 +65,7 @@ services:
     region: frankfurt
     rootDir: frontend
     plan: free
+    autoDeployTrigger: checksPass
     buildCommand: npm ci && npm run build
     startCommand: npm run start -- -p $PORT
     envVars:
@@ -59,5 +73,11 @@ services:
         value: 26
       - key: BACKEND_URL
         sync: false
+      # The same key as the backend, so the backend trusts the browser address that this sends
+      - key: FRONTEND_PROXY_SECRET
+        fromService:
+          type: web
+          name: omnilog-api
+          envVarKey: FRONTEND_PROXY_SECRET
       - key: NEXT_PUBLIC_API_URL
         sync: false

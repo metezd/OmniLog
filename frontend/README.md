@@ -10,8 +10,8 @@ The frontend client for **OmniLog**, a comprehensive tracking platform for TV se
 - **Language:** TypeScript
 - **Styling:** Tailwind CSS (with `clsx` and `tailwind-merge` for clean utility management)
 - **Icons:** `lucide-react`
-- **Networking:** `axios` (configured for FastAPI endpoints)
-- **Data Visualization:** `recharts` (for activity analytics and rating charts)
+- **Backend calls:** `fetch` in the server code (`src/lib/server`, Server Components and Server Actions). The browser never calls the backend directly
+- **Charts:** the statistics screen (`/stats`) draws its bars with plain HTML and Tailwind, without a chart library
 
 ---
 
@@ -25,7 +25,7 @@ frontend/
 │   │   ├── page.tsx       # Landing and dashboard root view
 │   │   └── globals.css    # Global stylesheet and Tailwind setup
 │   ├── components/        # Reusable UI elements (cards, buttons, modals)
-│   ├── lib/               # Shared utilities, Axios API client instances
+│   ├── lib/               # Shared utilities, server-side backend calls (lib/server)
 │   └── types/             # Domain and API response type definitions
 ├── public/                # Static assets, logos, and vector illustrations
 ├── package.json           # Frontend dependency manifest

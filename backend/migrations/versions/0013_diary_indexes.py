@@ -1,11 +1,10 @@
 """Indexes on diary_entries for the diary list and the delete cascade of a title.
 
 Revision ID: 0013
-Revises: 0011
+Revises: 0012
 Create Date: 2026-11-19
 
-0012 is reserved for the pgvector migration (issue #151). Until it is merged, 0013 follows 0011.
-When 0012 is on main, change down_revision below to "0012", so there is one head again.
+Migration 0013 follows the pgvector embeddings migration (issue #151).
 """
 from alembic import op
 import sqlalchemy as sa
@@ -13,7 +12,7 @@ import sqlalchemy as sa
 
 # Revision identifiers used by Alembic
 revision = "0013"
-down_revision = "0011"
+down_revision = "0012"
 branch_labels = None
 depends_on = None
 

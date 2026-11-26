@@ -2,12 +2,12 @@
 
 This document has the entity-relationship diagrams, the data dictionary, the Redis key dictionary and the review of the embedding table.
 
-The entities are explained in [domain-model.md](domain-model.md). Tables marked **Implemented** exist in `backend/app/models/entities.py` and in the migrations (the last one is `0011_reviews.py`). Tables marked **Proposed, not built** are part of the design only. Nothing in the code uses them. This document was checked against the code on 19.11.2026.
+The entities are explained in [domain-model.md](domain-model.md). Tables marked **Implemented** exist in `backend/app/models/entities.py` and in the migrations. Tables marked **Proposed, not built** are part of the design only. This document includes the media embeddings implementation from issue #151.
 
 | Table | State |
 |---|---|
-| `users`, `media_items`, `genres`, `media_item_genres`, `seasons`, `chapters`, `user_libraries`, `custom_lists`, `custom_list_items`, `diary_entries`, `chapter_progress`, `playtime_logs`, `decision_points`, `decision_options`, `user_decisions`, `reviews` | **Implemented** |
-| `external_sources`, `sync_job_logs`, `media_embeddings`, `user_taste_vectors` | **Proposed, not built** |
+| `users`, `media_items`, `genres`, `media_item_genres`, `seasons`, `chapters`, `user_libraries`, `custom_lists`, `custom_list_items`, `diary_entries`, `chapter_progress`, `playtime_logs`, `decision_points`, `decision_options`, `user_decisions`, `reviews`, `media_embeddings` | **Implemented** |
+| `external_sources`, `sync_job_logs`, `user_taste_vectors` | **Proposed, not built** |
 
 The diary table is called `diary_entries` in the code. Earlier drafts called it `activity_events`.
 
@@ -40,11 +40,11 @@ erDiagram
     DECISION_POINTS ||--o{ USER_DECISIONS : "is answered in"
     DECISION_OPTIONS ||--o{ USER_DECISIONS : "is chosen in"
     USER_LIBRARIES ||--o| REVIEWS : "has"
-    MEDIA_ITEMS ||--o{ MEDIA_EMBEDDINGS : "is embedded as (not built)"
+    MEDIA_ITEMS ||--o{ MEDIA_EMBEDDINGS : "has embeddings"
     USERS ||--o| USER_TASTE_VECTORS : "has (not built)"
 ```
 
-The relationships marked "not built" belong to `EXTERNAL_SOURCES`, `SYNC_JOB_LOGS`, `MEDIA_EMBEDDINGS` and `USER_TASTE_VECTORS`. These four tables do not exist in the database.
+The relationships marked "not built" belong to `EXTERNAL_SOURCES`, `SYNC_JOB_LOGS` and `USER_TASTE_VECTORS`. These three tables are design-only.
 
 ## 2. Core and journal tables (Epic 2)
 
@@ -208,7 +208,7 @@ erDiagram
 
 ## 5. AI tables (Epic 5)
 
-Only `reviews` is built.
+`reviews` and `media_embeddings` are implemented.
 
 ```mermaid
 erDiagram
@@ -225,9 +225,9 @@ erDiagram
     }
 ```
 
-### Proposed, not built
+### Embedding storage
 
-The two vector tables have no model, no migration and no code that writes or reads them. The recommendations (US-13) do not need them, because they rank by genre.
+`media_embeddings` is implemented by migration `0012_media_embeddings.py`. Title details create or refresh an embedding when the title has genres or a description and its source text changes. The recommendations (US-13) still rank by genre; vector-based recommendations are not implemented. `user_taste_vectors` remains proposed.
 
 ```mermaid
 erDiagram
@@ -410,16 +410,16 @@ Unique on (`decision_options.decision_point_id`, `decision_options.label`) and o
 | `id` | INTEGER | PK | Identifier |
 | `library_entry_id` | INTEGER | FK, UK, NN, cascade | The library entry. One review for each entry |
 | `text` | TEXT | NN | Review text. The API accepts 1 to 5000 characters |
-| `contains_spoiler` | BOOLEAN | NULL | True or false. The API always sets it |
+| `contains_spoiler` | BOOLEAN | NULL | True or false. NULL when the review was not checked (OpenAI failed) |
 | `spoiler_score` | FLOAT | NULL | Classifier score from 0 to 1 |
-| `spoiler_model_version` | VARCHAR(50) | NULL | The model that classified the text, for example `gpt-4o-mini`, or `omnilog-nlp-spoiler-v1` for the local patterns |
+| `spoiler_model_version` | VARCHAR(50) | NULL | The model that classified the text, for example `gpt-4o-mini`, or `omnilog-nlp-spoiler-v1` for the local patterns. NULL when the review was not checked |
 | `created_at` | DATETIME | NN, default now (UTC) | Creation time |
 | `updated_at` | DATETIME | NULL | Empty until the review is replaced. The service sets it, the database does not |
 
 A second review for the same entry replaces the first one, so the unique constraint `uq_review_library_entry` is never hit by the API.
 
-### media_embeddings (Proposed, not built)
-This table does not exist. There is no model, no migration and no code that reads or writes it. The function `embed_texts` in `backend/app/integrations/openai_client.py` can ask OpenAI for vectors, but nothing calls it.
+### media_embeddings (Implemented, migration 0012)
+This table stores title embeddings produced by OpenAI. The composite primary key (`media_item_id`, `model_name`) permits multiple embedding models for a title. Deleting a media item cascades to its embeddings. A HNSW index with cosine distance supports vector similarity queries.
 
 | Column | Type | Constraints | Description |
 |---|---|---|---|
@@ -476,13 +476,13 @@ The key `omni:reco:{user_id}:{target}` of the design is not built. The recommend
 
 ## 8. Embedding table and vector space review
 
-This section reviews the Epic 5 data design. **It is a design only and none of it is built.** The code has no `media_embeddings` table, and `GET /recommendations` ranks the titles by the genres of the library. Only the model name and the size (`text-embedding-3-small`, 1536) exist in the settings, and the function `embed_texts` exists in the OpenAI client without a caller.
+The `media_embeddings` table and embedding service are implemented. Title details create or refresh vectors using OpenAI `text-embedding-3-small` (1536 dimensions) when the source text changes. The CLI command `python -m app.embeddings` backfills missing or stale vectors. `GET /recommendations` still ranks titles by library genres and does not yet use vector similarity.
 
 ### 8.1 What was checked
 
 | Check | Result |
 |---|---|
-| Is there a table for the vectors? | Not in the code. The design has `media_embeddings`, which is not built. |
+| Is there a table for the vectors? | Yes. `media_embeddings` is implemented by migration `0012_media_embeddings.py`. |
 | Can games and series be compared? | Yes, if one model and one text template are used for all media types. Then all titles share one vector space. |
 | Can the model be changed later? | Yes. The primary key (`media_item_id`, `model_name`) allows two models at the same time during a migration. |
 | Does the vector become old when the title changes? | `source_text_hash` detects this. If the hash changes, the vector is made again. |
@@ -504,5 +504,5 @@ This section reviews the Epic 5 data design. **It is a design only and none of i
 |---|---|
 | 1 | Which embedding model is used (hosted or open source), and what is its dimension? Decided: OpenAI `text-embedding-3-small`, 1536 dimensions. |
 | 2 | Is the Charter's collaborative filtering part of version 1? Decided: No. Version 1 uses content-based recommendations only. |
-| 3 | Are the embeddings built? No. Version 1 of the code ranks by genre and never creates a vector. The two tables stay proposed. |
+| 3 | Are the embeddings built? Yes. Title embeddings are created or refreshed when title details are opened. Recommendations still rank by genre; `user_taste_vectors` remains proposed. |
 | 3 | Which model detects spoilers? Decided: OpenAI `gpt-4o-mini`, with a threshold of `0.5`. The model name is stored in `spoiler_model_version`. |

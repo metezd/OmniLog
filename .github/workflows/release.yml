@@ -1,0 +1,89 @@
+name: Release
+
+# Starts when a version tag such as v0.8.0 is pushed. It checks the tag and creates the
+# GitHub Release with the text of the matching section of CHANGELOG.md.
+# The steps of a release are in CONTRIBUTING.md, section "Versioning and releases".
+# Render deploys main by itself, so this workflow deploys nothing.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: Create the GitHub Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # The tag name goes in through the environment and never into the script text
+      - name: Check the tag
+        id: tag
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          if ! [[ "$TAG" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            echo "::error::The tag '$TAG' is not a version like v1.2.3"
+            exit 1
+          fi
+          {
+            echo "version=${TAG#v}"
+            echo "major=${BASH_REMATCH[1]}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Check that the tagged commit is on main
+        run: |
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::The tagged commit is not on main. Tag the merge commit on main."
+            exit 1
+          fi
+
+      - name: Check that the versions in the files match the tag
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          backend="$(sed -n 's/^ *version="\([^"]*\)",$/\1/p' backend/app/main.py | head -n 1)"
+          frontend="$(jq -r .version frontend/package.json)"
+          lock="$(jq -r .version frontend/package-lock.json)"
+          for found in "backend/app/main.py=$backend" "frontend/package.json=$frontend" "frontend/package-lock.json=$lock"; do
+            if [ "${found#*=}" != "$VERSION" ]; then
+              echo "::error file=${found%%=*}::The version is '${found#*=}' but the tag is v$VERSION"
+              exit 1
+            fi
+          done
+
+      - name: Take the release notes from CHANGELOG.md
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          awk -v v="$VERSION" 'index($0, "## [" v "]") == 1 { found = 1; next } /^## \[/ { found = 0 } found' CHANGELOG.md > release-notes.md
+          if ! grep -q '[^[:space:]]' release-notes.md; then
+            echo "::error file=CHANGELOG.md::No section '## [$VERSION]' with content was found"
+            exit 1
+          fi
+          cat release-notes.md
+
+      # Versions below 1.0.0 are marked as pre-releases
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          MAJOR: ${{ steps.tag.outputs.major }}
+        run: |
+          flags=(--verify-tag --title "OmniLog ${TAG#v}" --notes-file release-notes.md)
+          if [ "$MAJOR" = "0" ]; then
+            flags+=(--prerelease)
+          fi
+          gh release create "$TAG" "${flags[@]}"

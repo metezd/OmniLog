@@ -2,8 +2,9 @@ import os
 
 from dotenv import load_dotenv
 
-# Load variables from a local .env file (ignored by git) if it exists
-load_dotenv(override=os.getenv("SECRET_KEY") != "test-secret-key-at-least-32-characters-long")
+# Load variables from a local .env file (ignored by git) if it exists. A variable that is
+# already set (shell, CI, Render, the test setup) keeps priority over the file.
+load_dotenv()
 
 
 def _require(name: str) -> str:
@@ -15,7 +16,7 @@ def _require(name: str) -> str:
 
 
 # PostgreSQL connection string, e.g.
-# postgresql+psycopg2://omnilog:omnilog@localhost:5432/omnilog
+# postgresql+psycopg2://<user>:<password>@localhost:5432/omnilog
 DATABASE_URL = _require("DATABASE_URL")
 
 # Secret used to sign JWT tokens. It has no default on purpose: a public
@@ -43,6 +44,25 @@ if "*" in CORS_ORIGINS:
 # Turn it off in production, so the full list of endpoints is not public.
 ENABLE_DOCS = os.getenv("ENABLE_DOCS", "true").strip().lower() in ("1", "true", "yes", "on")
 
+# Allow POST /media, which adds a title to the shared catalog (#218). Off by default, so the
+# route answers 404: titles come from the catalog search. The tests turn it on to make fixtures.
+ALLOW_MEDIA_CREATE = os.getenv("ALLOW_MEDIA_CREATE", "false").strip().lower() in ("1", "true", "yes", "on")
+
+# How many proxies add an address to X-Forwarded-For in front of the backend (#251, #301). The
+# client address is read that many places from the right end of the header, because a client can
+# write anything at the left end. 0 (default) uses the address that uvicorn gives, which is right
+# for development and for the Docker setup (FORWARDED_ALLOW_IPS). render.yaml sets 1.
+FORWARDED_TRUSTED_HOPS = int(os.getenv("FORWARDED_TRUSTED_HOPS", "0"))
+if FORWARDED_TRUSTED_HOPS < 0:
+    raise RuntimeError("FORWARDED_TRUSTED_HOPS must be 0 or more.")
+
+# A key that the frontend and the backend share (#301). The frontend sends it with the browser
+# address in X-Client-IP, so the login and register limits count the browser and not the
+# frontend. Without the right key the backend ignores X-Client-IP. Empty turns this off.
+FRONTEND_PROXY_SECRET = os.getenv("FRONTEND_PROXY_SECRET", "").strip()
+if FRONTEND_PROXY_SECRET and len(FRONTEND_PROXY_SECRET) < 32:
+    raise RuntimeError("FRONTEND_PROXY_SECRET must be at least 32 characters long, or empty.")
+
 # How long a login token stays valid, in minutes
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "90"))
 
@@ -56,7 +76,8 @@ IGDB_CLIENT_SECRET = os.getenv("IGDB_CLIENT_SECRET", "").strip()
 TMDB_API_KEY = os.getenv("TMDB_API_KEY", "").strip()
 
 # Redis holds the search cache. If Redis is down, an in-process cache is used instead.
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+# An empty value turns Redis off, so the in-process cache is used from the start (#251).
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0").strip()
 
 # How long a search result stays cached, in seconds (default: 1 hour)
 CACHE_TTL_SECONDS = int(os.getenv("CACHE_TTL_SECONDS", "3600"))

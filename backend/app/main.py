@@ -1,4 +1,4 @@
-﻿from fastapi import Depends, FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
@@ -11,42 +11,28 @@ from app.api.chapters import router as chapters_router
 from app.api.journal import router as journal_router
 from app.api.recommendations import router as recommendations_router
 from app.api.stats import router as stats_router
-from app.api import lists
 from app.core.errors import register_exception_handlers
 from app.api.library import router as library_router
 from app.api.media import router as media_router
 from app.core import cache
+from app.core.body_limit import BodySizeLimitMiddleware
+from app.core.security_headers import SecurityHeadersMiddleware
 from app.core.config import CORS_ORIGINS, ENABLE_DOCS
 from app.core.database import get_db
 
 app = FastAPI(
     title="OmniLog API",
     description="Video Game & TV Series Tracking API",
-    version="1.0.0",
+    version="0.8.0",
     docs_url="/docs" if ENABLE_DOCS else None,
     redoc_url="/redoc" if ENABLE_DOCS else None,
     openapi_url="/openapi.json" if ENABLE_DOCS else None,
 )
 
-SECURITY_HEADERS = {
-    "X-Content-Type-Options": "nosniff",
-    "Referrer-Policy": "no-referrer",
-}
-
-
-@app.middleware("http")
-async def add_security_headers(request: Request, call_next):
-    """Add the security headers to every answer. The proxy (Caddy) does not set them, and on
-    Render there is no proxy of ours, so the API sets them itself.
-
-    Answers of /auth/* can hold a token or user data, so they must never be cached.
-    """
-    response = await call_next(request)
-    for name, value in SECURITY_HEADERS.items():
-        response.headers.setdefault(name, value)
-    if request.url.path.startswith("/auth/") or request.url.path == "/auth":
-        response.headers["Cache-Control"] = "no-store"
-    return response
+# The body size limit runs inside the security headers, so its 413 and 400 answers get them too
+# (#302). The security headers are on every answer, also on an unhandled error (#220, #304).
+app.add_middleware(BodySizeLimitMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
@@ -66,7 +52,6 @@ app.include_router(chapters_router)
 app.include_router(journal_router)
 app.include_router(recommendations_router)
 app.include_router(stats_router)
-app.include_router(lists.router)
 
 
 @app.get("/")

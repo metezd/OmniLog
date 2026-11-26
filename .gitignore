@@ -1,11 +1,32 @@
-# Secrets of the production stack
+# Secrets of the production stack and local settings
+.env
+.env.*
+!.env.example
 .env.prod
 
-# Local files
+# Python
 __pycache__/
+*.py[cod]
 .pytest_cache/
 .ruff_cache/
 .coverage
 coverage.xml
-
+htmlcov/
 .venv/
+venv/
+
+# Node (the frontend has its own .gitignore too)
+node_modules/
+
+# Editors and operating systems
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local backup files
+*.bak
+
+# Local development and temporary test backups
+.venv-old/
+tests/requirements/test_epic5_ai.py.save

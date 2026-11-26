@@ -71,7 +71,10 @@ function backendBaseUrl(): string {
   if (protocol !== "http:" && protocol !== "https:") {
     throw new Error("BACKEND_URL is not a valid URL. Start it with http:// or https://");
   }
-  return configured.replace(/\/+$/, "");
+  // Without a regular expression: /\/+$/ can backtrack on a long run of slashes (Sonar S8786)
+  let end = configured.length;
+  while (end > 0 && configured[end - 1] === "/") end -= 1;
+  return configured.slice(0, end);
 }
 
 /** Message and field messages of an error answer of the backend (FastAPI). */
@@ -133,7 +136,19 @@ export async function backendFetch<T = unknown>(
   if (token) headers.set("Authorization", `Bearer ${token}`);
   if (body !== undefined) headers.set("Content-Type", "application/json");
   const forwarded = forwardedFor?.trim();
-  if (forwarded && FORWARDED_FOR.test(forwarded)) headers.set("X-Forwarded-For", forwarded);
+  if (forwarded && FORWARDED_FOR.test(forwarded)) {
+    headers.set("X-Forwarded-For", forwarded);
+    // On Render the backend cannot tell this server from a browser by the address. So the browser
+    // address goes in its own header, with a key that only this server and the backend know
+    // (#301). It is the right-most address, the one that the proxy in front of this server wrote.
+    // The left part was written by the browser.
+    const secret = process.env.FRONTEND_PROXY_SECRET?.trim();
+    const browser = forwarded.split(",").map((part) => part.trim()).filter(Boolean).at(-1);
+    if (secret && browser) {
+      headers.set("X-Client-IP", browser);
+      headers.set("X-Frontend-Key", secret);
+    }
+  }
 
   let response: Response;
   try {

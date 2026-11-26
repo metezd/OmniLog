@@ -1,8 +1,14 @@
-README.md @metezd
-docs/ @metezd
-.editorconfig @metezd
-.gitattributes @metezd
-env.example @metezd
-docker-compose.yml @metezd
-backend/ @metezd
-.github/ @metezd
+# Every path has an owner, so GitHub asks for a review by itself (see CONTRIBUTING.md, Code review).
+# The last matching line wins.
+*                       @metezd
+/frontend/              @metezd @KeremKenet
+/backend/               @metezd
+/tests/                 @metezd
+/docs/                  @metezd
+/.github/               @metezd
+/docker/                @metezd
+/docker-compose*.yml    @metezd
+/render.yaml            @metezd
+/README.md              @metezd
+/CONTRIBUTING.md        @metezd
+/CHANGELOG.md           @metezd

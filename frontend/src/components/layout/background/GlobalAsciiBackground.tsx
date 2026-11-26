@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
@@ -719,8 +719,8 @@ export default function GlobalAsciiBackground() {
           for (let k = 0; k < T_OUT; k++) {
             const base = bellLocal(1, (k / T_OUT) * Math.PI * 2 + rotY + 0.11);
             const length = 1.0 + 0.18 * Math.sin(k * 2.3);
-            let prevX = NaN;
-            let prevY = NaN;
+            let prevX = Number.NaN;
+            let prevY = Number.NaN;
 
             for (let is = 0; is <= T_STEPS; is++) {
               const s = is / T_STEPS;
@@ -920,8 +920,8 @@ export default function GlobalAsciiBackground() {
 
           // Whip tail
           const TAIL_STEPS = Math.ceil(64 * dens);
-          let tailPrevX = NaN;
-          let tailPrevY = NaN;
+          let tailPrevX = Number.NaN;
+          let tailPrevY = Number.NaN;
           for (let it = 0; it <= TAIL_STEPS; it++) {
             const r = it / TAIL_STEPS;
             const wave = ta * 2.4 - r * 5.2;
@@ -1037,8 +1037,8 @@ export default function GlobalAsciiBackground() {
             const a = (ir / (TAIL_RAYS - 1)) * 2 - 1;
             const spreadAngle = a * 1.28;
             const isRay = ir % 3 === 0;
-            let prevX = NaN;
-            let prevY = NaN;
+            let prevX = Number.NaN;
+            let prevY = Number.NaN;
 
             for (let is = 0; is <= RAY_STEPS; is++) {
               const r = is / RAY_STEPS;
@@ -1091,8 +1091,8 @@ export default function GlobalAsciiBackground() {
             for (let ir = 0; ir < RAYS; ir++) {
               const s = ir / (RAYS - 1);
               const isRay = ir % 3 === 0;
-              let prevX = NaN;
-              let prevY = NaN;
+              let prevX = Number.NaN;
+              let prevY = Number.NaN;
 
               for (let is = 0; is <= STEPS; is++) {
                 const r = is / STEPS;
@@ -1127,8 +1127,8 @@ export default function GlobalAsciiBackground() {
           // Pelvic streamers: two long thin filaments trailing from the belly
           for (const side of [1, -1]) {
             const ST = Math.ceil(26 * dens);
-            let prevX = NaN;
-            let prevY = NaN;
+            let prevX = Number.NaN;
+            let prevY = Number.NaN;
             for (let is = 0; is <= ST; is++) {
               const s = is / ST;
               const fx = -0.22 + 0.6 * s + 0.03 * Math.sin(ta * 3.0 - s * 5);

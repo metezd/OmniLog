@@ -27,6 +27,7 @@ flowchart LR
 | `docker/Caddyfile` | The proxy settings |
 | `env.prod.example` | A list of all settings. Copy it to `.env.prod` |
 | `.github/workflows/docker-build.yml` | Builds the images and tests the stack on every change |
+| `.github/workflows/release.yml` | Creates the GitHub Release when a version tag is pushed |
 
 `docker-compose.yml` (without `.prod`) is not changed. It is still the small stack for development, with only PostgreSQL and Redis.
 
@@ -86,14 +87,17 @@ All settings are in `.env.prod`. The file holds secrets and is ignored by Git. C
 | `SECRET_KEY` | yes | Signs the login tokens. At least 32 characters. The backend does not start with a shorter key |
 | `APP_DOMAIN` | yes | Name of the frontend, for example `app.example.com` |
 | `API_DOMAIN` | yes | Name of the backend, for example `api.example.com` |
-| `API_URL` | yes | The public address of the backend, for example `https://api.example.com`. Built into the frontend image as `NEXT_PUBLIC_API_URL`. Only the Axios client in `src/lib/api.ts` uses it, and the build stops when it is empty |
+| `API_URL` | yes | The public address of the backend, for example `https://api.example.com`. Built into the frontend image as `NEXT_PUBLIC_API_URL`. No code reads it since the Axios client `src/lib/api.ts` was removed, but the build still stops when it is empty |
 | `CORS_ORIGINS` | yes | The address of the frontend, for example `https://app.example.com`. The backend accepts browser calls only from here |
-| `ENABLE_DOCS` | no | Shows the API documentation at `/docs`, `/redoc` and `/openapi.json`. Default is `false` in `docker-compose.prod.yml` and `true` when the backend runs without it (development) |
+| `FORWARDED_TRUSTED_HOPS` | no | How many proxies add an address to `X-Forwarded-For` in front of the backend. The login and register limits then count the address that many places from the right end of the header. Default `0` (use the address that uvicorn gives, right for this Docker setup). `render.yaml` sets `1` (section 9.1) |
+| `FRONTEND_PROXY_SECRET` | no | A key that the backend and the frontend share, at least 32 characters. With it the frontend sends the browser address in `X-Client-IP`, and the backend uses that address only when `X-Frontend-Key` matches. Empty turns it off. `render.yaml` generates it for the backend and copies it to the frontend (section 9.1) |
+| `ENABLE_DOCS` | no | Shows the API documentation at `/docs`, `/redoc` and `/openapi.json`. Default is `false` in `docker-compose.prod.yml` and `render.yaml`, and `true` when the backend runs without it (development) |
+| `ALLOW_MEDIA_CREATE` | no | Turns on `POST /media`, which adds a title to the shared catalog. Default is `false`, so the route answers 404. Leave it off in production: titles come from the catalog search. Only the tests turn it on |
 | `IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET`, `TMDB_API_KEY` | no | Keys of the catalog services. Without them the catalog search cannot reach the outside services |
 | `OPENAI_API_KEY` | no | OpenAI API key. Without it, OpenAI-backed features are disabled |
 | `EMBEDDING_MODEL`, `EMBEDDING_DIMENSIONS`, `SPOILER_MODEL`, `SPOILER_THRESHOLD`, `OPENAI_TIMEOUT_SECONDS`, `OPENAI_MAX_RETRIES` | no | Models, spoiler confidence threshold, request timeout in seconds and retry count |
 | `IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET`, `TMDB_API_KEY` | no | Keys of the catalog services. Without them the catalog search cannot reach the outside services. For a demo without keys, set `IGDB_CLIENT_ID=public` (and any value in `IGDB_CLIENT_SECRET`) for games from the Steam Store, and `TMDB_API_KEY=public` for series from TVMaze and movies from iTunes. Their ids are not IGDB or TMDB ids, so fill one database in one mode only |
-| `OPENAI_API_KEY` | no | OpenAI API key. Without it, the spoiler check of a review uses local patterns instead of OpenAI. The review is saved in both cases |
+| `OPENAI_API_KEY` | no | OpenAI API key. Without it, the spoiler check of a review uses local patterns instead of OpenAI. The review is saved first in both cases. When the key is set and OpenAI fails, the spoiler fields of the review stay NULL (not checked) |
 | `SPOILER_MODEL` | no | Model that classifies a review. Default `gpt-4o-mini` |
 | `SPOILER_THRESHOLD` | no | Score from 0 to 1 at which a review is flagged. Default `0.5` |
 | `OPENAI_TIMEOUT_SECONDS`, `OPENAI_MAX_RETRIES` | no | Time limit of one OpenAI call in seconds (default `8`) and number of retries (default `2`) |
@@ -140,6 +144,30 @@ To go back to an older version, check out the older commit and run the same comm
 Do not change `requirements.txt` by hand. Change `backend/requirements.in` (the direct dependencies) and make the lock again with the command at the top of that file. The tools for the tests have their own lock, `tests/requirements-test.txt`, made from `tests/requirements-test.in` on top of the backend lock.
 
 The lock is made for Linux and the Python version of `backend/Dockerfile`. When the base image moves to a new Python version, make both locks again with the new `--python-version`. The job "Security lint (Ruff)" in CI makes both locks again and fails when the result differs from the committed files, so a forgotten step shows up in the pull request.
+
+### Deployment pipeline
+
+A change reaches the running app in these steps. Only the first one is done by a person.
+
+```mermaid
+flowchart LR
+    PR[Pull request] --> CI[Checks: CI, Docker build, Security]
+    CI --> R[Review and Rebase and merge into main]
+    R --> RD[Render builds main after the checks pass]
+    RD --> MG[alembic upgrade head]
+    MG --> HC[Health check /health]
+    R -.->|version tag| REL[GitHub Release]
+```
+
+1. **Pull request.** The checks of `.github/workflows` run: `ci.yml` (tests, coverage gate, migrations, dependency audit, lock files, Compose smoke test, frontend lint, types, tests and build), `docker-build.yml` (the production images and the whole stack) and `security.yml` (secrets, vulnerabilities, workflow audit). The ruleset of `main` needs the required checks and one approval before the merge (see [CONTRIBUTING.md](../CONTRIBUTING.md#code-review)).
+2. **Merge.** The pull request is merged into `main` with Rebase and merge. The same checks run again on `main`.
+3. **Deploy.** `render.yaml` sets `autoDeployTrigger: checksPass` for both web services, so Render builds and starts a new version of `main` only after its GitHub checks have passed. A red commit is never deployed.
+4. **Migrations and health.** The start command of the backend runs `alembic upgrade head` before `uvicorn`. Render keeps the old version running until the new one answers the health check `/health`, so a version that does not start does not replace the running one.
+5. **Release.** A version tag (`v0.8.0`) on `main` starts `release.yml`, which creates the GitHub Release from `CHANGELOG.md`. The tag deploys nothing. It marks the version that was deployed (see [CONTRIBUTING.md](../CONTRIBUTING.md#versioning-and-releases)).
+
+The deployment with Docker on your own server (sections 3 and 5) is done by hand with `git pull` and `docker compose up -d --build`, from a tagged version if you want a fixed version.
+
+**Rollback.** On Render, open the service, choose an earlier deploy in the list of events and select **Rollback**. The code goes back at once. A migration that was already applied is not undone (see above), so a change with a migration is rolled forward with a fix instead. Then make a patch release.
 
 ## 6. Backup and restore
 
@@ -202,8 +230,11 @@ Open `https://localhost` in the browser and accept the certificate warning, beca
 | Traffic can be read | The proxy uses HTTPS with certificates that renew by themselves |
 | Other websites call the API from a browser | `CORS_ORIGINS` lists only the app address |
 | A stolen token works forever | Every token has `exp`. A token without `exp` or `sub` is rejected with 401 |
-| The browser guesses the type of an answer, or sends the API address to other sites | The backend sends `X-Content-Type-Options: nosniff` and `Referrer-Policy: no-referrer` on every answer. Caddy does not add them, so they also work on Render |
+| The browser guesses the type of an answer, sends the API address to other sites, shows a page in a frame, or learns the server software | The backend sends `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `X-Frame-Options: DENY`, `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'` and `Permissions-Policy` on every answer, also on a 500 (`app/core/security_headers.py`, the API docs pages leave out the CSP). The frontend sends the same browser headers from `next.config.ts` and no `X-Powered-By`. Uvicorn runs with `--no-server-header`. So these also work on Render, where no Caddy of ours is in front. In the Docker setup Caddy adds them too, with `Strict-Transport-Security` and without `Server` (#304) |
+| HTTPS is skipped after the first visit | Caddy sends `Strict-Transport-Security: max-age=86400` (one day). Raise it to a year after a week without problems. On Render the platform terminates HTTPS. Which headers Render adds itself was not checked, because the address of the deployed service is not in the repository: check it with one `curl -sI https://<api-host>/health` and do not send a header twice |
 | A token or user data stays in a browser or proxy cache | Answers of `/auth/*` have `Cache-Control: no-store` |
+| A user fills the shared catalog with false titles or outside images | `POST /media` answers 404 unless `ALLOW_MEDIA_CREATE` is on. When it is on, `poster_url` must be an `https` address on `image.tmdb.org` or `images.igdb.com`. `GET /media/{id}` needs a login (#218) |
+| An injected script runs in the app, or a page loads an image from any host | The frontend sends a Content-Security-Policy on every page (`src/proxy.ts`): scripts only with the nonce of the request (no `unsafe-inline`), images only from the app and the TMDB and IGDB image hosts, no plugins, no framing. `CSP_REPORT_ONLY=true` on the frontend sends it as report only, to try out a change (#303) |
 | The full list of endpoints is public | `ENABLE_DOCS` is `false` in production, so `/docs`, `/redoc` and `/openapi.json` answer 404 |
 | The login token is stolen by a script in the page | The frontend keeps the token in an `httpOnly` cookie and sends it to the backend from its server code |
 | A break-in to a container gives full control | The backend and the frontend run as a normal user, not as root |
@@ -229,17 +260,26 @@ A call over the limit gets `429 Too Many Requests` with a `Retry-After` header (
 
 A client cannot choose the counted address by sending its own `X-Forwarded-For`: Caddy replaces the header of a client that it does not trust, and the backend ignores it from every other address. Without a proxy (development), the Dockerfile trusts only `127.0.0.1`.
 
+**On Render (#251, #301).** The address of the proxy of Render is not fixed, so `render.yaml` starts uvicorn with `--proxy-headers --forwarded-allow-ips="*"`. Uvicorn then takes the **first** address of `X-Forwarded-For`, which the client can write (penetration finding F1). So the backend does not use that address for the limits:
+
+1. **A call straight to the API.** `render.yaml` sets `FORWARDED_TRUSTED_HOPS=1`, so the backend counts the **right-most** address of `X-Forwarded-For`. The proxy of Render writes that one, whether it adds to the header of the client or replaces it. Anything the client writes stays on the left and is never counted.
+2. **A call from the frontend** (the login and registration forms). The right-most address is then the frontend, which every user shares. So the frontend also sends the browser address in `X-Client-IP`, with the key `FRONTEND_PROXY_SECRET` in `X-Frontend-Key`. The frontend takes the right-most address of the header that the proxy of Render wrote in front of it. The backend uses `X-Client-IP` only when the key matches (it compares with `hmac.compare_digest`), so a client cannot choose its address with this header either.
+
+`render.yaml` generates the key for `omnilog-api` and copies it to `omnilog-web` (`fromService` with `envVarKey`). If the frontend has no key, every login through it is counted for the frontend address, so one user could block the others again. The Docker setup does not need the key, because there uvicorn trusts only the fixed addresses of the proxy and the frontend.
+
+The Render documentation does not say whether its proxy adds to `X-Forwarded-For` or replaces it. The rule above is safe in both cases, because only the right-most address is used. Confirm on the deployed service with one harmless request before you rely on these limits.
+
 ## 10. What is not included yet
 
 - The images are not pushed to a registry. The server builds them itself.
-- There is no automatic deployment to a server or a hosting platform. The workflow only checks that the stack starts and answers.
+- There is no automatic deployment to your own server. Render deploys `main` by itself (see the deployment pipeline in section 5), but the Docker stack on a server is updated by hand. The workflow `docker-build.yml` only checks that the stack starts and answers.
 - There are no automatic backups, no monitoring and no alerts.
 - The stack runs one copy of each service. Running more copies of the backend is not set up and not tested.
-- Rate limits on Render: the backend there runs behind the proxy of Render, whose address is not fixed, and `render.yaml` does not set `FORWARDED_ALLOW_IPS`. Check which address is counted before you rely on the per-address limits there. `RATE_LIMIT_ENABLED=false` turns them off.
+- Rate limits on Render: the rule of section 9.1 was tested locally with the options of `render.yaml`, but not on the deployed service. `RATE_LIMIT_ENABLED=false` turns the limits off.
 - Only login, register, search and review have a rate limit.
 - The friends page of the frontend shows sample data. The login, register, library, search, title, lists, diary, statistics and recommendations screens call the backend through the server code of Next.js (`BACKEND_URL`).
 - Embeddings are not built. There is no `media_embeddings` table and no embeddings command. The recommendations (US-13) rank the catalog by the genres of the library, so they work without any key.
-- The spoiler check (US-14) uses OpenAI only when `OPENAI_API_KEY` is set. Without the key, or when OpenAI does not answer, the review is saved and checked with local patterns.
+- The spoiler check (US-14) uses OpenAI only when `OPENAI_API_KEY` is set. Without the key, the review is checked with local patterns. When the key is set and OpenAI does not answer, the review is saved and not checked (the spoiler fields stay NULL). The check runs after the review is committed, so no database connection is held during the OpenAI call.
 - The manual sync is the command `python -m app.sync`. The catalog has no sync endpoint, no scheduled sync and no admin endpoints. Title details also load from IGDB and TMDB when a title is opened.
 - The migrations and the tests need PostgreSQL. If the backend finds nothing at `localhost:5432` outside Docker, `app/core/database.py` falls back to a SQLite file. The production stack always has PostgreSQL, so this does not apply there.
 
