@@ -270,7 +270,7 @@ def _strip_html(text: Any) -> Optional[str]:
 
 
 def _search_public(media_type: MediaType, query: str, limit: int) -> list[ExternalTitle]:
-    """Keyless public search via TVMaze (SERIES) and iTunes (MOVIE) when TMDB_API_KEY='public'."""
+    """Keyless public search via TVMaze (SERIES) and Wikidata (MOVIE) when TMDB_API_KEY='public'."""
     if media_type == MediaType.SERIES:
         return _search_public_series(query, limit)
     return _search_public_movies(query, limit)
@@ -316,74 +316,145 @@ def _parse_tvmaze_entry(entry: Any) -> Optional[ExternalTitle]:
     )
 
 
-def _search_public_movies(query: str, limit: int) -> list[ExternalTitle]:
+# Keyless movies come from Wikidata (#370). iTunes stopped answering movie searches in November
+# 2026, also for "Titanic". Wikidata needs no key, but asks every client for a User-Agent that names
+# it (https://meta.wikimedia.org/wiki/User-Agent_policy).
+WIKIDATA_API = "https://www.wikidata.org/w/api.php"
+_WIKIDATA_HEADERS = {"Accept": "application/json", "User-Agent": "OmniLog/0.8 (https://github.com/metezd/OmniLog)"}
+_WIKIDATA_MAX = 50  # the most items one wbsearchentities or wbgetentities call takes
+
+# "instance of" (P31) values that make an item a movie: film, short film, animated film,
+# television film, documentary film, feature film. A soundtrack or a film series is not one.
+_FILM_KINDS = frozenset({"Q11424", "Q24862", "Q202866", "Q506240", "Q93204", "Q24869"})
+_QID = re.compile(r"^Q([1-9][0-9]{0,9})$")
+
+
+def _wikidata(params: dict[str, Any]) -> Any:
     response = request_with_retry(
         _session,
         "GET",
-        "https://itunes.apple.com/search",
+        WIKIDATA_API,
         source=SOURCE,
-        params={"term": query, "entity": "movie", "limit": int(limit)},
+        headers=_WIKIDATA_HEADERS,
+        params={**params, "format": "json"},
     )
     if response.status_code != 200:
-        raise ExternalServiceError(f"iTunes answered {response.status_code}")
-    body = json_body(response, SOURCE)
-    items = body.get("results") if isinstance(body, dict) else None
-    if not isinstance(items, list):
-        return []
+        raise ExternalServiceError(f"Wikidata answered {response.status_code}")
+    return json_body(response, SOURCE)
+
+
+def _wikidata_entities(ids: list[str], props: str) -> dict[str, Any]:
+    if not ids:
+        return {}
+    body = _wikidata(
+        # "mul" is the label for all languages, which many well-known items use instead of "en"
+        {"action": "wbgetentities", "ids": "|".join(ids[:_WIKIDATA_MAX]), "props": props, "languages": "en|mul"}
+    )
+    entities = body.get("entities") if isinstance(body, dict) else None
+    return entities if isinstance(entities, dict) else {}
+
+
+def _claim_values(entity: dict[str, Any], prop: str) -> list[Any]:
+    claims = entity.get("claims")
+    values = []
+    for item in (claims.get(prop) if isinstance(claims, dict) else None) or []:
+        try:
+            values.append(item["mainsnak"]["datavalue"]["value"])
+        except (KeyError, TypeError):
+            continue
+    return values
+
+
+def _english(entity: dict[str, Any], field: str) -> Optional[str]:
+    """The English text of a field, or the one for all languages ("mul")."""
+    for language in ("en", "mul"):
+        try:
+            value = entity[field][language]["value"]
+        except (KeyError, TypeError):
+            continue
+        if isinstance(value, str):
+            return value
+    return None
+
+
+def _is_film(entity: Any) -> bool:
+    if not isinstance(entity, dict):
+        return False
+    return any(isinstance(value, dict) and value.get("id") in _FILM_KINDS for value in _claim_values(entity, "P31"))
+
+
+def _earliest_release(entity: dict[str, Any]) -> Optional[str]:
+    """The earliest publication date (P577) that is known to the day, as YYYY-MM-DD."""
+    dates = []
+    for value in _claim_values(entity, "P577"):
+        if not isinstance(value, dict) or value.get("precision") != 11:
+            continue
+        time = value.get("time")
+        if isinstance(time, str) and time.startswith("+"):
+            day = clean_date(time[1:11])
+            if day:
+                dates.append(day)
+    return min(dates) if dates else None
+
+
+def _search_public_movies(query: str, limit: int) -> list[ExternalTitle]:
+    body = _wikidata(
+        {
+            "action": "wbsearchentities",
+            "search": query,
+            "language": "en",
+            "type": "item",
+            # Ask for more than the limit, because songs, albums and series share the titles
+            "limit": min(max(int(limit) * 3, 20), _WIKIDATA_MAX),
+        }
+    )
+    found = body.get("search") if isinstance(body, dict) else None
+    hits = [item for item in found or [] if isinstance(item, dict) and _QID.match(str(item.get("id", "")))]
+    ids = [item["id"] for item in hits]
+    search_labels = {item["id"]: item.get("label") for item in hits}
+    entities = _wikidata_entities(ids, "labels|claims")
 
     results: list[ExternalTitle] = []
-    for item in items[: int(limit)]:
-        title = _parse_itunes_entry(item)
-        if title is not None:
-            results.append(title)
+    for qid in ids:
+        entity = entities.get(qid)
+        if not _is_film(entity):
+            continue
+        title = clean_title(_english(entity, "labels") or search_labels.get(qid))
+        if title is None:
+            continue
+        results.append(
+            ExternalTitle(
+                external_id=int(_QID.match(qid).group(1)),
+                title=title,
+                poster_url=None,  # posters of films are not free, so Wikidata has none to show
+                release_date=_earliest_release(entity),
+            )
+        )
+        if len(results) >= int(limit):
+            break
     return dedupe(results)
 
 
-def _parse_itunes_entry(item: Any) -> Optional[ExternalTitle]:
-    if not isinstance(item, dict):
-        return None
-    ext_id = clean_external_id(item.get("trackId"))
-    title = clean_title(item.get("trackName"))
-    if ext_id is None or title is None:
-        return None
-    art = item.get("artworkUrl100")
-    poster = (
-        clean_url(art.replace("100x100bb", "600x600bb"))
-        if isinstance(art, str)
-        else None
-    )
-    raw_date = item.get("releaseDate")
-    rel_date = clean_date(raw_date[:10]) if isinstance(raw_date, str) else None
-    return ExternalTitle(
-        external_id=ext_id,
-        title=title,
-        poster_url=poster,
-        release_date=rel_date,
-    )
+def _genre_name(label: str) -> str:
+    """'science fiction film' -> 'Science Fiction', the form of the other sources."""
+    name = re.sub(r"\s+film$", "", label.strip(), flags=re.IGNORECASE)
+    return name.title()
 
 
 def _fetch_public_movie_details(external_id: int) -> Optional[ExternalDetails]:
-    response = request_with_retry(
-        _session,
-        "GET",
-        "https://itunes.apple.com/lookup",
-        source=SOURCE,
-        params={"id": int(external_id), "entity": "movie"},
-    )
-    if response.status_code != 200:
+    qid = f"Q{int(external_id)}"
+    try:
+        entity = _wikidata_entities([qid], "labels|descriptions|claims").get(qid)
+        if not _is_film(entity):
+            return None
+        genre_ids = [value["id"] for value in _claim_values(entity, "P136") if isinstance(value, dict) and value.get("id")]
+        genres = _wikidata_entities(genre_ids, "labels")
+    except ExternalServiceError:
         return None
-    body = json_body(response, SOURCE)
-    items = body.get("results") if isinstance(body, dict) else None
-    if not isinstance(items, list) or not items:
-        return None
-    movie = items[0] if isinstance(items[0], dict) else None
-    if not movie:
-        return None
-    genre = movie.get("primaryGenreName")
-    genre_entries = [{"name": genre}] if isinstance(genre, str) else []
+    labels = [_english(genres.get(gid) or {}, "labels") for gid in genre_ids]
     return ExternalDetails(
-        description=clean_text(movie.get("longDescription") or movie.get("shortDescription")),
-        genres=genres_from_entries(genre_entries),
+        description=clean_text(_english(entity, "descriptions")),
+        genres=genres_from_entries([{"name": _genre_name(label)} for label in labels if label]),
     )
 
 

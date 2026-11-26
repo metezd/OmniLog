@@ -18,6 +18,6 @@ The tests of these requirements are listed in [traceability.md](traceability.md)
 
 The "Status" column shows the implementation state, checked against the code on 19.11.2026. The analysis review state (draft, reviewed, accepted) is in [traceability.md](traceability.md).
 
-Rows R-EP3-07 to R-EP3-09 are new. They come from US-08, US-09 and NFR-04, which were missing in the first version of this table. A keyless demo mode (Steam Store, TVMaze and iTunes) also exists in the code and has no requirement of its own.
+Rows R-EP3-07 to R-EP3-09 are new. They come from US-08, US-09 and NFR-04, which were missing in the first version of this table. A keyless demo mode (Steam Store, TVMaze and Wikidata) also exists in the code and has no requirement of its own.
 
 Add a row to this table for every new or changed requirement in each PR.
