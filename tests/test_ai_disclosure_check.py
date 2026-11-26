@@ -25,7 +25,8 @@ def job():
 def run_check(body, has_label):
     script = job()["steps"][0]["run"]
     env = {"PATH": "/usr/bin:/bin", "BODY": body, "HAS_LABEL": "true" if has_label else "false"}
-    return subprocess.run(["bash", "-c", script], env=env, capture_output=True, text=True)
+    # The script comes from the workflow file of this repository, not from user input
+    return subprocess.run(["bash", "-c", script], env=env, capture_output=True, text=True)  # noqa: S603, S607
 
 
 def tick(box):
@@ -102,9 +103,11 @@ def test_windows_line_endings_are_read():
     assert run_check(body, has_label=True).returncode == 0
 
 
-def test_a_pasted_workflow_command_is_not_run():
-    body = tick("None") + "\n::error title=x::injected\n$(touch /tmp/omnilog-pwned)\n"
+def test_a_pasted_command_is_not_run(tmp_path):
+    marker = tmp_path / "ran"
+    body = tick("None") + f"\n::error title=x::injected\n$(touch {marker})\n`touch {marker}`\n"
     result = run_check(body, has_label=False)
 
     assert result.returncode == 0
-    assert not Path("/tmp/omnilog-pwned").exists()
+    assert "injected" not in result.stdout
+    assert not marker.exists()
