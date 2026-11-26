@@ -27,6 +27,7 @@ All notable changes to this project are written in this file. The format follows
 
 ### Fixed
 
+- The keyless movie search (`TMDB_API_KEY=public`) found nothing, because iTunes no longer answers movie searches. Movies now come from Wikidata, with the release date and the genres but without a poster (#370).
 - A local SonarQube scan found 2 bugs, 1 vulnerability and 12 code smells. All are fixed (an unreachable `raise`, a password in an example comment, a form label without its field, a regular expression that could backtrack). The CI scan now also reads the frontend coverage. The results are in `docs/tests/sonarqube.md` (#299).
 - The login and register limits on Render count the browser address again, not the address of the frontend for everybody. The new setting `FORWARDED_TRUSTED_HOPS` reads it from the right end of `X-Forwarded-For`, so a client cannot choose it by writing the left end (#251).
 - `docker-compose.yml` publishes PostgreSQL on `localhost:5432` again, which CI, `backend/.env.example` and the docs use. It was moved to `5433`, so the Docker Compose smoke test found no database, fell back to SQLite and failed on the migrations. `POSTGRES_PORT` now picks another port when 5432 is taken.

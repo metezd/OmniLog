@@ -13,7 +13,7 @@ This document is the detailed view (Level 2) of process **3.0 Catalog Aggregatio
 
 | Type | Items |
 |---|---|
-| External entities | IGDB API, TMDB API, Frontend (Client). In the keyless demo mode the Steam Store, TVMaze and iTunes take the place of IGDB and TMDB. The Operator (Admin UI) and the Secret Manager of the design are not built. The keys come from environment variables |
+| External entities | IGDB API, TMDB API, Frontend (Client). In the keyless demo mode the Steam Store, TVMaze and Wikidata take the place of IGDB and TMDB. The Operator (Admin UI) and the Secret Manager of the design are not built. The keys come from environment variables |
 | Data stores | D5 Catalog (Persistent DB), D9 Redis Cache. D10 Sync Job Log is not built |
 | Processes | 3.1 Serve Catalog Request, 3.2 Search Catalog, 3.3 Fetch From External, 3.4 Normalize and Transform, 3.5 Persist and Cache, 3.7 Handle Errors and Retry. 3.6 Run Sync is not built |
 
@@ -119,7 +119,7 @@ Not built: a scheduled sync, a sync endpoint, a job log (D10) and the feed of ch
 - Cache key patterns: `omni:catalog:{source}:{external_id}` and `omni:search:{type}:{query_hash}`.
 - TTL: search results use `CACHE_TTL_SECONDS` (default 1 hour) and title details use `DETAILS_CACHE_TTL_SECONDS` (default 24 hours). Both are settings (AN-2). A TTL by content type is not built.
 - Tables: `media_items`, `genres`, `media_item_genres`, `seasons`, `chapters`. The tables `external_sources` and `sync_job_logs` of the design are not built. See [../data/er-diagram.md](../data/er-diagram.md).
-- Keyless demo mode: with `IGDB_CLIENT_ID=public` games come from the Steam Store, and with `TMDB_API_KEY=public` series come from TVMaze and movies from iTunes. The ids are then the ids of those services.
+- Keyless demo mode: with `IGDB_CLIENT_ID=public` games come from the Steam Store, and with `TMDB_API_KEY=public` series come from TVMaze and movies from Wikidata. The ids are then the ids of those services.
 - Games: seasons and episodes come from TMDB for series. For episodic games, chapters, decision points and options have no outside source. They come from a seed file (`backend/app/seed/game_chapters.json`, loaded with `python -m app.seed`). This is open point 3 in [../data/domain-model.md](../data/domain-model.md), answered.
 - Secrets: the IGDB and TMDB keys stay in environment variables. A Secret Manager is not built. When the IGDB token expires, a new one is requested before the next call.
 
