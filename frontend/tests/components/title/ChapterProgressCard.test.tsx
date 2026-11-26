@@ -92,4 +92,10 @@ describe("ChapterProgressCard", () => {
     await user.click(screen.getByRole("button", { name: /B:\s*Hide the truth/ }));
     await waitFor(() => expect(screen.getByText('Choice "B" saved')).toBeInTheDocument());
   });
+
+  it("labels the playtime field, so a screen reader names it (Sonar S6853)", () => {
+    render(<ChapterProgressCard chapter={makeChapter()} entryId={10} mediaItemId={42} progress={makeProgress()} />);
+
+    expect(screen.getByLabelText("Log Playtime / Watch Time (minutes)")).toHaveAttribute("name", "minutes");
+  });
 });
