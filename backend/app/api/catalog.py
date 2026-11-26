@@ -1,7 +1,7 @@
 """Catalog endpoints. US-08 Search the catalog, US-09 View title details."""
 from typing import Annotated, List
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from fastapi.exceptions import RequestValidationError
 from sqlalchemy.orm import Session
 
@@ -19,6 +19,11 @@ from app.services.catalog_service import (
 
 router = APIRouter(prefix="/catalog", tags=["Catalog"])
 
+# The catalog answers are the same for every user, so a client may reuse one for 5 minutes and
+# show it for 10 more while it asks again (#250). They need a token, so they are private: a shared
+# cache must not keep them and give them to a caller without a token. Only a 200 gets the header.
+CATALOG_CACHE_CONTROL = "private, max-age=300, stale-while-revalidate=600"
+
 
 @router.get(
     "/search",
@@ -26,6 +31,7 @@ router = APIRouter(prefix="/catalog", tags=["Catalog"])
     dependencies=[Depends(limit_per_user("search"))],
 )
 def search_catalog(
+    response: Response,
     # The validator sits inside Annotated: FastAPI drops an AfterValidator next to a Query default
     q: Annotated[NoNulStr, Query(min_length=1, max_length=100, description="Title to search for")],
     media_type: MediaType = Query(..., alias="type", description="GAME, SERIES or MOVIE"),
@@ -39,7 +45,7 @@ def search_catalog(
     down, saved titles that match are returned, or 503 when there are none.
     """
     try:
-        return catalog_service.search_catalog(db, media_type, q)
+        results = catalog_service.search_catalog(db, media_type, q)
     except InvalidQueryError as exc:
         # Same error shape as the other validation errors
         raise RequestValidationError(
@@ -51,12 +57,15 @@ def search_catalog(
             detail=str(exc),
             headers={"Retry-After": "30"},
         )
+    response.headers["Cache-Control"] = CATALOG_CACHE_CONTROL
+    return results
 
 
 # Declared after /search, so the text "search" is never read as an id
 @router.get("/{media_id}", response_model=MediaDetailResponse)
 def get_title_details(
     media_id: int,
+    response: Response,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -68,7 +77,7 @@ def get_title_details(
     copy is returned, or 503 when the series was never loaded.
     """
     try:
-        return catalog_service.get_title_details(db, media_id)
+        details = catalog_service.get_title_details(db, media_id)
     except TitleNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
     except CatalogUnavailableError as exc:
@@ -77,3 +86,5 @@ def get_title_details(
             detail=str(exc),
             headers={"Retry-After": "30"},
         )
+    response.headers["Cache-Control"] = CATALOG_CACHE_CONTROL
+    return details
