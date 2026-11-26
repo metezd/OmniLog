@@ -10,7 +10,7 @@ Part of the review checklist in [#252] (section E). Issue: [#308]. This page exp
 | Claude Code | Claude Opus 5.5 | `sidarurey` | Agent with the repository, a shell, Docker and the browser: CI checks, security fixes, tests, test documents and reports, from [#318] to [#363] | [`sidar-urey.md`][sidar], trailers in every commit of [#349] to [#363] |
 | Codex desktop app (ChatGPT) | `gpt-6-luna` | `sidarurey` | Agent for US-13 ([#258]): code, tests, commits after approval | [`sidar-urey.md`][sidar] ([#319]) |
 | ChatGPT | not recorded | `sidarurey` | Chat for [#186], [#187], [#238], [#247] | [`sidar-urey.md`][sidar] ([#319]) |
-| Claude | Claude Sonnet 5.5 | `KeremKenet` | Tests of the statistics screen ([#255]). The tool is **pending** ([#313]) | `Co-Authored-By` trailer of [`8335c9d`][8335c9d] |
+| Claude Code / Claude (chat on claude.ai) | Claude Sonnet 5.5, Claude Opus 5.5 | `KeremKenet` | Frontend unit tests ([#189], [#190], [#191], [#255], [#335]), S-01 landing page and clean-up ([#243], [#244]), 3D ASCII background and liquid-glass contrast ([#213] to [#246]), poster proxy ([#326]), and design report updates ([#179]) | [`kerem-kenet.md`](kerem-kenet.md) ([#313]), `Co-Authored-By` trailer of [`8335c9d`][8335c9d] |
 | GitHub Copilot code review | - | - | An extra reviewer on 14 pull requests, from [#25] to [#228]. It does not count as an approval ([CONTRIBUTING.md](../../CONTRIBUTING.md#code-review)) | [`evidence.md`][evidence] ([#318]), section 2 |
 | Copilot Autofix | - | `metezd` | Fixes that answered Copilot review comments in [#41], [#66] and [#143] | `Co-authored-by: Copilot Autofix` in [`fa01da5`][fa01da5], [`e97895e`][e97895e] |
 | Claude (chat on claude.ai) | Claude Opus (version not recorded) | `musabalperenbasol` | Chat for [#6], [#78], [#84], [#240], [#254]. No repository access. The notes were drafted by a Cowork agent (Claude Opus 5.5) | [`musab-alperen-basol.md`](musab-alperen-basol.md) ([#316]) |
@@ -94,7 +94,8 @@ Did not work:
 | Notes of Mohammed Edris ([#317]) | [`mhmd-edrees.md`](mhmd-edrees.md) |
 | Notes of Sidar Ürey ([#315]) | [`sidar-urey.md`][sidar] (in [#319]) |
 | Notes of Musab Alperen Başol ([#316]) | [`musab-alperen-basol.md`](musab-alperen-basol.md) |
-| Notes of Mete Özdoğan, Kerem Kenet, Kağan Konuk | **pending**: [#312], [#313], [#314] |
+| Notes of Kerem Kenet ([#313]) | [`kerem-kenet.md`](kerem-kenet.md) |
+| Notes of Mete Özdoğan, Kağan Konuk | **pending**: [#312], [#314] |
 | Register of AI mistakes ([#310]) | [`mistakes.md`](mistakes.md) |
 | Evidence of AI use beyond autocomplete ([#311]) | [`evidence.md`][evidence] (in [#318]) |
 | AI assisted pull requests | `gh pr list --repo metezd/OmniLog --label ai-assisted --state all` |
@@ -113,6 +114,10 @@ Each member confirms the row of their own use in section 1 in the review of this
 [#143]: https://github.com/metezd/OmniLog/pull/143
 [#186]: https://github.com/metezd/OmniLog/pull/186
 [#187]: https://github.com/metezd/OmniLog/pull/187
+[#189]: https://github.com/metezd/OmniLog/pull/189
+[#190]: https://github.com/metezd/OmniLog/pull/190
+[#191]: https://github.com/metezd/OmniLog/pull/191
+[#213]: https://github.com/metezd/OmniLog/pull/213
 [#228]: https://github.com/metezd/OmniLog/pull/228
 [#231]: https://github.com/metezd/OmniLog/pull/231
 [#235]: https://github.com/metezd/OmniLog/pull/235
@@ -120,6 +125,9 @@ Each member confirms the row of their own use in section 1 in the review of this
 [#237]: https://github.com/metezd/OmniLog/pull/237
 [#238]: https://github.com/metezd/OmniLog/pull/238
 [#240]: https://github.com/metezd/OmniLog/pull/240
+[#243]: https://github.com/metezd/OmniLog/pull/243
+[#244]: https://github.com/metezd/OmniLog/pull/244
+[#246]: https://github.com/metezd/OmniLog/pull/246
 [#247]: https://github.com/metezd/OmniLog/pull/247
 [#252]: https://github.com/metezd/OmniLog/issues/252
 [#254]: https://github.com/metezd/OmniLog/pull/254
@@ -144,6 +152,8 @@ Each member confirms the row of their own use in section 1 in the review of this
 [#319]: https://github.com/metezd/OmniLog/pull/319
 [#320]: https://github.com/metezd/OmniLog/pull/320
 [#322]: https://github.com/metezd/OmniLog/pull/322
+[#326]: https://github.com/metezd/OmniLog/pull/326
+[#335]: https://github.com/metezd/OmniLog/pull/335
 [8335c9d]: https://github.com/metezd/OmniLog/commit/8335c9d
 [fa01da5]: https://github.com/metezd/OmniLog/commit/fa01da5
 [e97895e]: https://github.com/metezd/OmniLog/commit/e97895e
