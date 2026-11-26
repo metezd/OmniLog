@@ -26,3 +26,16 @@ def media_create_on(monkeypatch):
     from app.core import config
 
     monkeypatch.setattr(config, "ALLOW_MEDIA_CREATE", True)
+
+
+@pytest.fixture(autouse=True)
+def db_cache_off(monkeypatch):
+    """Turn the database cache (L2, DB_CACHE_TTL_DAYS) off.
+
+    Many tests clear Redis and open a title again to see a refresh from the outside service. With
+    the cache on, a title that was just loaded would be served from PostgreSQL instead.
+    tests/requirements/test_multilayer_cache.py turns it on again.
+    """
+    from app.core import config
+
+    monkeypatch.setattr(config, "DB_CACHE_TTL_DAYS", 0)

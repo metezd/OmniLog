@@ -120,11 +120,16 @@ Use passwords that have only letters and digits (`openssl rand -hex 32`). The pa
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | `90` | How long a login token stays valid |
 | `CACHE_TTL_SECONDS` | `3600` | How long search results stay in Redis |
 | `DETAILS_CACHE_TTL_SECONDS` | `86400` | How long title details stay in Redis |
+| `NEGATIVE_CACHE_TTL_SECONDS` | `300` | How long an empty answer from IGDB or TMDB (no search result, or an id the service does not know) stays in Redis. Keep it short. `0` turns it off |
+| `DB_CACHE_TTL_DAYS` | `7` | A title whose details were loaded less than this many days ago is served from PostgreSQL (`media_items.last_synced`), with no call to IGDB or TMDB. `0` turns it off |
+| `REDIS_SOCKET_TIMEOUT_SECONDS` | `0.5` | Time limit of one Redis call. Raise it for a Redis that is far away, such as a managed one |
 | `EXTERNAL_API_TIMEOUT_SECONDS` | `8` | Time limit of one call to IGDB or TMDB |
 | `EXTERNAL_API_MAX_RETRIES` | `3` | Retries after a timeout, a 429 or a 5xx answer |
 | `EXTERNAL_API_BACKOFF_SECONDS` | `0.5` | First wait between retries. It doubles after each retry |
 
 The backend finds the database and Redis through `DATABASE_URL` and `REDIS_URL`, which the compose file builds from the passwords.
+
+**Managed Redis (Upstash).** Redis holds the search cache, the details cache and the rate limit counters. The Redis of the `render.yaml` free plan keeps nothing on disk, so the counters and the cache are lost when it restarts. To keep them, set `REDIS_URL` to a persistent managed instance, for example the TLS address of Upstash (`rediss://default:<password>@<name>.upstash.io:6379`, with two `s`). Keep the address secret, because it holds the password. A managed Redis is farther away, so raise `REDIS_SOCKET_TIMEOUT_SECONDS` (for example to `1`) when calls time out. An empty `REDIS_URL` or a Redis that is down never stops the API: the in-process cache is used. The titles saved in PostgreSQL are a second cache layer: a title that was loaded less than `DB_CACHE_TTL_DAYS` days ago is served from the database without a call to IGDB or TMDB, even when Redis has lost its entries.
 
 ## 5. Update
 
@@ -234,7 +239,6 @@ Open `https://localhost` in the browser and accept the certificate warning, beca
 | HTTPS is skipped after the first visit | Caddy sends `Strict-Transport-Security: max-age=86400` (one day). Raise it to a year after a week without problems. On Render the platform terminates HTTPS. Which headers Render adds itself was not checked, because the address of the deployed service is not in the repository: check it with one `curl -sI https://<api-host>/health` and do not send a header twice |
 | A token or user data stays in a browser or proxy cache | Answers of `/auth/*` have `Cache-Control: no-store` |
 | A user fills the shared catalog with false titles or outside images | `POST /media` answers 404 unless `ALLOW_MEDIA_CREATE` is on. When it is on, `poster_url` must be an `https` address on `image.tmdb.org` or `images.igdb.com`. `GET /media/{id}` needs a login (#218) |
-| An injected script runs in the app, or a page loads an image from any host | The frontend sends a Content-Security-Policy on every page (`src/proxy.ts`): scripts only with the nonce of the request (no `unsafe-inline`), images only from the app and the TMDB and IGDB image hosts, no plugins, no framing. `CSP_REPORT_ONLY=true` on the frontend sends it as report only, to try out a change (#303) |
 | The full list of endpoints is public | `ENABLE_DOCS` is `false` in production, so `/docs`, `/redoc` and `/openapi.json` answer 404 |
 | The login token is stolen by a script in the page | The frontend keeps the token in an `httpOnly` cookie and sends it to the backend from its server code |
 | A break-in to a container gives full control | The backend and the frontend run as a normal user, not as root |
@@ -265,9 +269,9 @@ A client cannot choose the counted address by sending its own `X-Forwarded-For`:
 1. **A call straight to the API.** `render.yaml` sets `FORWARDED_TRUSTED_HOPS=1`, so the backend counts the **right-most** address of `X-Forwarded-For`. The proxy of Render writes that one, whether it adds to the header of the client or replaces it. Anything the client writes stays on the left and is never counted.
 2. **A call from the frontend** (the login and registration forms). The right-most address is then the frontend, which every user shares. So the frontend also sends the browser address in `X-Client-IP`, with the key `FRONTEND_PROXY_SECRET` in `X-Frontend-Key`. The frontend takes the right-most address of the header that the proxy of Render wrote in front of it. The backend uses `X-Client-IP` only when the key matches (it compares with `hmac.compare_digest`), so a client cannot choose its address with this header either.
 
-`render.yaml` generates the key for `omnilog-api` and copies it to `omnilog-web` (`fromService` with `envVarKey`). If the frontend has no key, every login through it is counted for the frontend address, so one user could block the others again. The Docker setup does not need the key, because there uvicorn trusts only the fixed addresses of the proxy and the frontend.
+This needs `BACKEND_URL` to be the public `https` address of `omnilog-api`. If the frontend calls the backend over the private network of Render, no second address is added, so set `FORWARDED_TRUSTED_HOPS=1`. A header that is too short or holds a value that is not an address falls back to the address that uvicorn gives.
 
-The Render documentation does not say whether its proxy adds to `X-Forwarded-For` or replaces it. The rule above is safe in both cases, because only the right-most address is used. Confirm on the deployed service with one harmless request before you rely on these limits.
+A call that goes straight to the API domain has only one address from Render, so with `2` its counted address is the last address that the client wrote. Such a client can still change its counted address. The login form and the registration form never do this, because they go through the frontend. Check on the deployed service which addresses arrive before you rely on these limits.
 
 ## 10. What is not included yet
 
@@ -275,7 +279,7 @@ The Render documentation does not say whether its proxy adds to `X-Forwarded-For
 - There is no automatic deployment to your own server. Render deploys `main` by itself (see the deployment pipeline in section 5), but the Docker stack on a server is updated by hand. The workflow `docker-build.yml` only checks that the stack starts and answers.
 - There are no automatic backups, no monitoring and no alerts.
 - The stack runs one copy of each service. Running more copies of the backend is not set up and not tested.
-- Rate limits on Render: the rule of section 9.1 was tested locally with the options of `render.yaml`, but not on the deployed service. `RATE_LIMIT_ENABLED=false` turns the limits off.
+- Rate limits on Render: the counted address depends on how the proxy of Render fills `X-Forwarded-For` (section 9.1). This was not checked on the deployed service. `RATE_LIMIT_ENABLED=false` turns the limits off.
 - Only login, register, search and review have a rate limit.
 - The friends page of the frontend shows sample data. The login, register, library, search, title, lists, diary, statistics and recommendations screens call the backend through the server code of Next.js (`BACKEND_URL`).
 - Embeddings are not built. There is no `media_embeddings` table and no embeddings command. The recommendations (US-13) rank the catalog by the genres of the library, so they work without any key.

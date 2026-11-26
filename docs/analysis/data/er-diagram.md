@@ -468,9 +468,11 @@ This table stores title embeddings produced by OpenAI. The composite primary key
 
 | Key pattern | Content | TTL | Written by |
 |---|---|---|---|
-| `omni:catalog:{source}:{external_id}` | Normalized catalog record. For US-09 the source is `tmdb_tv` (the ids of TMDB series and movies are different number spaces) and the record is the seasons and episodes of the series with its description and genres, or `{"found": false}` when TMDB does not know the id. The sources `igdb` (a game) and `tmdb_movie` (a movie) hold the description and genres of one title | `DETAILS_CACHE_TTL_SECONDS`, default 24 hours | Process 3.5 |
-| `omni:search:{type}:{query_hash}` | List of search results | `CACHE_TTL_SECONDS`, default 1 hour | Process 3.2 |
+| `omni:catalog:{source}:{external_id}` | Normalized catalog record. For US-09 the source is `tmdb_tv` (the ids of TMDB series and movies are different number spaces) and the record is the seasons and episodes of the series with its description and genres, or `{"found": false}` when TMDB does not know the id. The sources `igdb` (a game) and `tmdb_movie` (a movie) hold the description and genres of one title | `DETAILS_CACHE_TTL_SECONDS`, default 24 hours. `{"found": false}` is kept for `NEGATIVE_CACHE_TTL_SECONDS` only, default 5 minutes | Process 3.5 |
+| `omni:search:{type}:{query_hash}` | List of search results | `CACHE_TTL_SECONDS`, default 1 hour. An empty list (negative cache) is kept for `NEGATIVE_CACHE_TTL_SECONDS` only, default 5 minutes | Process 3.2 |
 | `omni:stats:{user_id}` | Statistics response | 24 hours. Deleted when the user changes a library entry, a chapter rating, playtime or a decision, or removes a list item or a list | Process 6.5 |
+
+**Layers.** Redis is the first cache (L1). PostgreSQL is the second (L2): a title whose `media_items.last_synced` is younger than `DB_CACHE_TTL_DAYS` (default 7) is served from its saved rows, with no read of Redis and no call to IGDB or TMDB. Redis can be a local instance or a managed one such as Upstash (`REDIS_URL` with `rediss://`). The rate limit counters live in Redis too, so they survive a restart of the backend.
 
 The key `omni:reco:{user_id}:{target}` of the design is not built. The recommendations are computed on every request. Every key falls back to an in-process cache when Redis is down.
 
