@@ -71,7 +71,10 @@ function backendBaseUrl(): string {
   if (protocol !== "http:" && protocol !== "https:") {
     throw new Error("BACKEND_URL is not a valid URL. Start it with http:// or https://");
   }
-  return configured.replace(/\/+$/, "");
+  // Without a regular expression: /\/+$/ can backtrack on a long run of slashes (Sonar S8786)
+  let end = configured.length;
+  while (end > 0 && configured[end - 1] === "/") end -= 1;
+  return configured.slice(0, end);
 }
 
 /** Message and field messages of an error answer of the backend (FastAPI). */

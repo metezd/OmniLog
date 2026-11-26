@@ -1,0 +1,55 @@
+{
+  "checks": 7,
+  "findings": 0,
+  "results": [
+    {
+      "id": "REC-01",
+      "owasp": "A01",
+      "name": "Recommendations need a login",
+      "result": "PASS",
+      "evidence": "no token"
+    },
+    {
+      "id": "REC-02",
+      "owasp": "A03",
+      "name": "Malformed parameters get 422, never 5xx",
+      "result": "PASS",
+      "evidence": "{'unknown target': 422, 'SQL in target': 422, 'limit 0': 422, 'limit 51': 422, 'negative limit': 422, 'huge limit': 422, 'text limit': 422, 'no target': 422}"
+    },
+    {
+      "id": "REC-03",
+      "owasp": "A01",
+      "name": "A user never gets a title that is already in the library",
+      "result": "PASS",
+      "evidence": "4 results"
+    },
+    {
+      "id": "REC-04",
+      "owasp": "A04",
+      "name": "The pgvector query ranks the closest title first",
+      "result": "PASS",
+      "evidence": "near/far order: [2, 3]"
+    },
+    {
+      "id": "REC-05",
+      "owasp": "A01",
+      "name": "Another user's liked title is not hidden from or forced on others",
+      "result": "PASS",
+      "evidence": "bob's title appears for alice (catalog), never for bob (owned)"
+    },
+    {
+      "id": "REC-06",
+      "owasp": "A04",
+      "name": "A zero taste vector (no defined cosine) gives no server error",
+      "result": "PASS",
+      "evidence": "200"
+    },
+    {
+      "id": "REC-07",
+      "owasp": "A04",
+      "name": "Only the requested media type comes back",
+      "result": "PASS",
+      "evidence": "1 movies"
+    }
+  ]
+}
