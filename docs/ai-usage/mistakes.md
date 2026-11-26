@@ -7,7 +7,7 @@ Part of the review checklist in [#252] (section E, "Serious AI mistakes caught")
 - Every entry is a real event with a link. It comes from the notes of a member ([`mhmd-edrees.md`](mhmd-edrees.md), [`sidar-urey.md`][sidar]) or from a pull request. Nothing was added from memory alone.
 - An entry is here only if AI made the mistake. A mistake that AI **found** in human code (for example the Copilot review comments in [`evidence.md`][evidence]) is not an AI mistake.
 - **Serious** means: it would have shipped a bug, a security hole, a wrong decision or a broken deploy if nobody had caught it. The others are **medium** or **minor**.
-- Made on 2026-11-25 from `main` at `74f1f3a`. The notes of `metezd`, `KeremKenet` and `KaganKonuk` are still pending ([#312], [#313], [#314]). Their entries are added by pull request when they exist.
+- Made on 2026-11-25 from `main` at `74f1f3a`. M10 to M17 were added on 2026-11-26 from the descriptions of [#350] to [#363], where each pull request records what the AI got wrong. The notes of `metezd`, `KeremKenet` and `KaganKonuk` are still pending ([#312], [#313], [#314]). Their entries are added by pull request when they exist.
 
 ## Register
 
@@ -22,27 +22,37 @@ Part of the review checklist in [#252] (section E, "Serious AI mistakes caught")
 | M7 | Claude Code (Claude Opus 5.5) | Wrote two claims in the evidence page that the data did not show ("stopped asking" for Copilot reviews, issues "written in more detail") ([#318]) | **Self-check** of every claim against the data, before the commit | A false statement in a graded document | Both sentences changed before the commit | Minor | Every sentence in a report needs a source |
 | M8 | Claude Code (Claude Opus 5.5) | Wrote in the TDD evidence that the US-06/07 red run had 4 failed and 1 passed ([#345]) | **Re-run** with the full pytest output: 5 failed | A wrong number in the TDD evidence | Corrected in [#345] before the commit | Minor | Copy numbers from the full output, not from a cut summary |
 | M9 | Claude Code (Claude Opus 5.5) | The first replay of the F1 and F7 fix cycles copied only `backend/` and `tests/`, so the tests could not find `render.yaml` and the Caddyfile. That gave errors, not the real red result ([#345]) | **Reading the errors:** `FileNotFoundError`, not an assertion | A "red" run that failed for the wrong reason, written as TDD evidence | The runs were repeated with the whole repository ([#345]) | Minor | Check that a red test fails for the expected reason |
+| M10 | Claude Code (Claude Opus 5.5) | Deleted `frontend/public/kagan.jpg`, the only file of the folder, so git dropped `frontend/public`, and the `COPY /app/public` of `frontend/Dockerfile` failed ([#362]). The local checks (lint, types, tests, `next build`) did not build the image | **CI:** "Production stack smoke test" failed ([run][run-m10]) | A production Docker image that does not build, so no deploy with `docker-compose.prod.yml` | [`eef416a`][eef416a] keeps the folder with `.gitkeep`. The production stack was started locally after it | **Serious** | After deleting a file, build the production images, not only the app |
+| M11 | Claude Code (Claude Opus 5.5) | The first PDF of the design report put every list inside the paragraph before it, because Python-Markdown needs an empty line before a list and GitHub does not ([#362]) | **Manual check:** the rendered pages were opened before the commit | A graded PDF that is hard to read | `docs/design/report_to_html.py` adds the empty line, and the PDF was rendered again ([#362]) | Minor | Look at a generated document, do not only check that the tool ran |
+| M12 | Claude Code (Claude Opus 5.5) | The first code review log said "comment only" for a reviewer who had requested changes, and counted 44 instead of 47 pull requests merged by the admin ([#360]) | **Self-check** of the summary against the table | Wrong numbers and a wrong label in a graded document | Fixed before the commit ([#360]) | Minor | Count the summary from the table again |
+| M13 | Claude Code (Claude Opus 5.5) | A helper script that was copied for the measurement of the testing report replaced one line too much and lost its output folder ([#352]) | **Reading the error:** the run stopped | Numbers from a run that did not finish | Fixed and run again before any number was used ([#352]) | Minor | Read a changed script again before running it |
+| M14 | Claude Code (Claude Opus 5.5) | The first stack script of the penetration retest stopped when the backend log had **no** vector failures: `grep -c` returns 1 when it counts 0, and the script runs with `set -e` ([#351]) | **Reading the error:** the run stopped on the good case | A retest that cannot finish when everything is fine | `\|\| true` after the count, before the commit ([#351]) | Minor | Test the success path of a check, not only the failure |
+| M15 | Claude Code (Claude Opus 5.5) | The first draft of the TDD evidence listed a test that was dropped on a local branch that was never pushed ([#350]) | **Self-check:** every row must be found in the history | A claim in a graded document that nobody can check | Removed before the commit ([#350]) | Minor | Only write what the repository can show |
+| M16 | Claude Code (Claude Opus 5.5) | Named the branch `ci/check-ai-disclosure`. `ci` is a commit type, not a branch type, and the check "Branch name" refuses it ([#363]) | **Self-check** against `CONTRIBUTING.md` before the push | A red required check on the pull request | Renamed to `chore/check-ai-disclosure` before the push ([#363]) | Minor | The agent follows the rules of the repository only when it reads them |
+| M17 | Claude Code (Claude Opus 5.5) | A test of the AI disclosure check wrote its marker file to `/tmp` ([#363]) | **Ruff** (S108) | A test that uses a shared folder and can clash with another run | The test uses the temporary folder of pytest ([#363]) | Minor | Run the linters on test code too |
 
 ## Summary
 
-**9 entries:** 2 serious, 2 medium, 5 minor. Two tools: Claude Code (6) and the Codex desktop app (3). ChatGPT and claude.ai chat have no recorded mistake ([`sidar-urey.md`][sidar], [`musab-alperen-basol.md`](musab-alperen-basol.md)).
+**17 entries:** 3 serious, 2 medium, 12 minor. Two tools: Claude Code (14) and the Codex desktop app (3). ChatGPT and claude.ai chat have no recorded mistake ([`sidar-urey.md`][sidar], [`musab-alperen-basol.md`](musab-alperen-basol.md)).
 
 **How they were caught:**
 
 | Control | Count | Entries |
 |---|---|---|
-| The agent's own check (self-review, self-check, reading the errors) | 3 | M4, M7, M9 |
-| Running the tests again (CI, full suite, re-run) | 3 | M5, M6, M8 |
+| The agent's own check (self-review, self-check, reading the errors or the output) | 9 | M4, M7, M9, M11, M12, M13, M14, M15, M16 |
+| Running the tests again (CI, full suite, re-run) | 4 | M5, M6, M8, M10 |
+| Linter (Ruff) | 1 | M17 |
 | Ruleset on `main` | 1 | M1 |
 | Penetration test | 1 | M2 |
 | Manual check of the deployment files | 1 | M3 |
 
-Both serious mistakes were caught by a control outside the agent: the ruleset (M1) and the penetration test (M2). M2 was merged before it was found, so review and CI alone did not catch it.
+All three serious mistakes were caught by a control outside the agent: the ruleset (M1), the penetration test (M2) and the production stack smoke test in CI (M10). M2 was merged before it was found, so review and CI alone did not catch it. M10 passed every local check of the agent and was stopped only by CI.
 
 **What the team changed because of them:**
 
 - A test now checks that the API docs are off in every production file ([#260]).
 - The test-first rule for fixes, with a check that the red test fails for the right reason ([#345], from M9).
+- The check "AI disclosure" now fails a pull request whose AI section is empty, so these records keep coming ([#309], [#363]).
 - The AI assistance convention: the `ai-assisted` label, the `Assisted-by` trailer and the AI section of the pull request template ([#324]). Before it, M2 and M5 had no AI line in the commits ([#231]).
 
 ## Not added
@@ -73,3 +83,12 @@ These leads from [#310] were checked and not added, because the record does not 
 [5ab0ee7]: https://github.com/metezd/OmniLog/commit/5ab0ee7
 [sidar]: sidar-urey.md
 [evidence]: evidence.md
+[#350]: https://github.com/metezd/OmniLog/pull/350
+[#351]: https://github.com/metezd/OmniLog/pull/351
+[#352]: https://github.com/metezd/OmniLog/pull/352
+[#360]: https://github.com/metezd/OmniLog/pull/360
+[#362]: https://github.com/metezd/OmniLog/pull/362
+[#363]: https://github.com/metezd/OmniLog/pull/363
+[#309]: https://github.com/metezd/OmniLog/issues/309
+[eef416a]: https://github.com/metezd/OmniLog/commit/eef416a
+[run-m10]: https://github.com/metezd/OmniLog/actions/runs/45799597410
