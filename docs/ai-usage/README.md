@@ -25,7 +25,7 @@ flowchart LR
     T --> P["Pull request<br/>template + AI disclosure (#324)<br/>label ai-assisted, check (#309)"]
     P --> C["CI: tests, coverage 90%,<br/>Ruff S rules, Gitleaks, Trivy,<br/>zizmor, SonarQube (#322)"]
     C --> R["Copilot review (optional)<br/>+ human review by CODEOWNERS"]
-    R --> M["Merge by the author<br/>(Rebase and merge)"]
+    R --> M["Merge by the author<br/>(merge commit)"]
     R -. "changes requested" .-> B
     C -. "red check" .-> B
 ```

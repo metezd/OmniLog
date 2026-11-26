@@ -9,7 +9,7 @@ This guide explains how a change goes from an idea to the `main` branch. The rul
 3. Make small commits. Each commit builds and passes the tests on its own.
 4. Open a pull request. Link the issue with `Closes #123` in the description.
 5. Wait for the CI checks and the review. Fix what the review finds with new commits.
-6. Merge with **Rebase and merge**, so the commits stay as they were written. See [Code review](#code-review) for the rules.
+6. Merge with **Create a merge commit**, the only method that the ruleset of `main` allows. The commits stay as they were written, and the merge commit names the pull request. See [Code review](#code-review) for the rules.
 
 Keep a pull request to one topic. A reviewer can read 10 files well and cannot read 80 files well. When a change has a database migration, put it in its own commit.
 
@@ -136,7 +136,7 @@ Every pull request is reviewed before it is merged, including the pull requests 
 
 **How to answer a review.** Fix the points with new commits (do not force-push over a review in progress), reply to every conversation and resolve it yourself only when the fix is pushed. The reviewer re-reads the new commits. A new push removes an old approval, so the approval is always for the code that is merged.
 
-**Who merges.** The author merges with **Rebase and merge** after the approval, the green checks and the resolved conversations. Dependabot pull requests that pass the checks are merged by the same rule through the auto-merge workflow.
+**Who merges.** The author merges with **Create a merge commit** after the approval, the green checks and the resolved conversations. Dependabot pull requests that pass the checks are merged by the same rule through the auto-merge workflow.
 
 ### Review rota
 
@@ -158,10 +158,10 @@ Each area has an owner, the member of that role in [`docs/CHARTER.md`](docs/CHAR
 
 ### Protecting `main`
 
-The rules above are enforced by GitHub, not by trust. The ruleset in [`.github/rulesets/main.json`](.github/rulesets/main.json) requires a pull request, one approval, resolved conversations, a linear history and these status checks: Security lint (Ruff), Backend tests, Docker Compose smoke test, Frontend checks, gitleaks, trivy, zizmor, PR title and Branch name. It also blocks force pushes and deleting `main`. The workflow `docker-build.yml` is not listed on purpose, because it runs only when some files change, and a check that does not run would block the other pull requests. Apply the ruleset once (needs the GitHub CLI and admin rights):
+The rules above are enforced by GitHub, not by trust. The ruleset in [`.github/rulesets/main.json`](.github/rulesets/main.json) requires a pull request, one approval after the last push, resolved conversations, the merge method "Create a merge commit" and these status checks: Security lint (Ruff), Backend tests, Docker Compose smoke test, Frontend checks, gitleaks, trivy, zizmor, PR title, Branch name and AI disclosure. It also blocks force pushes and deleting `main`. `tests/test_rulesets.py` checks that every listed check is a job that runs on every pull request, and that the merge method is the one of the Dependabot workflow. The workflow `docker-build.yml` is not listed on purpose, because it runs only when some files change, and a check that does not run would block the other pull requests. The ruleset exists on GitHub (id `24520443`). After a change of the file, an admin applies it with PUT, which replaces the live ruleset (POST would add a second one next to it). List the ids with `gh api repos/metezd/OmniLog/rulesets`:
 
 ```powershell
-gh api repos/metezd/OmniLog/rulesets --method POST --input .github/rulesets/main.json
+gh api repos/metezd/OmniLog/rulesets/24520443 --method PUT --input .github/rulesets/main.json
 ```
 
 The second ruleset, [`.github/rulesets/branch-names.json`](.github/rulesets/branch-names.json), enforces the [branch names](#branch-names) on every branch except `main` and `dependabot/...`. Apply it the same way:

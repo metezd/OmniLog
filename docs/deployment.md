@@ -158,7 +158,7 @@ A change reaches the running app in these steps. Only the first one is done by a
 ```mermaid
 flowchart LR
     PR[Pull request] --> CI[Checks: CI, Docker build, Security]
-    CI --> R[Review and Rebase and merge into main]
+    CI --> R[Review and merge commit into main]
     R --> RD[Render builds main after the checks pass]
     RD --> MG[alembic upgrade head]
     MG --> HC[Health check /health]
@@ -166,7 +166,7 @@ flowchart LR
 ```
 
 1. **Pull request.** The checks of `.github/workflows` run: `ci.yml` (tests, coverage gate, migrations, dependency audit, lock files, Compose smoke test, frontend lint, types, tests and build), `docker-build.yml` (the production images and the whole stack) and `security.yml` (secrets, vulnerabilities, workflow audit). The ruleset of `main` needs the required checks and one approval before the merge (see [CONTRIBUTING.md](../CONTRIBUTING.md#code-review)).
-2. **Merge.** The pull request is merged into `main` with Rebase and merge. The same checks run again on `main`.
+2. **Merge.** The pull request is merged into `main` with a merge commit. The same checks run again on `main`.
 3. **Deploy.** `render.yaml` sets `autoDeployTrigger: checksPass` for both web services, so Render builds and starts a new version of `main` only after its GitHub checks have passed. A red commit is never deployed.
 4. **Migrations and health.** The start command of the backend runs `alembic upgrade head` before `uvicorn`. Render keeps the old version running until the new one answers the health check `/health`, so a version that does not start does not replace the running one.
 5. **Release.** A version tag (`v0.8.0`) on `main` starts `release.yml`, which creates the GitHub Release from `CHANGELOG.md`. The tag deploys nothing. It marks the version that was deployed (see [CONTRIBUTING.md](../CONTRIBUTING.md#versioning-and-releases)).
