@@ -197,6 +197,6 @@ Acceptance criteria:
 | US-14 | 5 | Could | `test_epic5_ai.py` | `test_us14_spoiler_detected` |
 | US-15 | 6 | Should | `test_epic6_analytics.py` | `test_us15_personal_statistics` |
 | NFR-01 to NFR-04 | - | - | `test_nfr.py` | `test_nfr01_...` to `test_nfr04_...` |
-| NFR-05 | - | - | CI gate `--cov-fail-under=70` in `.github/workflows/ci.yml` | `pytest --cov` |
+| NFR-05 | - | - | CI gate `--cov-fail-under=90` (NFR-05 asks for 70%) in `.github/workflows/ci.yml` | `pytest --cov` |
 
 The other test functions and the edge-case files of each story are in [../analysis/data/traceability.md](../analysis/data/traceability.md), section 2.
