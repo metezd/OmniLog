@@ -70,7 +70,7 @@ What AI may do, and what stays with a person:
 | Test-first rule | Tests are written before the code. The rule for fixes is being written in [#307] | [`docs/tests/tdd-evidence.md`](../tests/tdd-evidence.md) |
 | Review checklist | The template and the review skill above | Section 3 |
 
-The full list of mistakes is the register of [#310] (`mistakes.md`, **pending**).
+The full list of mistakes is the register of [#310]: [`mistakes.md`](mistakes.md).
 
 ## 6. What worked and what did not
 
@@ -94,7 +94,7 @@ Did not work:
 | Notes of Sidar Ürey ([#315]) | [`sidar-urey.md`][sidar] (in [#319]) |
 | Notes of Musab Alperen Başol ([#316]) | [`musab-alperen-basol.md`](musab-alperen-basol.md) |
 | Notes of Mete Özdoğan, Kerem Kenet, Kağan Konuk | **pending**: [#312], [#313], [#314] |
-| Register of AI mistakes ([#310]) | `mistakes.md` (**pending**) |
+| Register of AI mistakes ([#310]) | [`mistakes.md`](mistakes.md) |
 | Evidence of AI use beyond autocomplete ([#311]) | [`evidence.md`][evidence] (in [#318]) |
 | AI assisted pull requests | `gh pr list --repo metezd/OmniLog --label ai-assisted --state all` |
 
