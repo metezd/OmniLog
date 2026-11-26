@@ -1,2 +1,5 @@
 # Dummy SECRET_KEY used only in a test (tests/test_security_static.py). Not a real secret.
+# The history of main was rewritten on 2026-11-26, so the commit has a new SHA (68cc5a1). The old
+# SHA (1e96a16) stays for clones made before that day.
+68cc5a11e4a21c56ce4a1a31b517b9daac595471:tests/test_security_static.py:generic-api-key:296
 1e96a16fca89e76b163707f5fea23744932062da:tests/test_security_static.py:generic-api-key:296
