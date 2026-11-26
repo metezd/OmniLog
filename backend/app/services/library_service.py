@@ -56,9 +56,23 @@ def add_entry(db: Session, user: User, data: UserLibraryCreate) -> UserLibrary:
 
     db.commit()
     catalog_service.ensure_title_details(db, item)
-    db.refresh(entry)
     invalidate_stats_cache(user.id)
-    return entry
+    return _load_with_media(db, entry.id)
+
+
+def _load_with_media(db: Session, entry_id: int) -> UserLibrary:
+    """One entry with its media item and genres, read fresh after a commit.
+
+    The answer holds the media item, so it is loaded in the same query instead of one lazy load
+    for the item and one for its genres after the response starts to be built.
+    """
+    return (
+        db.query(UserLibrary)
+        .options(joinedload(UserLibrary.media_item).selectinload(MediaItem.genres))
+        .filter(UserLibrary.id == entry_id)
+        .populate_existing()
+        .one()
+    )
 
 
 def list_entries(
@@ -68,7 +82,7 @@ def list_entries(
     # Load the media item in the same query. Without this, the response runs one query per entry.
     return (
         db.query(UserLibrary)
-        .options(joinedload(UserLibrary.media_item))
+        .options(joinedload(UserLibrary.media_item).selectinload(MediaItem.genres))
         .filter(UserLibrary.user_id == user.id)
         .order_by(UserLibrary.id)
         .limit(limit)
@@ -107,9 +121,8 @@ def update_entry(db: Session, user: User, entry_id: int, data: UserLibraryUpdate
         record_event(db, user.id, DiaryAction.RATED, entry.media_item_id, text)
 
     db.commit()
-    db.refresh(entry)
     invalidate_stats_cache(user.id)
-    return entry
+    return _load_with_media(db, entry.id)
 
 
 def remove_entry(db: Session, user: User, entry_id: int) -> None:
