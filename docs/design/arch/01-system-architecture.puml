@@ -11,8 +11,8 @@ rectangle "Browser" as B
 
 node "Docker host (docker-compose.prod.yml, network: internal)" {
   component "proxy (Caddy 2)\nreverse proxy & automatic HTTPS\nports 80, 443 (docker/Caddyfile)" as P
-  component "frontend (Next.js 16 / React 19)\nNode 24, TypeScript, Tailwind CSS, Recharts\nproxy.ts + Server Components + Server Actions" as FE
-  component "backend (FastAPI / Python 3.11)\nREST + PyJWT, SQLAlchemy 2, Pydantic v2\npasslib/bcrypt, review_service (NLP spoiler)" as BE
+  component "frontend (Next.js 16 / React 19)\nNode 26, TypeScript, Tailwind CSS\nproxy.ts + Server Components + Server Actions" as FE
+  component "backend (FastAPI / Python 3.15)\nREST + PyJWT, SQLAlchemy 2, Pydantic v2\nbcrypt, review_service (NLP spoiler)" as BE
   component "migrate (one-shot)\nalembic upgrade head" as MIG
   database "db: PostgreSQL 16\n(pgvector/pgvector:pg16)" as PG
   database "redis: Redis 7\ncatalog search & details cache" as R
@@ -21,7 +21,7 @@ node "Docker host (docker-compose.prod.yml, network: internal)" {
 cloud "External catalog & AI providers" {
   component "IGDB API (Twitch OAuth)\n+ Steam Store API fallback\n(app/integrations/igdb.py)" as IGDB
   component "TMDB API\n+ TVMaze / iTunes fallback\n(app/integrations/tmdb.py)" as TMDB
-  component "OpenAI Embeddings API [planned]\ntext-embedding-3-small (1536d)\n(openai >= 3.48.0)" as AI #F5F5F5
+  component "OpenAI API (optional key)\nembeddings: text-embedding-3-small (1536d, pgvector)\nspoiler check: gpt-4o-mini\n(app/integrations/openai_client.py)" as AI
 }
 
 U --> B
@@ -33,6 +33,6 @@ BE --> PG : SQLAlchemy 2 / psycopg2
 BE --> R : redis-py (0.5 s timeout)\nfallback: in-process _local cache
 BE --> IGDB : HTTPS, request_with_retry
 BE --> TMDB : HTTPS, request_with_retry
-BE ..> AI : HTTPS (planned pgvector embeddings)
-MIG --> PG : Alembic migrations (0001..0011)
+BE --> AI : HTTPS (recommendations, spoiler check)
+MIG --> PG : Alembic migrations (0001..0013)
 @enduml
