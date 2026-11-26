@@ -13,12 +13,18 @@ decision points and their options (US-12). Every title with an outside id also g
 and genres: games from IGDB, movies and series from TMDB (cache first, US-09). When TMDB fails for a
 series, the saved copy is returned, or the "unavailable" error when the series was never loaded.
 For a game or a movie a failure is not an error: the title is shown with what is saved.
+
+Layers: Redis is the first cache (L1) and PostgreSQL is the second (L2). A title whose details
+were loaded less than DB_CACHE_TTL_DAYS ago (media_items.last_synced) is served from its saved
+rows, with no call to Redis or to the outside service. Empty answers (a search with no result, an
+id that the service does not know) are cached for the short NEGATIVE_CACHE_TTL_SECONDS, so a miss
+does not reach the outside API again and again.
 """
 import hashlib
 import logging
 import unicodedata
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from sqlalchemy import func
@@ -26,6 +32,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from app.core import cache, config
+from app.core.clock import utc_now
 from app.integrations import igdb, tmdb
 from app.integrations.common import (
     ExternalDetails,
@@ -103,8 +110,17 @@ def search_catalog(db: Session, media_type: MediaType, text: str) -> list[MediaI
             "The catalog service is not available right now. Please try again later."
         ) from exc
 
-    cache.set_json(key, [asdict(title) for title in titles], config.CACHE_TTL_SECONDS)
+    _cache_search_result(key, titles)
     return _save(db, media_type, titles)
+
+
+def _cache_search_result(key: str, titles: list[ExternalTitle]) -> None:
+    """Cache a search result. An empty result is cached too (negative cache), but only for the
+    short NEGATIVE_CACHE_TTL_SECONDS. A failed call never gets here, so it is never cached."""
+    if titles:
+        cache.set_json(key, [asdict(title) for title in titles], config.CACHE_TTL_SECONDS)
+    elif config.NEGATIVE_CACHE_TTL_SECONDS > 0:
+        cache.set_json(key, [], config.NEGATIVE_CACHE_TTL_SECONDS)
 
 
 def _fetch_external(media_type: MediaType, query: str) -> list[ExternalTitle]:
@@ -356,7 +372,8 @@ def get_title_details(db: Session, media_id: int) -> MediaItem:
         raise TitleNotFoundError("Title not found")
 
     # Only a title with an outside id can be loaded. A title that was added by hand has none.
-    if item.external_api_id is not None:
+    # A title that was loaded recently is served from the database (L2), with no outside call.
+    if item.external_api_id is not None and not is_fresh(item):
         if item.media_type == MediaType.SERIES:
             _refresh_series(db, item)
         else:
@@ -365,6 +382,19 @@ def get_title_details(db: Session, media_id: int) -> MediaItem:
     item = _load_details(db, media_id)
     safely_update_embedding(db, item)
     return item
+
+
+def is_fresh(item: MediaItem) -> bool:
+    """True when the saved details of the title are younger than DB_CACHE_TTL_DAYS.
+
+    A title that was never loaded (last_synced is empty) is never fresh. A time in the future,
+    from a clock that was wrong, is not trusted: the title is loaded again.
+    """
+    ttl_days = config.DB_CACHE_TTL_DAYS
+    if ttl_days <= 0 or item.last_synced is None:
+        return False
+    age = utc_now() - item.last_synced
+    return timedelta(0) <= age < timedelta(days=ttl_days)
 
 
 def _load_details(db: Session, media_id: int) -> MediaItem:
@@ -425,7 +455,7 @@ def _refresh_series(db: Session, item: MediaItem) -> None:
             raise CatalogUnavailableError(
                 "The catalog service is not available right now. Please try again later."
             ) from exc
-        cache.set_json(key, _outside_to_cache(outside), config.DETAILS_CACHE_TTL_SECONDS)
+        _cache_outside(key, _outside_to_cache(outside), outside.found)
 
     if not outside.found:
         return  # TMDB does not know this id. There is nothing to save.
@@ -433,6 +463,15 @@ def _refresh_series(db: Session, item: MediaItem) -> None:
         return  # the saved copy is already there
     _save_seasons(db, item.id, outside.seasons)
     _save_details(db, item.id, outside.details)
+
+
+def _cache_outside(key: str, value: dict, found: bool) -> None:
+    """Cache the details of one title. A title that the service does not know is cached only for
+    the short NEGATIVE_CACHE_TTL_SECONDS (negative cache): it can appear at the source later."""
+    if found:
+        cache.set_json(key, value, config.DETAILS_CACHE_TTL_SECONDS)
+    elif config.NEGATIVE_CACHE_TTL_SECONDS > 0:
+        cache.set_json(key, value, config.NEGATIVE_CACHE_TTL_SECONDS)
 
 
 def _fetch_series_seasons(external_id: int) -> _OutsideSeasons:
@@ -553,7 +592,7 @@ def _refresh_details(db: Session, item: MediaItem) -> None:
         except ExternalServiceError as exc:
             logger.warning("Details of title %s failed: %s", item.id, exc)
             return
-        cache.set_json(key, _details_to_cache(outside), config.DETAILS_CACHE_TTL_SECONDS)
+        _cache_outside(key, _details_to_cache(outside), outside.found)
 
     if not outside.found:
         return  # the service does not know this id. There is nothing to save.
