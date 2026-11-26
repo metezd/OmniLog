@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import ChapterProgressCard from "@/components/title/ChapterProgressCard";
 import { logPlaytimeAction, rateChapterAction, recordDecisionAction } from "@/lib/actions/chapters";
@@ -53,6 +53,10 @@ function makeProgress(overrides: Partial<ChapterProgress> = {}): ChapterProgress
   };
 }
 
+beforeEach(() => {
+  vi.clearAllMocks();
+});
+
 describe("ChapterProgressCard", () => {
   it("shows read-only prompt and options when the title is not in the user's library", () => {
     render(<ChapterProgressCard chapter={makeChapter()} mediaItemId={42} />);
@@ -97,5 +101,94 @@ describe("ChapterProgressCard", () => {
     render(<ChapterProgressCard chapter={makeChapter()} entryId={10} mediaItemId={42} progress={makeProgress()} />);
 
     expect(screen.getByLabelText("Log Playtime / Watch Time (minutes)")).toHaveAttribute("name", "minutes");
+  });
+
+  describe("mark completed", () => {
+    it("is not offered when the title is not in the library", () => {
+      render(<ChapterProgressCard chapter={makeChapter()} mediaItemId={42} />);
+
+      expect(screen.queryByRole("button", { name: /Mark completed/ })).not.toBeInTheDocument();
+    });
+
+    it("logs only the minutes that are still missing from the full length", async () => {
+      mockedPlay.mockResolvedValueOnce({ status: "saved", message: "+25m logged" });
+
+      const user = userEvent.setup();
+      render(
+        <ChapterProgressCard
+          chapter={makeChapter()}
+          entryId={10}
+          mediaItemId={42}
+          progress={makeProgress()}
+        />,
+      );
+
+      // 120 min runtime, 95 min already logged
+      await user.click(screen.getByRole("button", { name: "Mark completed: Chrysalis" }));
+
+      await waitFor(() => expect(screen.getByText("+25m logged")).toBeInTheDocument());
+      const formData = mockedPlay.mock.calls[0][1] as FormData;
+      expect(formData.get("minutes")).toBe("25");
+      expect(formData.get("entryId")).toBe("10");
+      expect(formData.get("chapterId")).toBe("101");
+    });
+
+    it("logs the whole length when nothing is logged yet", async () => {
+      mockedPlay.mockResolvedValueOnce({ status: "saved", message: "+120m logged" });
+
+      const user = userEvent.setup();
+      render(<ChapterProgressCard chapter={makeChapter()} entryId={10} mediaItemId={42} />);
+
+      await user.click(screen.getByRole("button", { name: "Mark completed: Chrysalis" }));
+
+      await waitFor(() => expect(mockedPlay).toHaveBeenCalled());
+      const formData = mockedPlay.mock.calls[0][1] as FormData;
+      expect(formData.get("minutes")).toBe("120");
+    });
+
+    it("is disabled and says completed once the full length is logged", () => {
+      render(
+        <ChapterProgressCard
+          chapter={makeChapter()}
+          entryId={10}
+          mediaItemId={42}
+          progress={makeProgress({ playtime_minutes: 120 })}
+        />,
+      );
+
+      expect(screen.getByRole("button", { name: "Completed: Chrysalis" })).toBeDisabled();
+    });
+
+    it("is disabled with a reason when the chapter has no known length", () => {
+      render(
+        <ChapterProgressCard
+          chapter={makeChapter({ runtime_minutes: null })}
+          entryId={10}
+          mediaItemId={42}
+          progress={makeProgress()}
+        />,
+      );
+
+      expect(screen.getByRole("button", { name: "Mark completed: Chrysalis" })).toBeDisabled();
+      expect(screen.getByText(/no known length/)).toBeInTheDocument();
+    });
+
+    it("shows the error when the request fails", async () => {
+      mockedPlay.mockResolvedValueOnce({ status: "error", message: "Service unavailable" });
+
+      const user = userEvent.setup();
+      render(
+        <ChapterProgressCard
+          chapter={makeChapter()}
+          entryId={10}
+          mediaItemId={42}
+          progress={makeProgress()}
+        />,
+      );
+
+      await user.click(screen.getByRole("button", { name: "Mark completed: Chrysalis" }));
+
+      await waitFor(() => expect(screen.getByText("Service unavailable")).toBeInTheDocument());
+    });
   });
 });

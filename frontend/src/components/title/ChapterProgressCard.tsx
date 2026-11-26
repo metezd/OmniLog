@@ -28,6 +28,7 @@ export default function ChapterProgressCard({
 }: ChapterProgressCardProps) {
   const [rateState, rateFormAction, ratePending] = useActionState(rateChapterAction, INITIAL_STATE);
   const [playState, playFormAction, playPending] = useActionState(logPlaytimeAction, INITIAL_STATE);
+  const [doneState, doneFormAction, donePending] = useActionState(logPlaytimeAction, INITIAL_STATE);
   const [decState, decFormAction, decPending] = useActionState(
     recordDecisionAction,
     INITIAL_STATE,
@@ -39,6 +40,13 @@ export default function ChapterProgressCard({
     (progress?.decisions ?? []).map((d) => [d.decision_point_id, d.choice]),
   );
 
+  // Logging adds to the total, so "completed" logs only what is still missing from the full length.
+  const runtimeMinutes = chapter.runtime_minutes ?? 0;
+  const hasRuntime = runtimeMinutes > 0;
+  const remainingMinutes = Math.max(runtimeMinutes - totalMinutes, 0);
+  const isCompleted = hasRuntime && remainingMinutes === 0;
+  const chapterName = chapter.title ?? `Chapter ${chapter.number}`;
+
   return (
     <div className="liquid-glass space-y-4 rounded-2xl border border-white/10 p-5">
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -46,9 +54,7 @@ export default function ChapterProgressCard({
           <span className="text-[11px] font-semibold uppercase tracking-wider text-cyan-300">
             Episode / Chapter {chapter.number}
           </span>
-          <h3 className="text-sm font-bold text-white">
-            {chapter.title ?? `Chapter ${chapter.number}`}
-          </h3>
+          <h3 className="text-sm font-bold text-white">{chapterName}</h3>
           {(chapter.release_date || chapter.runtime_minutes) && (
             <p className="mt-1 text-xs text-slate-400">
               {[
@@ -108,40 +114,73 @@ export default function ChapterProgressCard({
             )}
           </form>
 
-          {/* Playtime Logging (US-11) */}
-          <form action={playFormAction} className="space-y-2">
-            <input type="hidden" name="entryId" value={entryId} />
-            <input type="hidden" name="chapterId" value={chapter.id} />
-            <input type="hidden" name="mediaItemId" value={mediaItemId} />
-            <label htmlFor={`minutes-${chapter.id}`} className="block text-xs font-medium text-slate-300">
-              Log Playtime / Watch Time (minutes)
-            </label>
-            <div className="flex items-center gap-2">
-              <input
-                id={`minutes-${chapter.id}`}
-                type="number"
-                name="minutes"
-                min={1}
-                max={1440}
-                placeholder="e.g. 45"
-                required
-                className="w-28 rounded-lg border border-white/15 bg-slate-900/80 px-2.5 py-1 text-xs text-white focus:outline-none"
-              />
+          <div className="space-y-3">
+            {/* Playtime Logging (US-11) */}
+            <form action={playFormAction} className="space-y-2">
+              <input type="hidden" name="entryId" value={entryId} />
+              <input type="hidden" name="chapterId" value={chapter.id} />
+              <input type="hidden" name="mediaItemId" value={mediaItemId} />
+              <label htmlFor={`minutes-${chapter.id}`} className="block text-xs font-medium text-slate-300">
+                Log Playtime / Watch Time (minutes)
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  id={`minutes-${chapter.id}`}
+                  type="number"
+                  name="minutes"
+                  min={1}
+                  max={1440}
+                  placeholder="e.g. 45"
+                  required
+                  className="w-28 rounded-lg border border-white/15 bg-slate-900/80 px-2.5 py-1 text-xs text-white focus:outline-none"
+                />
+                <button
+                  type="submit"
+                  disabled={playPending}
+                  className="rounded-lg border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium text-slate-200 hover:bg-white/20 disabled:opacity-50"
+                >
+                  {playPending ? "Logging…" : "+ Log Time"}
+                </button>
+              </div>
+              {playState.status === "saved" && (
+                <p className="text-[11px] text-emerald-300">{playState.message}</p>
+              )}
+              {playState.status === "error" && (
+                <p className="text-[11px] text-rose-300">{playState.message}</p>
+              )}
+            </form>
+
+            {/* One click to log what is still missing from the full length (US-11) */}
+            <form action={doneFormAction} className="space-y-1">
+              <input type="hidden" name="entryId" value={entryId} />
+              <input type="hidden" name="chapterId" value={chapter.id} />
+              <input type="hidden" name="mediaItemId" value={mediaItemId} />
+              <input type="hidden" name="minutes" value={remainingMinutes} />
               <button
                 type="submit"
-                disabled={playPending}
-                className="rounded-lg border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium text-slate-200 hover:bg-white/20 disabled:opacity-50"
+                disabled={!hasRuntime || isCompleted || donePending}
+                aria-label={`${isCompleted ? "Completed" : "Mark completed"}: ${chapterName}`}
+                className="rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-xs font-medium text-emerald-200 hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {playPending ? "Logging…" : "+ Log Time"}
+                {isCompleted
+                  ? "\u2713 Completed"
+                  : donePending
+                    ? "Saving…"
+                    : `\u2713 Mark completed${hasRuntime ? ` (${remainingMinutes} min)` : ""}`}
               </button>
-            </div>
-            {playState.status === "saved" && (
-              <p className="text-[11px] text-emerald-300">{playState.message}</p>
-            )}
-            {playState.status === "error" && (
-              <p className="text-[11px] text-rose-300">{playState.message}</p>
-            )}
-          </form>
+              {!hasRuntime && (
+                <p className="text-[11px] text-slate-400">
+                  This chapter has no known length, so log the time by hand.
+                </p>
+              )}
+              {doneState.status === "saved" && (
+                <p className="text-[11px] text-emerald-300">{doneState.message}</p>
+              )}
+              {doneState.status === "error" && (
+                <p className="text-[11px] text-rose-300">{doneState.message}</p>
+              )}
+            </form>
+          </div>
         </div>
       ) : (
         <p className="border-t border-white/10 pt-3 text-xs text-slate-400">
