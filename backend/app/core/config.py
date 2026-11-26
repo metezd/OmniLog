@@ -16,7 +16,7 @@ def _require(name: str) -> str:
 
 
 # PostgreSQL connection string, e.g.
-# postgresql+psycopg2://omnilog:omnilog@localhost:5432/omnilog
+# postgresql+psycopg2://<user>:<password>@localhost:5432/omnilog
 DATABASE_URL = _require("DATABASE_URL")
 
 # Secret used to sign JWT tokens. It has no default on purpose: a public
