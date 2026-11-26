@@ -6,6 +6,7 @@ All notable changes to this project are written in this file. The format follows
 
 ### Added
 
+- `docs/design/render-pdf.sh`, which renders the Software Design Report to PDF with Chromium in Docker (#295).
 - An outgoing limit for IGDB: the new setting `IGDB_MAX_REQUESTS_PER_SECOND` (default 3, `0` turns it off) spaces the calls of a process, retries included, so IGDB does not answer 429. A call that would wait more than 5 seconds fails at once and the saved copy is used.
 - The manual sync loads the details of many games with one IGDB query for every 100 games (`where id = (...)`) instead of one request per game. It falls back to one request per game when the batch fails.
 - Penetration retest after the fixes, with three new checks and a browser check of the frontend (#306).
@@ -15,6 +16,7 @@ All notable changes to this project are written in this file. The format follows
 
 ### Changed
 
+- The design report PDF and the architecture diagrams show the current stack (Node 26, Python 3.15, bcrypt, migrations up to 0013, the OpenAI API in use), and the docs give the real coverage gate of CI, 90% (#295).
 - The backend coverage gate in CI is 90% instead of 70%, about 5 points under the measured 94.96%. The frontend has coverage with measured thresholds (`npm run test:coverage`). Every CI run writes the numbers to the job summary and keeps the HTML reports. The new tests also found double spaces in TVMaze descriptions, which are fixed (#297).
 
 ### Fixed
@@ -23,6 +25,10 @@ All notable changes to this project are written in this file. The format follows
 - The login and register limits on Render count the browser address again, not the address of the frontend for everybody. The new setting `FORWARDED_TRUSTED_HOPS` reads it from the right end of `X-Forwarded-For`, so a client cannot choose it by writing the left end (#251).
 - `docker-compose.yml` publishes PostgreSQL on `localhost:5432` again, which CI, `backend/.env.example` and the docs use. It was moved to `5433`, so the Docker Compose smoke test found no database, fell back to SQLite and failed on the migrations. `POSTGRES_PORT` now picks another port when 5432 is taken.
 - An empty `REDIS_URL` no longer stops the cache and the rate limits with an error. The in-process cache is used instead (#251).
+
+### Removed
+
+- The unused frontend packages `axios`, `react-hook-form` and `recharts`, and the unused image `frontend/public/kagan.jpg` (#295).
 
 ### Security
 
