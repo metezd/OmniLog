@@ -44,7 +44,7 @@ To regenerate all PNG and SVG diagrams from PlantUML sources: `./docs/design/ren
 | Topic | Decision | Implementation in Repo |
 |---|---|---|
 | Architectural style | Client-server with Next.js Server Components/Actions (BFF) and a layered FastAPI monolith | `frontend/src/`, `backend/app/` |
-| Frontend | Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS v4, Recharts | `frontend/package.json`, `frontend/src/app/` |
+| Frontend | Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS v4 (the charts are plain CSS bars) | `frontend/package.json`, `frontend/src/app/` |
 | Backend | FastAPI, SQLAlchemy 2, Pydantic v2, Alembic | `backend/requirements.txt`, `backend/app/main.py` |
 | Persistence & cache | PostgreSQL 16 (`pgvector/pgvector:pg16`), Redis 7 (`redis:7-alpine`) + in-process fallback | `backend/app/core/database.py`, `backend/app/core/cache.py` |
 | Authentication | Stateless JWT (`HS256`, 90 min expiry via `PyJWT`), `bcrypt` password hashing, `httpOnly` cookie (`omnilog_session`) | `backend/app/core/security.py`, `frontend/src/lib/server/session.ts` |
@@ -61,7 +61,7 @@ To regenerate all PNG and SVG diagrams from PlantUML sources: `./docs/design/ren
 
 The production stack defined in `docker-compose.prod.yml` runs six containers on a single isolated Docker network (`internal`):
 1. **`proxy` (`caddy:2-alpine`, `docker/Caddyfile`):** The only container that publishes host ports (`80` and `443`). Terminates TLS automatically via Let's Encrypt and routes `{$APP_DOMAIN}` to `frontend:3000` and `{$API_DOMAIN}` to `backend:8000`.
-2. **`frontend` (`node:24-alpine`, `frontend/Dockerfile`):** Runs the Next.js 16 standalone server on port `3000` as non-root user `10001`. Renders Server Components and executes Server Actions, communicating with the backend over HTTP using Bearer JWT tokens read from the `omnilog_session` `httpOnly` cookie.
+2. **`frontend` (`node:26-alpine`, `frontend/Dockerfile`):** Runs the Next.js 16 standalone server on port `3000` as non-root user `10001`. Renders Server Components and executes Server Actions, communicating with the backend over HTTP using Bearer JWT tokens read from the `omnilog_session` `httpOnly` cookie.
 3. **`backend` (`python:3.15-slim-bookworm`, `backend/Dockerfile`):** Runs FastAPI under Uvicorn on port `8000` as non-root user `10001:10001`. Waits for `migrate` (`service_completed_successfully`) and `redis` (`service_healthy`) before starting.
 4. **`migrate` (`omnilog-backend` image):** A one-shot container (`restart: "no"`) that runs `alembic upgrade head` against PostgreSQL once `db` is healthy.
 5. **`db` (`pgvector/pgvector:pg16`):** PostgreSQL 16 relational database with the `pgvector` extension, persisted in volume `pgdata`.
@@ -330,7 +330,7 @@ These decisions support all functional and non-functional requirements and are e
 *Requirement: backend line coverage of at least 70% with `pytest-cov`.*
 
 1. **Automated coverage gate in CI (`.github/workflows/ci.yml`):**
-   - Every push and pull request runs `python -m pytest tests/requirements -v --cov=backend/app --cov-report=term-missing --cov-report=xml --cov-fail-under=70` against real PostgreSQL 16 (`pgvector/pgvector:pg16`) and Redis 7 service containers.
+   - Every push and pull request runs `python -m pytest tests -v --cov=backend/app --cov-report=term-missing --cov-report=xml --cov-fail-under=90` against real PostgreSQL 16 (`pgvector/pgvector:pg16`) and Redis 7 service containers.
 2. **Migration drift check (`backend/migrations/`):**
    - CI runs `alembic upgrade head` followed by `alembic check` in both the `backend` job and the `docker-compose` smoke test job, failing the build if `backend/app/models/entities.py` diverges from the Alembic revision history (`0001` to `0011`).
 3. **Deterministic test doubles (`tests/requirements/fake_external_apis.py`):**
