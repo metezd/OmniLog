@@ -200,7 +200,7 @@ This table is the plan of the requirements phase. The current matrix, with every
 2. A helper endpoint `POST /media` creates catalog entries during test setup. Decision (#218): it is off by default and answers 404, because users get titles from the catalog search. The setting `ALLOW_MEDIA_CREATE` turns it on, and only the tests do that. `GET /media/{id}` needs a login.
 
 **Open issues**
-1. **Database:** the Project Charter specifies PostgreSQL. Resolved: the code, the migrations and the tests use PostgreSQL. A development fallback to SQLite is still in `backend/app/core/database.py` and should be removed.
+1. **Database:** the Project Charter specifies PostgreSQL. Resolved: the code, the migrations and the tests use PostgreSQL. The development fallback to SQLite was removed in #371.
 2. **Rating scale:** the charter mentions star ratings, while the current data model limits library ratings to 1-10. The stories use 1-10 for library entries and 1-5 for chapters. Resolved: the team confirmed 1-10 for library entries and 1-5 for chapters, and both are built.
 3. **Test isolation:** resolved. The tests run against the separate `omnilog_test` database.
 4. **Existing health check:** `/health` only checks that the process answers, so the "database unreachable" criterion was removed from US-01. `GET /health/ready` checks the database and Redis.

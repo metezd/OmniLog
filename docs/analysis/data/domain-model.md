@@ -197,7 +197,7 @@ Each point was checked against the code on 19.11.2026.
 
 | # | Question | Answer |
 |---|---|---|
-| 1 | Database | **Answered: PostgreSQL.** The models, the migrations and the tests are written for PostgreSQL, the Compose files start a PostgreSQL image, and the decision code uses `ON CONFLICT`, which is PostgreSQL syntax. JSONB and pgvector are not used yet. One leftover remains: `backend/app/core/database.py` falls back to a local SQLite file when nothing listens on `localhost:5432`, and it drops the CHECK constraints in that case. This contradicts the decision and should be removed. |
+| 1 | Database | **Answered: PostgreSQL.** The models, the migrations and the tests are written for PostgreSQL, the Compose files start a PostgreSQL image, and the decision code uses `ON CONFLICT`, which is PostgreSQL syntax. JSONB and pgvector are not used yet. The leftover SQLite fallback of `backend/app/core/database.py` was removed in #371. |
 | 2 | Rating scales | **Answered and built.** Library 1 to 10, chapters and episodes 1 to 5 (BR-04 and BR-10). |
 | 3 | Chapter and decision point data for games | **Answered and built as a seed file:** `backend/app/seed/game_chapters.json`, loaded with `python -m app.seed`. The shipped file holds Life is Strange (IGDB id 7599) with 5 chapters and 6 decision points. Operator endpoints are not built and would need `is_admin` (point 6). |
 | 4 | Decision points per chapter | **Answered and built.** The request has an optional `decision_point_id`. It can be left out for a chapter with one decision point and is required when the chapter has several. |

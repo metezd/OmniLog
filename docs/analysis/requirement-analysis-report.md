@@ -183,7 +183,7 @@ All analysis documents were compared with each other, with the user stories, wit
 
 | # | Issue | Suggested owner |
 |---|---|---|
-| 1 | Database. **Resolved: PostgreSQL.** The code, the migrations and the tests use it. A leftover SQLite fallback for development is still in `backend/app/core/database.py` and should be removed. | Product Owner |
+| 1 | Database. **Resolved: PostgreSQL.** The code, the migrations and the tests use it. The leftover SQLite fallback for development was removed in #371. | Product Owner |
 | 2 | Rating scales. **Resolved and built:** 1 to 10 for the library and 1 to 5 for chapters. | Product Owner |
 | 3 | Source of chapters, decision points and options for episodic games. **Resolved and built:** a seed file loaded with `python -m app.seed`. | Product Owner, API Integration |
 | 4 | Embedding model and its dimension. Decided: OpenAI `text-embedding-3-small`, 1536 dimensions. It is a setting only. Embeddings are not built. | ML Engineer |

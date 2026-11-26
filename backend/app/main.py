@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+
 from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
@@ -19,9 +21,18 @@ from app.core import cache
 from app.core.body_limit import BodySizeLimitMiddleware
 from app.core.security_headers import SecurityHeadersMiddleware
 from app.core.config import CORS_ORIGINS, ENABLE_DOCS
+from app.core import database
 from app.core.database import get_db
 
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    # Stop at once with a clear message when the local PostgreSQL is not running (#371)
+    database.check_database(database.engine)
+    yield
+
+
 app = FastAPI(
+    lifespan=lifespan,
     title="OmniLog API",
     description="Video Game & TV Series Tracking API",
     version="0.8.0",

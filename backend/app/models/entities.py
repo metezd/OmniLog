@@ -355,7 +355,6 @@ class Chapter(Base):
             "number",
             unique=True,
             postgresql_where=text("season_id IS NULL"),
-            sqlite_where=text("season_id IS NULL"),
         ),
         # An episode belongs to a season, a game chapter does not
         CheckConstraint(

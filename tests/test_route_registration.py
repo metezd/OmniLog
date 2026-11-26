@@ -5,7 +5,8 @@ from pathlib import Path
 
 import pytest
 
-os.environ.setdefault("DATABASE_URL", "sqlite:///./test_route_registration.db")
+# No connection is made: the test only reads the OpenAPI schema
+os.environ.setdefault("DATABASE_URL", "postgresql+psycopg2://u:p@localhost:5432/unused")
 os.environ.setdefault("SECRET_KEY", "test-secret-key-for-openapi-guard")
 
 BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
