@@ -483,8 +483,9 @@ def test_the_command_imports_the_file(local_api, tmp_path, monkeypatch, capsys):
     path = write(tmp_path, "Date,Name,Year\n2026-01-01,Inception,2010\n2026-01-02,Unknown Film,2001\n")
     monkeypatch.setenv("OMNILOG_PASSWORD", "right-pass")
     monkeypatch.setattr(import_lists.time, "sleep", lambda _: None)
+    monkeypatch.chdir(tmp_path)
 
-    code = import_lists.main([str(path), "--list", "Favourites", "--api-url", local_api, "--username", "alice"])
+    code = import_lists.main([path.name, "--list", "Favourites", "--api-url", local_api, "--username", "alice"])
 
     out = capsys.readouterr().out
     assert code == 0
@@ -497,8 +498,9 @@ def test_the_command_imports_the_file(local_api, tmp_path, monkeypatch, capsys):
 def test_the_command_stops_on_a_wrong_password(local_api, tmp_path, monkeypatch, capsys):
     path = write(tmp_path, "title,year\nInception,2010\n")
     monkeypatch.setenv("OMNILOG_PASSWORD", "wrong-pass")
+    monkeypatch.chdir(tmp_path)
 
-    code = import_lists.main([str(path), "--list", "Favourites", "--api-url", local_api, "--username", "alice"])
+    code = import_lists.main([path.name, "--list", "Favourites", "--api-url", local_api, "--username", "alice"])
 
     assert code == 1
     assert "Invalid credentials" in capsys.readouterr().err
@@ -514,10 +516,55 @@ def test_the_command_stops_on_a_wrong_password(local_api, tmp_path, monkeypatch,
         ("title,year\nAlien,1979\n", ["--delay", "-1"], "cannot be negative"),
     ],
 )
-def test_the_command_refuses_bad_input_before_it_logs_in(tmp_path, capsys, csv_text, extra, message):
+def test_the_command_refuses_bad_input_before_it_logs_in(tmp_path, monkeypatch, capsys, csv_text, extra, message):
     path = write(tmp_path, csv_text)
+    monkeypatch.chdir(tmp_path)
 
-    code = import_lists.main([str(path), "--list", "L", "--username", "alice", *extra])
+    code = import_lists.main([path.name, "--list", "L", "--username", "alice", *extra])
 
     assert code == 2
     assert message in capsys.readouterr().err
+
+
+# ---------------------------------------------------------------- the path of the CSV file
+def test_a_csv_file_in_the_current_folder_is_accepted(tmp_path):
+    (tmp_path / "lists").mkdir()
+    target = tmp_path / "lists" / "films.csv"
+    target.write_text("title,year\n")
+
+    assert import_lists.safe_csv_path("lists/films.csv", base=tmp_path) == str(target.resolve())
+
+
+@pytest.mark.parametrize("raw", ["../films.csv", "/etc/passwd.csv", "lists/../../films.csv"])
+def test_a_path_outside_the_current_folder_is_refused(tmp_path, raw):
+    with pytest.raises(CsvError, match="inside the current folder"):
+        import_lists.safe_csv_path(raw, base=tmp_path / "work")
+
+
+def test_a_link_that_points_outside_is_refused(tmp_path):
+    outside = tmp_path / "secret.csv"
+    outside.write_text("title,year\n")
+    work = tmp_path / "work"
+    work.mkdir()
+    (work / "films.csv").symlink_to(outside)
+
+    with pytest.raises(CsvError, match="inside the current folder"):
+        import_lists.safe_csv_path("films.csv", base=work)
+
+
+@pytest.mark.parametrize("raw", ["films.txt", "films", ".env"])
+def test_only_a_csv_file_is_read(tmp_path, raw):
+    with pytest.raises(CsvError, match=".csv"):
+        import_lists.safe_csv_path(raw, base=tmp_path)
+
+
+def test_the_command_refuses_a_file_outside_the_current_folder(tmp_path, monkeypatch, capsys):
+    work = tmp_path / "work"
+    work.mkdir()
+    write(tmp_path, "title,year\nAlien,1979\n")
+    monkeypatch.chdir(work)
+
+    code = import_lists.main(["../films.csv", "--list", "L", "--username", "alice"])
+
+    assert code == 2
+    assert "inside the current folder" in capsys.readouterr().err
