@@ -137,6 +137,24 @@ Every pull request is reviewed before it is merged, including the pull requests 
 
 **Who merges.** The author merges with **Rebase and merge** after the approval, the green checks and the resolved conversations. Dependabot pull requests that pass the checks are merged by the same rule through the auto-merge workflow.
 
+### Review rota
+
+Each area has an owner, the member of that role in [`docs/CHARTER.md`](docs/CHARTER.md), and [`.github/CODEOWNERS`](.github/CODEOWNERS) asks the owner for a review by itself. When the author is the owner of the area, the second reviewer in the table reviews instead, so nobody approves their own work.
+
+| Area | Paths | Owner | Second reviewer |
+|---|---|---|---|
+| Architecture, CI, Docker, Render, docs | `*`, `.github/`, `docker/`, `docker-compose*.yml`, `render.yaml`, `docs/` | Mete Özdoğan (`metezd`) | Kağan Konuk (`KaganKonuk`) |
+| Frontend | `frontend/` | Kerem Kenet (`KeremKenet`) | Mete Özdoğan |
+| Backend | `backend/` | Kağan Konuk (`KaganKonuk`) | Mete Özdoğan |
+| IGDB and TMDB integrations, catalog, sync | `backend/app/integrations/`, `catalog_service.py`, `sync.py` | Musab Alperen Başol (`musabalperenbasol`) | Kağan Konuk |
+| Embeddings and recommendations | `embeddings.py`, `embedding_service.py`, `recommendations_service.py`, `api/recommendations.py`, `openai_client.py` | Sidar Ürey (`sidarurey`) | Kağan Konuk |
+| Tests and the penetration test | `tests/`, `docs/tests/` | Mohammed Edris (`Mhmd77Edrees`) | Mete Özdoğan |
+
+- A pull request that touches more than one area needs the approval of one owner. Ask the owners of the other areas too when the change in their area is more than a line.
+- When the owner or the second reviewer cannot answer in two working days, any other member may review.
+- Mete Özdoğan is the admin of the repository and can merge without an approval. He waits for an approval like everybody else. The [code review log](docs/code-review-log.md) shows how the pull requests were reviewed so far.
+- When a member joins or the roles change, change `CODEOWNERS`, this table and the list in `tests/test_codeowners.py` in the same pull request.
+
 ### Protecting `main`
 
 The rules above are enforced by GitHub, not by trust. The ruleset in [`.github/rulesets/main.json`](.github/rulesets/main.json) requires a pull request, one approval, resolved conversations, a linear history and these status checks: Security lint (Ruff), Backend tests, Docker Compose smoke test, Frontend checks, gitleaks, trivy, zizmor, PR title and Branch name. It also blocks force pushes and deleting `main`. The workflow `docker-build.yml` is not listed on purpose, because it runs only when some files change, and a check that does not run would block the other pull requests. Apply the ruleset once (needs the GitHub CLI and admin rights):
