@@ -316,7 +316,7 @@ A call that goes straight to the API domain has only one address from Render, so
 - Embeddings are not built. There is no `media_embeddings` table and no embeddings command. The recommendations (US-13) rank the catalog by the genres of the library, so they work without any key.
 - The spoiler check (US-14) uses OpenAI only when `OPENAI_API_KEY` is set. Without the key, the review is checked with local patterns. When the key is set and OpenAI does not answer, the review is saved and not checked (the spoiler fields stay NULL). The check runs after the review is committed, so no database connection is held during the OpenAI call.
 - The manual sync is the command `python -m app.sync`. The catalog has no sync endpoint, no scheduled sync and no admin endpoints. Title details also load from IGDB and TMDB when a title is opened.
-- The migrations and the tests need PostgreSQL. If the backend finds nothing at `localhost:5432` outside Docker, `app/core/database.py` falls back to a SQLite file. The production stack always has PostgreSQL, so this does not apply there.
+- The migrations and the tests need PostgreSQL. If the backend finds nothing at `localhost:5432` outside Docker, it does not start and says `PostgreSQL does not answer at localhost:5432 ... Start it with docker compose up -d` (#371). A remote database only gives a warning, and `/health/ready` answers 503 until it answers.
 
 ## 11. Problems
 

@@ -38,7 +38,7 @@ Measured in Docker, the same way as CI (section 5). 1009 passed, 4 skipped.
 | `api/lists.py` | 60.00% | The same dead routes (#305) |
 | `integrations/openai_client.py` | 78.38% | Error paths of the real OpenAI client (timeouts, bad answers). The tests use the fake client in `tests/requirements/fake_openai.py` |
 | `services/media_service.py` | 80.00% | The duplicate check of `POST /media`, which is off by default since #218 |
-| `core/database.py` | 81.82% | The SQLite fallback for a local machine without PostgreSQL. CI always has PostgreSQL |
+| `core/database.py` | - | Was 81.82% because of the SQLite fallback for a machine without PostgreSQL. The fallback was removed in #371, and the start check is tested in `tests/requirements/test_database_startup.py` |
 | `seed/__main__.py` | 86.49% | Error output of the command line tool |
 | `integrations/igdb.py` | 91.53% | Error answers of the Twitch sign-in. Only the live IGDB gives them |
 
