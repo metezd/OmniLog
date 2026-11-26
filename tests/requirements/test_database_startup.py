@@ -6,6 +6,7 @@ no SQLite fallback, and the API refuses to start when the local PostgreSQL is no
 """
 import logging
 import os
+import secrets
 import subprocess
 import sys
 from pathlib import Path
@@ -19,7 +20,8 @@ from app.core.database import DatabaseUnreachableError, check_database
 from app.main import app
 
 BACKEND_DIR = Path(__file__).resolve().parents[2] / "backend"
-SECRET = "test-secret-key-at-least-32-characters-long"
+# A new random key for each run, long enough for the check of config.py
+SECRET = secrets.token_hex(32)
 
 # Nothing listens on port 1, so a connection is refused at once
 LOCAL_DOWN = "postgresql+psycopg2://u:p@127.0.0.1:1/omnilog"
