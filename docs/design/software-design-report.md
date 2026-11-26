@@ -330,7 +330,7 @@ These decisions support all functional and non-functional requirements and are e
 *Requirement: backend line coverage of at least 70% with `pytest-cov`.*
 
 1. **Automated coverage gate in CI (`.github/workflows/ci.yml`):**
-   - Every push and pull request runs `python -m pytest tests/requirements -v --cov=backend/app --cov-report=term-missing --cov-report=xml --cov-fail-under=70` against real PostgreSQL 16 (`pgvector/pgvector:pg16`) and Redis 7 service containers.
+   - Every push and pull request runs `python -m pytest tests -v --cov=backend/app --cov-report=term-missing --cov-report=xml --cov-fail-under=90` against real PostgreSQL 16 (`pgvector/pgvector:pg16`) and Redis 7 service containers.
 2. **Migration drift check (`backend/migrations/`):**
    - CI runs `alembic upgrade head` followed by `alembic check` in both the `backend` job and the `docker-compose` smoke test job, failing the build if `backend/app/models/entities.py` diverges from the Alembic revision history (`0001` to `0011`).
 3. **Deterministic test doubles (`tests/requirements/fake_external_apis.py`):**

@@ -220,7 +220,7 @@ python -m pip install --require-hashes -r tests/requirements-test.txt
 python -m pytest tests -v --tb=short
 ```
 
-CI runs the same suite with `--cov-fail-under=70`. The stories are linked to the test functions in [`docs/analysis/data/traceability.md`](docs/analysis/data/traceability.md). The frontend tests run with Vitest in happy-dom (`cd frontend && npm test`). The settings that keep happy-dom from running code of a page are in `frontend/vitest.config.mts` and are checked by `frontend/tests/security/happy-dom.test.ts`.
+CI runs the same suite with `--cov-fail-under=90`. The requirement NFR-05 asks for 70%, and the gate is set higher so the coverage cannot fall back far. The stories are linked to the test functions in [`docs/analysis/data/traceability.md`](docs/analysis/data/traceability.md). The frontend tests run with Vitest in happy-dom (`cd frontend && npm test`). The settings that keep happy-dom from running code of a page are in `frontend/vitest.config.mts` and are checked by `frontend/tests/security/happy-dom.test.ts`.
 
 ### Code quality (SonarQube)
 
