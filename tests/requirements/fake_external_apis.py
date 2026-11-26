@@ -97,6 +97,7 @@ _TMDB_MAX_APPENDED = 20
 
 _IGDB_SEARCH = re.compile(r'search "([^"]*)"; fields ([a-z_.,]+); limit (\d+);')
 _IGDB_BY_ID = re.compile(r'fields ([a-z_.,]+); where id = (\d+); limit (\d+);')
+_IGDB_BY_IDS = re.compile(r'fields ([a-z_.,]+); where id = \(([0-9,]+)\); limit (\d+);')
 
 
 def _project(game: dict, fields: str) -> dict:
@@ -245,7 +246,12 @@ class FakeExternalApis:
 
         body = kwargs["data"].decode("utf-8")
         by_id = _IGDB_BY_ID.fullmatch(body)
-        if by_id:
+        by_ids = _IGDB_BY_IDS.fullmatch(body)
+        if by_ids:
+            fields, limit = by_ids.group(1), int(by_ids.group(3))
+            wanted = {int(game_id) for game_id in by_ids.group(2).split(",")}
+            matches = [g for g in self.games if g["id"] in wanted]
+        elif by_id:
             fields, game_id, limit = by_id.group(1), int(by_id.group(2)), int(by_id.group(3))
             matches = [g for g in self.games if g["id"] == game_id]
         else:
