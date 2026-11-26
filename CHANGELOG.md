@@ -6,6 +6,8 @@ All notable changes to this project are written in this file. The format follows
 
 ### Added
 
+- An outgoing limit for IGDB: the new setting `IGDB_MAX_REQUESTS_PER_SECOND` (default 3, `0` turns it off) spaces the calls of a process, retries included, so IGDB does not answer 429. A call that would wait more than 5 seconds fails at once and the saved copy is used.
+- The manual sync loads the details of many games with one IGDB query for every 100 games (`where id = (...)`) instead of one request per game. It falls back to one request per game when the batch fails.
 - Penetration retest after the fixes, with three new checks and a browser check of the frontend (#306).
 - The Software Testing Report (`docs/tests/software-testing-report.md`), which ties the tests, coverage, performance, security, SonarQube and TDD results together (#296).
 - HTTP load test (`tests/performance/load_test.py`), a script that runs it against the production stack (`tests/performance/run_stack.sh`) and the manual workflow "Performance". The results and the limit of the server are in `docs/tests/performance.md` (#298).

@@ -113,6 +113,15 @@ EXTERNAL_API_TIMEOUT_SECONDS = float(os.getenv("EXTERNAL_API_TIMEOUT_SECONDS", "
 EXTERNAL_API_MAX_RETRIES = int(os.getenv("EXTERNAL_API_MAX_RETRIES", "3"))
 EXTERNAL_API_BACKOFF_SECONDS = float(os.getenv("EXTERNAL_API_BACKOFF_SECONDS", "0.5"))
 
+# Outgoing limit for IGDB: the most requests per second that this backend process sends to it.
+# IGDB allows 4 per second for one Twitch application and answers 429 above that. A call that
+# would have to wait more than a few seconds fails at once, so the caller uses the saved copy. 0
+# turns the limit off. The limit counts per process, so give each process its share when the
+# backend runs more than one.
+IGDB_MAX_REQUESTS_PER_SECOND = float(os.getenv("IGDB_MAX_REQUESTS_PER_SECOND", "3"))
+if IGDB_MAX_REQUESTS_PER_SECOND < 0:
+    raise RuntimeError("IGDB_MAX_REQUESTS_PER_SECOND must be 0 or more.")
+
 # - Rate limits (#217)
 # Each limit is "<count>/<period>", where the period is second, minute, hour or day. Login and
 # register are counted per client address, search and review per user. RATE_LIMIT_ENABLED=false
