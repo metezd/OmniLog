@@ -1,7 +1,7 @@
 """The keyless catalog sources (US-08, US-09, #297).
 
 With `IGDB_CLIENT_ID=public` games come from the Steam Store, and with `TMDB_API_KEY=public`
-series come from TVMaze and movies from iTunes (see docs/deployment.md). These paths need no keys,
+series come from TVMaze and movies from Wikidata (see docs/deployment.md). These paths need no keys,
 so they are tested here with fake answers. The calls go through `request_with_retry`, which is
 replaced per module, so the parsing code runs as it does in production.
 """
@@ -40,8 +40,6 @@ def route(monkeypatch, module, answers):
 
 
 TVMAZE_SEARCH = "https://api.tvmaze.com/search/shows"
-ITUNES_SEARCH = "https://itunes.apple.com/search"
-ITUNES_LOOKUP = "https://itunes.apple.com/lookup"
 STEAM_SEARCH = "https://store.steampowered.com/api/storesearch/"
 STEAM_DETAILS = "https://store.steampowered.com/api/appdetails"
 
@@ -162,73 +160,177 @@ def test_us09_public_series_error_is_a_service_error(public_keys, monkeypatch):
         tmdb.fetch_series(8)
 
 
-# --------------------------------------------------------------------------- movies (iTunes)
-def test_us08_public_movie_search_reads_itunes(public_keys, monkeypatch):
-    router = route(monkeypatch, tmdb, {ITUNES_SEARCH: (200, {"results": [
-        {"trackId": 1, "trackName": "Inception", "releaseDate": "2010-07-16T07:00:00Z",
-         "artworkUrl100": "https://is1.mzstatic.com/a/100x100bb.jpg"},
-        {"trackId": 2, "trackName": "No art", "releaseDate": 2010},
-        {"trackName": "No id"},
-        "not an item",
-    ]})})
+# ------------------------------------------------------------------------- movies (Wikidata)
+# iTunes stopped answering movie searches in November 2026 (#370), so keyless movies come from
+# Wikidata: a search for items, then the items themselves, to keep only films and read the date.
+WIKIDATA = "https://www.wikidata.org/w/api.php"
+
+
+class WikidataRouter:
+    """Answers the Wikidata API by its `action` and records the calls."""
+
+    def __init__(self, search=None, entities=None, status=200):
+        self.search = search or []
+        self.entities = entities or {}
+        self.status = status
+        self.calls = []
+
+    def __call__(self, session, method, url, *, source, **kwargs):
+        params = kwargs.get("params") or {}
+        self.calls.append((url, params, kwargs.get("headers") or {}))
+        assert url == WIKIDATA
+        if self.status != 200:
+            return make_response(self.status, {})
+        if params["action"] == "wbsearchentities":
+            return make_response(200, {"search": self.search})
+        if params["action"] == "wbgetentities":
+            wanted = params["ids"].split("|")
+            return make_response(200, {"entities": {key: self.entities[key] for key in wanted if key in self.entities}})
+        raise AssertionError(params)
+
+
+def claim(value):
+    return {"mainsnak": {"datavalue": {"value": value}}}
+
+
+def film(qid, label, *dates, kinds=("Q11424",), genres=(), description="film"):
+    """A Wikidata item as wbgetentities sends it."""
+    return {
+        "id": qid,
+        "labels": {"en": {"value": label}},
+        "descriptions": {"en": {"value": description}},
+        "claims": {
+            "P31": [claim({"id": kind}) for kind in kinds],
+            "P577": [claim({"time": time, "precision": precision}) for time, precision in dates],
+            "P136": [claim({"id": genre}) for genre in genres],
+        },
+    }
+
+
+def use_wikidata(monkeypatch, router):
+    monkeypatch.setattr(tmdb, "request_with_retry", router)
+    return router
+
+
+def test_us08_public_movie_search_reads_wikidata(public_keys, monkeypatch):
+    router = use_wikidata(monkeypatch, WikidataRouter(
+        search=[{"id": "Q25188"}, {"id": "Q3797611"}, {"id": "Q109300883"}, {"id": "Q60834962"}],
+        entities={
+            "Q25188": film("Q25188", "Inception", ("+2010-07-16T00:00:00Z", 11), ("+2010-07-08T00:00:00Z", 11)),
+            # a soundtrack and a film series are not films
+            "Q3797611": film("Q3797611", "Inception", kinds=("Q482994",)),
+            "Q109300883": film("Q109300883", "Dune", kinds=("Q24856",)),
+            "Q60834962": film("Q60834962", "Dune", ("+2021-09-03T00:00:00Z", 11)),
+        },
+    ))
 
     titles = tmdb.search(MediaType.MOVIE, "inception", 10)
 
-    assert [(t.external_id, t.title) for t in titles] == [(1, "Inception"), (2, "No art")]
-    assert titles[0].poster_url == "https://is1.mzstatic.com/a/600x600bb.jpg"
-    assert titles[0].release_date == "2010-07-16"
-    assert titles[1].poster_url is None and titles[1].release_date is None
-    assert router.calls[0][2] == {"term": "inception", "entity": "movie", "limit": 10}
+    assert [(t.external_id, t.title, t.release_date) for t in titles] == [
+        (25188, "Inception", "2010-07-08"),  # the earliest release date
+        (60834962, "Dune", "2021-09-03"),
+    ]
+    assert all(t.poster_url is None for t in titles)
 
 
-def test_us08_public_movie_search_with_an_unexpected_body_is_empty(public_keys, monkeypatch):
-    route(monkeypatch, tmdb, {ITUNES_SEARCH: (200, {"results": "none"})})
+def test_us08_public_movie_search_asks_in_english_and_names_the_client(public_keys, monkeypatch):
+    router = use_wikidata(monkeypatch, WikidataRouter(search=[]))
+
+    tmdb.search(MediaType.MOVIE, "inception", 10)
+
+    url, params, headers = router.calls[0]
+    assert params["action"] == "wbsearchentities"
+    assert (params["search"], params["language"], params["type"]) == ("inception", "en", "item")
+    # Wikimedia asks every client for a User-Agent that names it
+    assert headers["User-Agent"].startswith("OmniLog/")
+
+
+def test_us08_public_movie_search_keeps_the_limit_and_the_order(public_keys, monkeypatch):
+    ids = [f"Q{n}" for n in range(1, 8)]
+    use_wikidata(monkeypatch, WikidataRouter(
+        search=[{"id": qid} for qid in ids],
+        entities={qid: film(qid, f"Film {qid}", ("+2000-01-01T00:00:00Z", 11)) for qid in ids},
+    ))
+
+    titles = tmdb.search(MediaType.MOVIE, "film", 3)
+
+    assert [t.external_id for t in titles] == [1, 2, 3]
+
+
+def test_us08_public_movie_search_without_a_day_has_no_date(public_keys, monkeypatch):
+    use_wikidata(monkeypatch, WikidataRouter(
+        search=[{"id": "Q1"}],
+        entities={"Q1": film("Q1", "Metropolis", ("+1927-00-00T00:00:00Z", 9))},
+    ))
+
+    assert tmdb.search(MediaType.MOVIE, "metropolis", 5)[0].release_date is None
+
+
+@pytest.mark.parametrize("kind", ["Q11424", "Q24862", "Q202866", "Q506240", "Q93204", "Q24869"])
+def test_us08_public_movie_search_knows_the_kinds_of_film(public_keys, monkeypatch, kind):
+    use_wikidata(monkeypatch, WikidataRouter(search=[{"id": "Q1"}], entities={"Q1": film("Q1", "A film", kinds=(kind,))}))
+
+    assert len(tmdb.search(MediaType.MOVIE, "a film", 5)) == 1
+
+
+@pytest.mark.parametrize(
+    "search",
+    [[], [{"id": "not a q id"}], [{"no": "id"}], ["not an object"]],
+)
+def test_us08_public_movie_search_with_nothing_usable_is_empty(public_keys, monkeypatch, search):
+    use_wikidata(monkeypatch, WikidataRouter(search=search))
 
     assert tmdb.search(MediaType.MOVIE, "x", 5) == []
 
 
 def test_us08_public_movie_search_error_is_a_service_error(public_keys, monkeypatch):
-    route(monkeypatch, tmdb, {ITUNES_SEARCH: (429, {})})
+    use_wikidata(monkeypatch, WikidataRouter(status=429))
 
-    with pytest.raises(ExternalServiceError, match="iTunes answered 429"):
+    with pytest.raises(ExternalServiceError, match="Wikidata answered 429"):
         tmdb.search(MediaType.MOVIE, "x", 5)
 
 
-def test_us09_public_movie_details_read_the_long_description(public_keys, monkeypatch):
-    router = route(monkeypatch, tmdb, {ITUNES_LOOKUP: (200, {"results": [
-        {"longDescription": "A thief who steals secrets.", "shortDescription": "Short.",
-         "primaryGenreName": "Sci-Fi & Fantasy"},
-    ]})})
+def test_us09_public_movie_details_read_wikidata(public_keys, monkeypatch):
+    router = use_wikidata(monkeypatch, WikidataRouter(entities={
+        "Q25188": film("Q25188", "Inception", genres=("Q471839", "Q2484376"),
+                       description="2010 film directed by Christopher Nolan"),
+        "Q471839": {"id": "Q471839", "labels": {"en": {"value": "science fiction film"}}},
+        "Q2484376": {"id": "Q2484376", "labels": {"en": {"value": "thriller film"}}},
+    }))
 
-    details = tmdb.fetch_movie_details(1)
+    details = tmdb.fetch_movie_details(25188)
 
-    assert details.description == "A thief who steals secrets."
+    assert details.description == "2010 film directed by Christopher Nolan"
     assert len(details.genres) >= 1
-    assert router.calls[0][2] == {"id": 1, "entity": "movie"}
+    assert router.calls[0][1]["ids"] == "Q25188"
 
 
 @pytest.mark.parametrize(
-    ("status", "body"),
+    "entities",
     [
-        (500, {}),
-        (200, {"results": []}),
-        (200, {"results": "none"}),
-        (200, {"results": ["not an object"]}),
-        (200, ["not an object"]),
+        {},
+        {"Q1": film("Q1", "Not a film", kinds=("Q482994",))},
+        {"Q1": "not an object"},
     ],
 )
-def test_us09_public_movie_details_missing_are_none(public_keys, monkeypatch, status, body):
-    route(monkeypatch, tmdb, {ITUNES_LOOKUP: (status, body)})
+def test_us09_public_movie_details_missing_are_none(public_keys, monkeypatch, entities):
+    use_wikidata(monkeypatch, WikidataRouter(entities=entities))
 
     assert tmdb.fetch_movie_details(1) is None
 
 
-def test_us09_public_movie_details_fall_back_to_the_short_description(public_keys, monkeypatch):
-    route(monkeypatch, tmdb, {ITUNES_LOOKUP: (200, {"results": [{"shortDescription": "Short."}]})})
+def test_us09_public_movie_details_when_wikidata_fails_are_none(public_keys, monkeypatch):
+    use_wikidata(monkeypatch, WikidataRouter(status=500))
+
+    assert tmdb.fetch_movie_details(1) is None
+
+
+def test_us09_public_movie_details_without_genres(public_keys, monkeypatch):
+    use_wikidata(monkeypatch, WikidataRouter(entities={"Q1": film("Q1", "A film", description="")}))
 
     details = tmdb.fetch_movie_details(1)
 
-    assert details.description == "Short."
+    assert details.description is None
     assert details.genres == ()
 
 
