@@ -48,7 +48,7 @@ To regenerate all PNG and SVG diagrams from PlantUML sources: `./docs/design/ren
 | Backend | FastAPI, SQLAlchemy 2, Pydantic v2, Alembic | `backend/requirements.txt`, `backend/app/main.py` |
 | Persistence & cache | PostgreSQL 16 (`pgvector/pgvector:pg16`), Redis 7 (`redis:7-alpine`) + in-process fallback | `backend/app/core/database.py`, `backend/app/core/cache.py` |
 | Authentication | Stateless JWT (`HS256`, 90 min expiry via `PyJWT`), `bcrypt` password hashing, `httpOnly` cookie (`omnilog_session`) | `backend/app/core/security.py`, `frontend/src/lib/server/session.ts` |
-| External catalog | IGDB (games, Twitch OAuth + Steam Store fallback) and TMDB (series/movies + TVMaze/iTunes fallback) | `backend/app/integrations/igdb.py`, `backend/app/integrations/tmdb.py` |
+| External catalog | IGDB (games, Twitch OAuth + Steam Store fallback) and TMDB (series/movies + TVMaze/Wikidata fallback) | `backend/app/integrations/igdb.py`, `backend/app/integrations/tmdb.py` |
 | Deployment | Docker Compose (`docker-compose.prod.yml`), Caddy 2 reverse proxy (`docker/Caddyfile`) with automatic HTTPS on private network `internal` | `docker-compose.prod.yml`, `backend/Dockerfile`, `frontend/Dockerfile` |
 
 ---
@@ -153,7 +153,7 @@ The backend uses function-based modules in `backend/app/api/` and `backend/app/s
 
 ![Catalog and integrations](class/03-catalog-integration.png)
 
-`catalog_service.py` coordinates `cache.py` (`get_json`, `set_json`, `clear_prefix`), `igdb.py` (`search_games`, `fetch_game_details`, plus keyless Steam Store API fallback when `IGDB_CLIENT_ID="public"`), `tmdb.py` (`search`, `fetch_movie_details`, `fetch_series_seasons`, `fetch_series`, plus keyless TVMaze and iTunes Search API fallback when `TMDB_API_KEY="public"`), `genres.py` (`normalize_genres`, `genres_from_entries`), and `common.py` (`request_with_retry`, `json_body`, `clean_*`, `dedupe`). External responses are normalized into frozen dataclasses (`ExternalTitle`, `ExternalDetails`, `ExternalEpisode`, `ExternalSeason`, `ExternalSeries`) before reaching the service layer.
+`catalog_service.py` coordinates `cache.py` (`get_json`, `set_json`, `clear_prefix`), `igdb.py` (`search_games`, `fetch_game_details`, plus keyless Steam Store API fallback when `IGDB_CLIENT_ID="public"`), `tmdb.py` (`search`, `fetch_movie_details`, `fetch_series_seasons`, `fetch_series`, plus keyless TVMaze and Wikidata fallback when `TMDB_API_KEY="public"`), `genres.py` (`normalize_genres`, `genres_from_entries`), and `common.py` (`request_with_retry`, `json_body`, `clean_*`, `dedupe`). External responses are normalized into frozen dataclasses (`ExternalTitle`, `ExternalDetails`, `ExternalEpisode`, `ExternalSeason`, `ExternalSeries`) before reaching the service layer.
 
 ### 3.4 API contracts (`backend/app/schemas/*.py`)
 

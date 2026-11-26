@@ -1,8 +1,13 @@
+import logging
 import os
-import socket
-from sqlalchemy import create_engine, CheckConstraint, event
-from sqlalchemy.engine import make_url
-from sqlalchemy.orm import sessionmaker, declarative_base
+from typing import Optional
+
+from sqlalchemy import create_engine, text
+from sqlalchemy.engine import Engine, make_url
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import declarative_base, sessionmaker
+
+logger = logging.getLogger(__name__)
 
 def normalize_database_url(url: str) -> str:
     """Give a PostgreSQL URL without a driver the driver of this app (psycopg2).
@@ -17,34 +22,47 @@ def normalize_database_url(url: str) -> str:
     return url
 
 
-DATABASE_URL = normalize_database_url(os.getenv("DATABASE_URL", "sqlite:///./omnilog_local.db"))
+# PostgreSQL only: the migrations, the CHECK constraints and pgvector are written for it (#371).
+# There is no fallback to a local file any more: it hid a database that was not running.
+_raw_url = os.getenv("DATABASE_URL", "").strip()
+if not _raw_url:
+    raise RuntimeError("Missing required environment variable: DATABASE_URL")
+DATABASE_URL = normalize_database_url(_raw_url)
 
-# Fall back to SQLite only for a PostgreSQL on this machine that is not running (local development).
-# A remote host (a Docker service such as "db", a managed database) is never replaced: a wrong or
-# unreachable address must fail loudly, and the migrations are written for PostgreSQL.
-if DATABASE_URL.startswith("postgres"):
-    _url = make_url(DATABASE_URL)
-    if _url.host in (None, "", "localhost", "127.0.0.1", "::1"):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.settimeout(0.5)
-            if s.connect_ex(("127.0.0.1", _url.port or 5432)) != 0:
-                DATABASE_URL = "sqlite:///./omnilog_local.db"
-
-is_sqlite = DATABASE_URL.startswith("sqlite")
-connect_args = {"check_same_thread": False} if is_sqlite else {}
-
-engine = create_engine(DATABASE_URL, connect_args=connect_args)
+engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# Strip Postgres-only CHECK constraints (like position('@' in username)) when using SQLite
-@event.listens_for(Base.metadata, "before_create")
-def _remove_pg_check_constraints(target, connection, **kw):
-    if connection.dialect.name == "sqlite":
-        for table in target.tables.values():
-            table.constraints = {
-                c for c in table.constraints if not isinstance(c, CheckConstraint)
-            }
+_LOCAL_HOSTS = (None, "", "localhost", "127.0.0.1", "::1")
+
+
+class DatabaseUnreachableError(RuntimeError):
+    """The PostgreSQL on this computer does not answer, so the API cannot work."""
+
+
+def check_database(target: Optional[Engine] = None) -> None:
+    """Try the database once at the start of the API.
+
+    A PostgreSQL on this computer that does not answer stops the start with a clear message,
+    because the API cannot work without it and the error of the first request would be hard to
+    read. A remote database (a Docker service, Render) can start later, so it only gives a warning,
+    and /health/ready answers 503 until it is there. The password is never written.
+    """
+    target = target if target is not None else engine
+    url = target.url
+    where = f"{url.host or 'localhost'}:{url.port or 5432}"
+    try:
+        with target.connect() as connection:
+            connection.execute(text("SELECT 1"))
+    except SQLAlchemyError as exc:
+        reason = type(getattr(exc, "orig", None) or exc).__name__
+        if url.host in _LOCAL_HOSTS:
+            raise DatabaseUnreachableError(
+                f"PostgreSQL does not answer at {where} ({reason}). "
+                "Start it with `docker compose up -d`, or set DATABASE_URL to a database that runs."
+            ) from None
+        logger.warning("PostgreSQL does not answer at %s (%s). /health/ready answers 503 until it does.", where, reason)
+
 
 def get_db():
     db = SessionLocal()

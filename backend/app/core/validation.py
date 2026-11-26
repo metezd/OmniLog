@@ -20,5 +20,5 @@ def reject_nul(value: str) -> str:
 
 NoNulStr = Annotated[str, AfterValidator(reject_nul)]
 
-# An outside id (IGDB, TMDB, Steam, TVMaze, iTunes) that fits the `integer` column
+# An outside id (IGDB, TMDB, Steam, TVMaze, Wikidata) that fits the `integer` column
 ExternalId = Annotated[int, Field(ge=1, le=INT32_MAX)]

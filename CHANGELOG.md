@@ -6,6 +6,7 @@ All notable changes to this project are written in this file. The format follows
 
 ### Added
 
+- `scripts/import_lists.py`, which imports a movie list from a CSV file or a Letterboxd export through the API, and the coverage of `scripts/` in CI and SonarQube (#336).
 - `Cache-Control: private, max-age=300, stale-while-revalidate=600` on successful catalog search and title details answers, and a warm-up ping from the login and register pages that wakes a sleeping backend, at most once a minute (#250).
 - `docs/design/render-pdf.sh`, which renders the Software Design Report to PDF with pandoc and Chromium in Docker (#295).
 - The check "AI disclosure" on pull requests: the section "AI assistance" must have one ticked box, and the label `ai-assisted` must be set when AI helped (#309).
@@ -19,6 +20,7 @@ All notable changes to this project are written in this file. The format follows
 
 ### Changed
 
+- `.github/rulesets/main.json`, `CONTRIBUTING.md` and the Dependabot workflow follow the live ruleset of `main`: merge commits instead of rebase, no linear history rule, and AI disclosure as a required check. A test keeps them in line, and the ruleset is updated with PUT instead of POST (#369).
 - The AI usage page, the notes of Sidar Ürey and the register of AI mistakes show the work up to 2026-11-26: eight new caught mistakes (17 in all), the AI disclosure check and the current controls (#308, #310).
 - `.github/CODEOWNERS` gives each of the six members the area of their role in the Charter, and a test checks that every path in it exists (#293).
 - The design report PDF and the architecture diagrams show the current stack (Node 26, Python 3.15, bcrypt, migrations up to 0013, the OpenAI API in use), and the docs give the real coverage gate of CI, 90% (#295).
@@ -26,6 +28,7 @@ All notable changes to this project are written in this file. The format follows
 
 ### Fixed
 
+- A local PostgreSQL that is not running no longer makes the API switch to an empty SQLite file that answered "ready" and then 500. The API now stops at the start with a clear message, and the SQLite code is removed (#371).
 - A local SonarQube scan found 2 bugs, 1 vulnerability and 12 code smells. All are fixed (an unreachable `raise`, a password in an example comment, a form label without its field, a regular expression that could backtrack). The CI scan now also reads the frontend coverage. The results are in `docs/tests/sonarqube.md` (#299).
 - The login and register limits on Render count the browser address again, not the address of the frontend for everybody. The new setting `FORWARDED_TRUSTED_HOPS` reads it from the right end of `X-Forwarded-For`, so a client cannot choose it by writing the left end (#251).
 - `docker-compose.yml` publishes PostgreSQL on `localhost:5432` again, which CI, `backend/.env.example` and the docs use. It was moved to `5433`, so the Docker Compose smoke test found no database, fell back to SQLite and failed on the migrations. `POSTGRES_PORT` now picks another port when 5432 is taken.
@@ -38,6 +41,7 @@ All notable changes to this project are written in this file. The format follows
 
 ### Security
 
+- The poster proxy `GET /api/poster` no longer follows a redirect of the poster host, so a redirect cannot lead the server to another address. More tests for the proxy (#332).
 - Penetration finding F7 is fixed and the missing headers are added: no `Server` or `X-Powered-By` header, `X-Frame-Options`, `Content-Security-Policy` and `Permissions-Policy` from the API on every answer (also on a 500), the browser headers from the frontend, and HSTS and the same headers from Caddy (#304).
 - Penetration finding F3 is fixed: the update schema of a title checks `poster_url` too, and the frontend sends a Content-Security-Policy with a nonce for scripts and only the app, `data:`, `blob:` and the TMDB and IGDB image hosts for images (#303).
 - Penetration finding F1 is fixed: on Render the login and register limits count the right-most address of `X-Forwarded-For`, which the proxy writes, and the browser address that the frontend sends with the new shared key `FRONTEND_PROXY_SECRET`. A fake first address no longer resets the limit (#301).

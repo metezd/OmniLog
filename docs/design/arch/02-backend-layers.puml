@@ -20,7 +20,7 @@ rectangle "**Persistence** (backend/app/models, backend/migrations, backend/app/
 
 database "PostgreSQL 16" as PG
 database "Redis 7" as R
-cloud "IGDB / TMDB\n(+ Steam / TVMaze / iTunes)" as EXT
+cloud "IGDB / TMDB\n(+ Steam / TVMaze / Wikidata)" as EXT
 
 API --> SVC : calls
 SVC --> INT : fetch outside data

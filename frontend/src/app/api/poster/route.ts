@@ -5,7 +5,7 @@ import { ALLOWED_POSTER_HOSTS } from "@/lib/media";
 const SAFE_PATH_PATTERN = /^\/[A-Za-z0-9/_.-]{1,250}$/;
 
 /**
- * Server-side poster proxy for external catalog CDNs (TMDB, IGDB, TVMaze, Steam, iTunes).
+ * Server-side poster proxy for external catalog CDNs (TMDB, IGDB, TVMaze, Steam, iTunes for movies saved before #370).
  * Prevents broken posters when a user's ISP, DNS, or browser extension blocks direct requests
  * to image.tmdb.org while the hosted frontend (e.g. Render Frankfurt) can reach it directly.
  */
@@ -35,6 +35,8 @@ export async function GET(request: NextRequest) {
   try {
     const upstream = await fetch(upstreamUrl, {
       headers: { Accept: "image/*" },
+      // The host was checked above, a redirect would skip that check (SSRF), so none is followed
+      redirect: "error",
       signal: AbortSignal.timeout(8000),
     });
 
