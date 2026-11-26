@@ -239,6 +239,15 @@ describe("the address of the backend", () => {
     expect(await backendFetch("/health")).toEqual({ ok: true });
   });
 
+  it("removes a long run of slashes at the end quickly (Sonar S8786)", async () => {
+    vi.stubEnv("BACKEND_URL", `${BASE}${"/".repeat(100_000)}`);
+    server.use(http.get(`${BASE}/health`, () => HttpResponse.json({ ok: true })));
+
+    const start = performance.now();
+    expect(await backendFetch("/health")).toEqual({ ok: true });
+    expect(performance.now() - start).toBeLessThan(1000);
+  });
+
   it("falls back to localhost:8000 in development", async () => {
     vi.stubEnv("BACKEND_URL", "");
     vi.stubEnv("NODE_ENV", "development");
