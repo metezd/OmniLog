@@ -9,8 +9,8 @@ permissions:
   contents: read
 
 jobs:
-  # The title becomes the commit subject after "Rebase and merge" of a one-commit pull request,
-  # so it must be a Conventional Commit (see "Commit messages" in CONTRIBUTING.md).
+  # The title is written into the merge commit, under "Merge pull request #N", and shows in the
+  # history of main, so it must be a Conventional Commit (see "Commit messages" in CONTRIBUTING.md).
   title:
     name: PR title
     runs-on: ubuntu-latest
