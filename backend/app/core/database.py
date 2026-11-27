@@ -7,6 +7,8 @@ from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import declarative_base, sessionmaker
 
+from app.core import config
+
 logger = logging.getLogger(__name__)
 
 def normalize_database_url(url: str) -> str:
@@ -29,7 +31,26 @@ if not _raw_url:
     raise RuntimeError("Missing required environment variable: DATABASE_URL")
 DATABASE_URL = normalize_database_url(_raw_url)
 
-engine = create_engine(DATABASE_URL)
+def make_engine(url: str = DATABASE_URL, statement_timeout_ms: Optional[int] = None) -> Engine:
+    """The engine of the API with the pool settings of app.core.config (#392).
+
+    statement_timeout_ms is DB_STATEMENT_TIMEOUT_MS by default. 0 means no limit, which the
+    migrations use, because a migration may run longer than a request.
+    """
+    timeout = config.DB_STATEMENT_TIMEOUT_MS if statement_timeout_ms is None else statement_timeout_ms
+    connect_args = {"options": f"-c statement_timeout={timeout}"} if timeout > 0 else {}
+    return create_engine(
+        url,
+        pool_pre_ping=True,
+        pool_size=config.DB_POOL_SIZE,
+        max_overflow=config.DB_MAX_OVERFLOW,
+        pool_timeout=config.DB_POOL_TIMEOUT,
+        pool_recycle=config.DB_POOL_RECYCLE,
+        connect_args=connect_args,
+    )
+
+
+engine = make_engine()
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
