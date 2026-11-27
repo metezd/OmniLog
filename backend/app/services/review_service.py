@@ -42,15 +42,21 @@ _SPOILER_PATTERNS: list[Tuple[re.Pattern[str], float]] = [
 SpoilerResult = Tuple[Optional[bool], Optional[float], Optional[str]]
 
 
+def uses_openai() -> bool:
+    """True when the review text goes to OpenAI: a key is set and SPOILER_PROVIDER is "openai" (#397)."""
+    return bool(config.OPENAI_API_KEY) and config.SPOILER_PROVIDER == "openai"
+
+
 def detect_spoilers(text: str) -> SpoilerResult:
     """Classify review text. Never raises for an outside failure.
 
-    With OPENAI_API_KEY set, OpenAI decides. When it fails, the review is "not checked" and the
-    result is (None, None, None). Without a key, the local patterns decide (US-14).
+    With OPENAI_API_KEY set and SPOILER_PROVIDER=openai, OpenAI decides. When it fails, the review
+    is "not checked" and the result is (None, None, None). Without a key, or with
+    SPOILER_PROVIDER=local, the local patterns decide and the text stays in the system (US-14, #397).
     This function must be called without an open database transaction: the OpenAI call can wait
     up to OPENAI_TIMEOUT_SECONDS for each of its tries.
     """
-    if config.OPENAI_API_KEY:
+    if uses_openai():
         try:
             contains_spoiler, score = classify_spoiler(text)
         except ExternalServiceError:
@@ -80,10 +86,10 @@ def upsert_review(
 
     1. Save the review with the spoiler fields NULL ("not checked") and commit.
     2. Run the spoiler check:
-       - with OPENAI_API_KEY, after the answer in a background job, so the request never waits
+       - with OpenAI (see uses_openai), after the answer in a background job, so the request never waits
          for OpenAI (#382). The answer says "not checked yet" (NULL), and GET shows the result
          when the job has written it;
-       - without it, the local patterns run at once, in no time, and the answer has the result.
+       - otherwise the local patterns run at once, in no time, and the answer has the result.
     3. Write the result in a second short transaction, without a connection held during step 2.
     A failed check leaves the fields NULL. The review is never lost because of it.
     """
@@ -125,7 +131,7 @@ def upsert_review(
     review_id = review.id
     db.commit()  # ends the transaction and returns the connection to the pool
 
-    if config.OPENAI_API_KEY:
+    if uses_openai():
         # The key holds the text, so an edit during a running check gets a check of its own
         digest = hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
         background.submit_once(f"spoiler:{review_id}:{digest}", _check_in_background, review_id, text)

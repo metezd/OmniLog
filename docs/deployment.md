@@ -99,11 +99,12 @@ All settings are in `.env.prod`. The file holds secrets and is ignored by Git. C
 | `OPENAI_COOLDOWN_SECONDS` | no | After a failed OpenAI call (no connection, timeout, 429 or 5xx), OpenAI is not called for this many seconds (default `60`, `0` turns it off) |
 | `BACKGROUND_WORKERS` | no | Threads for the work after the answer: the embedding of a title and the OpenAI spoiler check (default `2`). No request waits for OpenAI (#382) |
 | `IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET`, `TMDB_API_KEY` | no | Keys of the catalog services. Without them the catalog search cannot reach the outside services. For a demo without keys, set `IGDB_CLIENT_ID=public` (and any value in `IGDB_CLIENT_SECRET`) for games from the Steam Store, and `TMDB_API_KEY=public` for series from TVMaze and movies from Wikidata (without posters). Their ids are not IGDB or TMDB ids, so fill one database in one mode only |
-| `OPENAI_API_KEY` | no | OpenAI API key. Without it, the spoiler check of a review uses local patterns instead of OpenAI. The review is saved first in both cases. When the key is set and OpenAI fails, the spoiler fields of the review stay NULL (not checked) |
+| `OPENAI_API_KEY` | no | OpenAI API key. Without it, the spoiler check of a review uses local patterns instead of OpenAI, and no review text leaves the system (section 4.1). The review is saved first in both cases. When the key is set and OpenAI fails, the spoiler fields of the review stay NULL (not checked) |
+| `SPOILER_PROVIDER` | no | Who checks a review for spoilers: `openai` (default) or `local`. With `openai` and a key, the review text is sent to OpenAI. `local` uses the local patterns and keeps the review text inside the system, while the key is still used for the embeddings of titles (#397). The backend does not start with another value |
 | `SPOILER_MODEL` | no | Model that classifies a review. Default `gpt-4o-mini` |
 | `SPOILER_THRESHOLD` | no | Score from 0 to 1 at which a review is flagged. Default `0.5` |
 | `OPENAI_TIMEOUT_SECONDS`, `OPENAI_MAX_RETRIES` | no | Time limit of one OpenAI call in seconds (default `8`) and number of retries (default `2`) |
-| `EMBEDDING_MODEL`, `EMBEDDING_DIMENSIONS` | no | Embedding model (default `text-embedding-3-small`) and its size (default `1536`). The OpenAI client reads them, but no endpoint creates or stores embeddings yet, so they have no visible effect |
+| `EMBEDDING_MODEL`, `EMBEDDING_DIMENSIONS` | no | Embedding model (default `text-embedding-3-small`) and its size (default `1536`). Opening a title creates its embedding in a background job when `OPENAI_API_KEY` is set (section 4.1) |
 | `RATE_LIMIT_ENABLED` | no | `false` turns all rate limits off. Default `true`. See section 9.1 |
 | `RATE_LIMIT_LOGIN_ACCOUNT` | no | Failed logins of one account from any address, as `<count>/<period>`. Default `20/hour` (section 9.1) |
 | `RATE_LIMIT_REGISTER_DAY` | no | Registrations of one browser address in a day, besides `RATE_LIMIT_REGISTER`, as `<count>/<period>`. Default `20/day` (section 9.2) |
@@ -141,6 +142,22 @@ Two settings of `backend/.env.example` are left out of `x-backend-env` on purpos
 **The database on Render is Supabase.** `omnilog-api` uses PostgreSQL on Supabase, the same database that the workflow "Database Migration (Supabase)" migrates. The Render database `omnilog-db` is not used any more and is not in `render.yaml`. `DATABASE_URL` of `omnilog-api` has `sync: false`, so it is set once in the Render dashboard and a Blueprint sync keeps it. Before, the Blueprint set it from `omnilog-db` again after every sync. Use the **Session pooler** address of Supabase (`postgresql://postgres.<project>:<password>@<region>.pooler.supabase.com:5432/postgres`): the direct address `db.<project>.supabase.co` has only IPv6, which the runners of GitHub and many hosts cannot reach, and the Transaction pooler (port 6543) does not keep a session, which the migrations and the pool of the API need. The GitHub secret `SUPABASE_DB_URL` holds the same address.
 
 **Managed Redis (Upstash).** Redis holds the search cache, the details cache and the rate limit counters. The Redis of the `render.yaml` free plan keeps nothing on disk, so the counters and the cache are lost when it restarts. To keep them, set `REDIS_URL` to a persistent managed instance, for example the TLS address of Upstash (`rediss://default:<password>@<name>.upstash.io:6379`, with two `s`). Keep the address secret, because it holds the password. A managed Redis is farther away, so raise `REDIS_SOCKET_TIMEOUT_SECONDS` (for example to `1`) when calls time out. An empty `REDIS_URL` or a Redis that is down never stops the API: the in-process cache is used. The titles saved in PostgreSQL are a second cache layer: a title that was loaded less than `DB_CACHE_TTL_DAYS` days ago is served from the database without a call to IGDB or TMDB, even when Redis has lost its entries.
+
+### 4.1 Data sent to other services (#397)
+
+The backend calls these services from the server. The browser does not talk to them, so they do not get the user's address, account, email or token. Posters are loaded through the image service of the frontend (`next.config.ts`), also from the server.
+
+| Service | When | What is sent | User data |
+|---|---|---|---|
+| IGDB (Twitch login at `id.twitch.tv`, then `api.igdb.com`) | A game search, opening a game, `python -m app.sync` | The search text that the user typed, IGDB ids of games, the keys `IGDB_CLIENT_ID` and `IGDB_CLIENT_SECRET` | Only the search text, without the name of the user |
+| TMDB (`api.themoviedb.org`) | A movie or series search, opening a movie or series, the sync | The search text, TMDB ids, the key `TMDB_API_KEY` | Only the search text, without the name of the user |
+| Steam Store, TVMaze, Wikidata | Only in the demo mode without keys (`IGDB_CLIENT_ID=public`, `TMDB_API_KEY=public`) | The search text and the ids of these services | Only the search text, without the name of the user |
+| OpenAI, spoiler check (`SPOILER_MODEL`) | A review is saved, with `OPENAI_API_KEY` set and `SPOILER_PROVIDER=openai` | **The full text of the review** | Yes: the review is text that the user wrote. The name of the user is not sent |
+| OpenAI, embeddings (`EMBEDDING_MODEL`) | A title is opened and has no embedding yet, or its text changed, with `OPENAI_API_KEY` set | The title, the media type, the genres and the description from the catalog | No |
+
+**Keeping review text inside the system.** Leave `OPENAI_API_KEY` empty: then nothing is sent to OpenAI, and a review is checked with the local patterns at once. To keep the embeddings (they feed the recommendations) but not send reviews, set the key and `SPOILER_PROVIDER=local`. A review checked with the local patterns has `spoiler_model_version` `omnilog-nlp-spoiler-v1`.
+
+What OpenAI does with the text it gets is set by the terms of the OpenAI account that owns the key. The project does not tell the user yet that a review goes to OpenAI. A notice near the review form is planned in a separate frontend issue.
 
 ## 5. Update
 
@@ -347,7 +364,7 @@ What is still possible: someone with many addresses (a botnet, many cloud machin
 - Only login, register, search, title details, review and recommendations have a rate limit.
 - The friends page of the frontend shows sample data. The login, register, library, search, title, lists, diary, statistics and recommendations screens call the backend through the server code of Next.js (`BACKEND_URL`).
 - Embeddings are not built. There is no `media_embeddings` table and no embeddings command. The recommendations (US-13) rank the catalog by the genres of the library, so they work without any key.
-- The spoiler check (US-14) uses OpenAI only when `OPENAI_API_KEY` is set. Without the key, the review is checked with local patterns. When the key is set and OpenAI does not answer, the review is saved and not checked (the spoiler fields stay NULL). The check runs after the review is committed, so no database connection is held during the OpenAI call.
+- The spoiler check (US-14) uses OpenAI only when `OPENAI_API_KEY` is set and `SPOILER_PROVIDER` is `openai` (section 4.1). Without the key or with `SPOILER_PROVIDER=local`, the review is checked with local patterns. When the key is set and OpenAI does not answer, the review is saved and not checked (the spoiler fields stay NULL). The check runs after the review is committed, so no database connection is held during the OpenAI call.
 - The manual sync is the command `python -m app.sync`. The catalog has no sync endpoint, no scheduled sync and no admin endpoints. Title details also load from IGDB and TMDB when a title is opened.
 - The migrations and the tests need PostgreSQL. If the backend finds nothing at `localhost:5432` outside Docker, it does not start and says `PostgreSQL does not answer at localhost:5432 ... Start it with docker compose up -d` (#371). A remote database only gives a warning, and `/health/ready` answers 503 until it answers.
 
