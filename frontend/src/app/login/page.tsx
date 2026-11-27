@@ -13,9 +13,9 @@ export const metadata: Metadata = {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ registered?: string; expired?: string }>;
+  searchParams: Promise<{ registered?: string; expired?: string; deleted?: string; loggedOut?: string }>;
 }) {
-  const { registered, expired } = await searchParams;
+  const { registered, expired, deleted, loggedOut } = await searchParams;
   // Wake a sleeping backend while the user types, after this page is sent (#250)
   await connection();
   after(() => {
@@ -36,6 +36,10 @@ export default async function LoginPage({
 
         {expired === "1" && (
           <AuthBanner variant="info">Your session has ended. Please sign in again.</AuthBanner>
+        )}
+        {deleted === "1" && <AuthBanner variant="info">Your account and all its data were deleted.</AuthBanner>}
+        {loggedOut === "all" && (
+          <AuthBanner variant="info">You were logged out on all devices.</AuthBanner>
         )}
 
         <LoginForm registered={registered === "1"} />
