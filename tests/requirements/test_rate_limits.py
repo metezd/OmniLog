@@ -255,6 +255,39 @@ def test_title_details_without_a_token_are_401_and_not_counted(limits_on, monkey
     assert client.get(f"/catalog/{media['id']}", headers=headers).status_code == 200
 
 
+# ------------------------------------------------------------------------------------ recommendations
+def test_recommendations_are_limited_per_user(limits_on, monkeypatch):
+    """Each call averages the liked embeddings and runs a vector search, so it is limited (#396)."""
+    monkeypatch.setattr(config, "RATE_LIMIT_RECOMMENDATIONS", (2, 60))
+    client = client_at("10.0.6.1")
+    first = register_and_login(client, new_credentials())
+    second = register_and_login(client, new_credentials())
+    params = {"target": "SERIES"}
+
+    for _ in range(2):
+        assert client.get("/recommendations", params=params, headers=first).status_code == 200
+    assert_limited(client.get("/recommendations", params=params, headers=first), retry_after=60)
+    # Another user has a count of their own
+    assert client.get("/recommendations", params=params, headers=second).status_code == 200
+
+    FakeClock.now += 60
+    assert client.get("/recommendations", params=params, headers=first).status_code == 200
+
+
+def test_recommendations_without_a_token_are_401_and_not_counted(limits_on, monkeypatch):
+    monkeypatch.setattr(config, "RATE_LIMIT_RECOMMENDATIONS", (1, 60))
+    client = client_at("10.0.6.2")
+    headers = register_and_login(client, new_credentials())
+
+    for _ in range(3):
+        assert client.get("/recommendations", params={"target": "SERIES"}).status_code == 401
+    assert client.get("/recommendations", params={"target": "SERIES"}, headers=headers).status_code == 200
+
+
+def test_recommendations_limit_default():
+    assert config.RATE_LIMIT_RECOMMENDATIONS == (30, 60)
+
+
 # ------------------------------------------------------------------------- failed logins of one account
 def right_login(client: TestClient, credentials: dict):
     return client.post("/auth/login", json={"username": credentials["username"], "password": credentials["password"]})

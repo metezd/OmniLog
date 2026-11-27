@@ -530,3 +530,69 @@ def test_us13_large_catalog_has_bounded_queries_and_response(
     assert len(response.json()) == 10
     assert len(response.content) < 20_000
     assert len(statements) <= 5
+
+
+def test_us13_taste_vector_is_the_average_computed_in_postgresql(
+    client, auth_headers, db, monkeypatch
+):
+    """The taste vector is the average of the liked embeddings, computed by avg() in the
+    database (#396). Only liked titles count, and the order is the one of that average."""
+    from sqlalchemy import event
+
+    from app.core import config
+    from app.core.database import engine
+    from app.models.entities import MediaEmbedding
+
+    liked_a = create_media(client, auth_headers, media_type="GAME")
+    liked_b = create_media(client, auth_headers, media_type="MOVIE")
+    disliked = create_media(client, auth_headers, media_type="MOVIE")
+    add_to_library(client, auth_headers, liked_a["id"], rating=9)
+    add_to_library(client, auth_headers, liked_b["id"], status="COMPLETED")
+    add_to_library(client, auth_headers, disliked["id"], rating=2)
+    # The average of (1, 0) and (0, 1) is (0.5, 0.5): "middle" is closest to it, while each
+    # of the two liked vectors alone would put "near_a" or "near_b" first.
+    middle = create_media(client, auth_headers, media_type="SERIES")
+    near_a = create_media(client, auth_headers, media_type="SERIES")
+    near_b = create_media(client, auth_headers, media_type="SERIES")
+    far = create_media(client, auth_headers, media_type="SERIES")
+
+    vector = lambda x, y, z=0.0: [float(x), float(y), float(z)] + [0.0] * 1533
+    for item_id, embedding in (
+        (liked_a["id"], vector(1, 0)),
+        (liked_b["id"], vector(0, 1)),
+        (disliked["id"], vector(0, 0, 1)),
+        (middle["id"], vector(1, 1)),
+        (near_a["id"], vector(1, 0.3)),
+        (near_b["id"], vector(0.2, 1)),
+        (far["id"], vector(0, 0, 1)),
+    ):
+        db.add(
+            MediaEmbedding(
+                media_item_id=item_id,
+                model_name=config.EMBEDDING_MODEL,
+                embedding=embedding,
+                dimension=1536,
+                source_text_hash="test",
+            )
+        )
+    db.commit()
+
+    statements = []
+
+    def record(_conn, _cursor, statement, _parameters, _context, _many):
+        statements.append(statement)
+
+    event.listen(engine, "before_cursor_execute", record)
+    try:
+        response = client.get(
+            "/recommendations", params={"target": "SERIES", "limit": 50}, headers=auth_headers
+        )
+    finally:
+        event.remove(engine, "before_cursor_execute", record)
+
+    assert response.status_code == 200
+    ids = [item["id"] for item in response.json()]
+    assert ids.index(middle["id"]) < ids.index(near_a["id"]) < ids.index(near_b["id"])
+    assert ids.index(near_b["id"]) < ids.index(far["id"])
+    # The average is computed by PostgreSQL, not from every liked embedding in Python
+    assert any("avg(media_embeddings.embedding)" in statement for statement in statements)
