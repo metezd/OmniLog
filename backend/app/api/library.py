@@ -1,7 +1,9 @@
 """Library endpoints: add a title, list my library, rate, update and remove an entry (US-04, US-05)."""
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
 
@@ -50,6 +52,7 @@ def add_to_library(
 
 @router.get("", response_model=List[UserLibraryResponse])
 def get_library(
+    media_item_id: Annotated[int | None, Query(ge=1, le=MAX_ID)] = None,
     page: Page = Depends(library_page),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -58,8 +61,14 @@ def get_library(
 
     `limit` (1 to 500, default 200) and `offset` (default 0) page the answer. The answer stays a
     plain list. A limit above 500 gives 422.
+
+    `media_item_id` returns only the entry of that title: a list with one entry, or an empty list
+    when the title is not in the library (#418). A title page needs only its own entry, so it does
+    not have to read the whole library.
     """
-    return library_service.list_entries(db, current_user, limit=page.limit, offset=page.offset)
+    return library_service.list_entries(
+        db, current_user, limit=page.limit, offset=page.offset, media_item_id=media_item_id
+    )
 
 
 @router.patch("/{entry_id}", response_model=UserLibraryResponse)
