@@ -21,6 +21,15 @@ export function getChapterProgress(entryId: number, chapterId: number): Promise<
   return authedFetch<ChapterProgress>(chapterPath(entryId, chapterId));
 }
 
+/**
+ * The progress of every chapter of a library entry in one request (#419). Only chapters with a
+ * rating, playtime or a choice are in the answer. Before, the title page sent one request per
+ * chapter: 300 for a series with 300 episodes.
+ */
+export function getAllChapterProgress(entryId: number): Promise<ChapterProgress[]> {
+  return authedFetch<ChapterProgress[]>(`/library/${entryId}/chapters`);
+}
+
 /** A rating from 1 to 5. A new rating replaces the old one. */
 export function rateChapter(entryId: number, chapterId: number, rating: number): Promise<ChapterRating> {
   return authedFetch<ChapterRating>(`${chapterPath(entryId, chapterId)}/rating`, {
