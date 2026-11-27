@@ -20,7 +20,7 @@ All notable changes to this project are written in this file. The format follows
 
 ### Changed
 
-- The frontend checks in CI run on the Node.js version of `frontend/Dockerfile` (26 instead of 24), and Render runs the Python of `backend/Dockerfile` (3.15.2 instead of 3.15.0). A test keeps `render.yaml`, the Dockerfiles and CI in line (#379).
+- The frontend checks in CI run on the Node.js version of `frontend/Dockerfile` (26 instead of 24), and a test keeps `render.yaml`, the Dockerfiles and CI in line (#379). Render stays on Python 3.15.0, the minor version of the image, because 3.15.2 stopped the build of `omnilog-api`.
 - `.github/rulesets/main.json`, `CONTRIBUTING.md` and the Dependabot workflow follow the live ruleset of `main`: merge commits instead of rebase, no linear history rule, and AI disclosure as a required check. A test keeps them in line, and the ruleset is updated with PUT instead of POST (#369).
 - The AI usage page, the notes of Sidar Ürey and the register of AI mistakes show the work up to 2026-11-26: eight new caught mistakes (17 in all), the AI disclosure check and the current controls (#308, #310).
 - `.github/CODEOWNERS` gives each of the six members the area of their role in the Charter, and a test checks that every path in it exists (#293).
@@ -29,6 +29,7 @@ All notable changes to this project are written in this file. The format follows
 
 ### Fixed
 
+- The workflow "Database Migration (Supabase)" failed on every push to `main` (`No 'script_location' key found`), and its red check stopped the deploys of `omnilog-api` on Render. It now builds the backend image and runs `alembic upgrade head` inside it, with a random `SECRET_KEY` for the run. `render.yaml` uses Python 3.15.0 again, because the build of `omnilog-api` failed with 3.15.2.
 - Every time in an answer of the API is sent in UTC with a `Z` (`2026-11-26T19:34:34.794654Z`) instead of without a time zone, and the diary shows it in the time zone of the browser. Before, the diary was printed in the time zone of the server and read the time as local time, so in Turkey it was 3 hours early (#383).
 - Title details and reviews no longer wait for OpenAI. The embedding of a title and the OpenAI spoiler check run after the answer in a background job (`BACKGROUND_WORKERS`), and a review answers "not checked yet" until its result is written. After a failed call OpenAI is paused for `OPENAI_COOLDOWN_SECONDS` (default 60), so a broken OpenAI is not tried again on every open. Before, one request could wait about 25 seconds (#382).
 - A local PostgreSQL that is not running no longer makes the API switch to an empty SQLite file that answered "ready" and then 500. The API now stops at the start with a clear message, and the SQLite code is removed (#371).
