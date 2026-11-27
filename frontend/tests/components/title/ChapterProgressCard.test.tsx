@@ -3,18 +3,25 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import ChapterProgressCard from "@/components/title/ChapterProgressCard";
-import { logPlaytimeAction, rateChapterAction, recordDecisionAction } from "@/lib/actions/chapters";
+import {
+  logPlaytimeAction,
+  rateChapterAction,
+  recordDecisionAction,
+  removeChapterDataAction,
+} from "@/lib/actions/chapters";
 import type { Chapter, ChapterProgress } from "@/types/api";
 
 vi.mock("@/lib/actions/chapters", () => ({
   rateChapterAction: vi.fn(),
   logPlaytimeAction: vi.fn(),
   recordDecisionAction: vi.fn(),
+  removeChapterDataAction: vi.fn(),
 }));
 
 const mockedRate = vi.mocked(rateChapterAction);
 const mockedPlay = vi.mocked(logPlaytimeAction);
 const mockedDecision = vi.mocked(recordDecisionAction);
+const mockedRemove = vi.mocked(removeChapterDataAction);
 
 function makeChapter(overrides: Partial<Chapter> = {}): Chapter {
   return {
@@ -164,3 +171,46 @@ describe("ChapterProgressCard", () => {
     });
   });
 });
+
+describe("ChapterProgressCard: take back what was logged (#427)", () => {
+  it("offers to remove the rating, the last time entry and the choice", async () => {
+    mockedRemove.mockResolvedValue({ status: "saved", message: "Rating removed" });
+    const user = userEvent.setup();
+    renderInLibrary({}, makeProgress());
+
+    await user.click(screen.getByRole("button", { name: "Remove rating" }));
+
+    await waitFor(() => expect(mockedRemove).toHaveBeenCalledTimes(1));
+    const [, formData] = mockedRemove.mock.calls[0];
+    expect(Object.fromEntries(formData as FormData)).toMatchObject({
+      entryId: "10",
+      chapterId: "101",
+      mediaItemId: "42",
+      what: "rating",
+    });
+    expect(await screen.findByText("Rating removed")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Undo last time entry" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Clear choice/ })).toBeInTheDocument();
+  });
+
+  it("sends the decision point when a choice is cleared", async () => {
+    mockedRemove.mockResolvedValue({ status: "saved", message: "Choice removed" });
+    const user = userEvent.setup();
+    renderInLibrary({}, makeProgress());
+
+    await user.click(screen.getByRole("button", { name: "Clear choice: Report Nathan to the Principal?" }));
+
+    await waitFor(() => expect(mockedRemove).toHaveBeenCalledTimes(1));
+    const [, formData] = mockedRemove.mock.calls[0];
+    expect(Object.fromEntries(formData as FormData)).toMatchObject({ what: "decision", decisionPointId: "501" });
+  });
+
+  it("offers nothing to remove when nothing was logged", () => {
+    renderInLibrary({}, makeProgress({ rating: null, playtime_minutes: 0, choice: null, decisions: [] }));
+
+    expect(screen.queryByRole("button", { name: "Remove rating" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Undo last time entry" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Clear choice/ })).not.toBeInTheDocument();
+  });
+});
+

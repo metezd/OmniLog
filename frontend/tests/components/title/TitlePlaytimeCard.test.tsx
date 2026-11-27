@@ -3,14 +3,16 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import TitlePlaytimeCard from "@/components/title/TitlePlaytimeCard";
-import { logTitlePlaytimeAction } from "@/lib/actions/library";
+import { logTitlePlaytimeAction, removeLastTitlePlaytimeAction } from "@/lib/actions/library";
 import type { LibraryEntry } from "@/types/api";
 
 vi.mock("@/lib/actions/library", () => ({
   logTitlePlaytimeAction: vi.fn(),
+  removeLastTitlePlaytimeAction: vi.fn(),
 }));
 
 const mockedLog = vi.mocked(logTitlePlaytimeAction);
+const mockedUndo = vi.mocked(removeLastTitlePlaytimeAction);
 
 function makeEntry(overrides: Partial<LibraryEntry> = {}): LibraryEntry {
   return {
@@ -83,3 +85,23 @@ describe("TitlePlaytimeCard (#413)", () => {
     );
   });
 });
+
+describe("TitlePlaytimeCard: undo the last session (#427)", () => {
+  it("removes the newest session of the title", async () => {
+    mockedUndo.mockResolvedValueOnce({ status: "saved", message: "Last entry removed" });
+    const user = userEvent.setup();
+    render(<TitlePlaytimeCard entry={makeEntry({ playtime_minutes: 600 })} />);
+
+    await user.click(screen.getByRole("button", { name: "Undo last session" }));
+
+    await waitFor(() => expect(mockedUndo).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText("Last entry removed")).toBeInTheDocument();
+  });
+
+  it("offers no undo when the title has no session", () => {
+    render(<TitlePlaytimeCard entry={makeEntry({ playtime_minutes: 0 })} chapterMinutes={30} />);
+
+    expect(screen.queryByRole("button", { name: "Undo last session" })).not.toBeInTheDocument();
+  });
+});
+

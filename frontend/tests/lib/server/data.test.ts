@@ -3,11 +3,19 @@ import { http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getTitleDetails, searchCatalog } from "@/lib/server/catalog";
-import { getChapterProgress, logPlaytime, rateChapter, recordDecision } from "@/lib/server/chapters";
+import {
+  getChapterProgress,
+  logPlaytime,
+  rateChapter,
+  recordDecision,
+  removeChapterRating,
+  removeDecision,
+  removeLastChapterPlaytime,
+} from "@/lib/server/chapters";
 import { addItemToList, createList, deleteList, getDiary, getList, getLists, removeItemFromList } from "@/lib/server/journal";
-import { addToLibrary, getLibrary, removeFromLibrary, updateLibraryEntry } from "@/lib/server/library";
+import { addToLibrary, getLibrary, removeFromLibrary, removeLastTitlePlaytime, updateLibraryEntry } from "@/lib/server/library";
 import { getRecommendations } from "@/lib/server/recommendations";
-import { getReview, submitReview } from "@/lib/server/reviews";
+import { deleteReview, getReview, submitReview } from "@/lib/server/reviews";
 import { cookieStore } from "../../mocks/cookie-store";
 import { server } from "../../mocks/server";
 import { liveToken } from "../../mocks/token";
@@ -136,6 +144,24 @@ describe("chapters", () => {
     const { seen } = fakeBackend();
     await logPlaytime(3, 8, 90);
     expect(seen[0]).toMatchObject({ method: "POST", path: "/library/3/chapters/8/playtime", body: { minutes: 90 } });
+  });
+
+  it("removes a rating, the last time entry and a choice (#427)", async () => {
+    const { seen } = fakeBackend(null);
+    await removeChapterRating(3, 8);
+    await removeLastChapterPlaytime(3, 8);
+    await removeDecision(3, 8);
+    await removeDecision(3, 8, 21);
+    await removeLastTitlePlaytime(3);
+    await deleteReview(3);
+    expect(seen.map((s) => [s.method, s.path])).toEqual([
+      ["DELETE", "/library/3/chapters/8/rating"],
+      ["DELETE", "/library/3/chapters/8/playtime/last"],
+      ["DELETE", "/library/3/chapters/8/decision"],
+      ["DELETE", "/library/3/chapters/8/decision?decision_point_id=21"],
+      ["DELETE", "/library/3/playtime/last"],
+      ["DELETE", "/library/3/review"],
+    ]);
   });
 
   it("records a decision, and sends the decision point only when it is given", async () => {
