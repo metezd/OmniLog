@@ -96,3 +96,15 @@ def test_gitleaks_scans_only_the_history_of_the_checked_out_commit():
     scan = next(command for command in commands if "gitleaks detect" in command)
 
     assert '--log-opts="HEAD"' in scan
+
+
+def test_the_supabase_migration_waits_for_the_other_checks():
+    """#421: production is migrated only on main and only after the checks of the same commit."""
+    workflow = yaml.safe_load((ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8"))
+    job = workflow["jobs"]["migrate-supabase"]
+
+    assert set(job["needs"]) >= {"security-lint", "backend", "docker-compose", "frontend"}
+    assert job["if"] == "github.event_name == 'push' && github.ref == 'refs/heads/main'"
+    assert job["environment"]["name"] == "supabase-production"
+    assert job["concurrency"]["cancel-in-progress"] is False
+    assert not (ROOT / ".github" / "workflows" / "db-migrate.yml").exists()
