@@ -7,6 +7,11 @@ from app.models.entities import Genre, MediaEmbedding, MediaItem, MediaType
 from app.services import embedding_service
 
 
+def genre(db, name):
+    """The genre with this name. Other tests can have made it already, and names are unique."""
+    return db.query(Genre).filter_by(name=name).one_or_none() or Genre(name=name)
+
+
 def make_media(db, *, description=None, genres=None):
     item = MediaItem(
         title="Test Title",
@@ -24,7 +29,7 @@ def test_build_embedding_text_includes_title_type_genres_and_description(db):
     item = make_media(
         db,
         description="A story about space.",
-        genres=[Genre(name="Sci-Fi"), Genre(name="Adventure")],
+        genres=[genre(db, "Sci-Fi"), genre(db, "Adventure")],
     )
 
     text = embedding_service.build_embedding_text(item)
