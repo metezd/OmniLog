@@ -35,6 +35,7 @@ All notable changes to this project are written in this file. The format follows
 
 ### Fixed
 
+- The frontend no longer stops at the first page: the library and the lists are read page by page, the title page asks only for its own library entry (new filter `GET /library?media_item_id=`), and the diary has links to older and newer events. Before, a user with more than 200 titles saw only 200, and a later title offered "Add to library" again, which answered 409 (#418).
 - `omnilog-api` on Render uses the Supabase database. `render.yaml` no longer has the Render database `omnilog-db`, which is not used any more, and `DATABASE_URL` is set in the dashboard (`sync: false`), so a Blueprint sync does not point it back to `omnilog-db`. Its name could not be resolved any more, so every start of the API failed (#402).
 - `alembic upgrade head` tries the database again for about 30 seconds (10 tries, 3 seconds apart) when it cannot be reached. On Render the name of the database could not be resolved for a few seconds after a new instance started, so the start command stopped and the deploy of `omnilog-api` was marked as failed, although a second try worked (#402).
 - The workflow "Database Migration (Supabase)" failed on every push to `main` (`No 'script_location' key found`), and its red check stopped the deploys of `omnilog-api` on Render. It now builds the backend image and runs `alembic upgrade head` inside it, with a random `SECRET_KEY` for the run. `render.yaml` uses Python 3.15.0 again, because the build of `omnilog-api` failed with 3.15.2.
