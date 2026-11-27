@@ -3,7 +3,7 @@ from logging.config import fileConfig
 from alembic import context
 
 from app.core.config import DATABASE_URL
-from app.core.database import Base, engine
+from app.core.database import Base, make_engine
 
 # Importing the models registers every table on Base.metadata
 import app.models.entities  # noqa: F401
@@ -29,7 +29,11 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    """Run migrations against the configured database."""
+    """Run migrations against the configured database.
+
+    Its own engine has no statement_timeout, so a migration may run longer than a request (#392).
+    """
+    engine = make_engine(statement_timeout_ms=0)
     with engine.connect() as connection:
         context.configure(connection=connection, target_metadata=target_metadata)
         with context.begin_transaction():
