@@ -79,7 +79,8 @@ def set_statement_timeout(target: Engine, milliseconds: int) -> None:
     def _set_timeout(dbapi_connection, _record):
         cursor = dbapi_connection.cursor()
         try:
-            cursor.execute(f"SET statement_timeout = {int(milliseconds)}")
+            # psycopg2 fills in the value on the client, so SET can take it as a parameter
+            cursor.execute("SET statement_timeout = %s", (int(milliseconds),))
         finally:
             cursor.close()
         # SET opens a transaction in psycopg2. End it, so the connection starts clean.
