@@ -69,7 +69,6 @@ jobs:
             echo "SECRET_KEY=$(openssl rand -hex 32)"
             echo "APP_DOMAIN=localhost"
             echo "API_DOMAIN=api.localhost"
-            echo "API_URL=https://api.localhost"
             echo "CORS_ORIGINS=https://localhost"
             echo "TAG=ci"
           } > .env.prod
