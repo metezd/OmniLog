@@ -52,3 +52,31 @@ export function recordDecision(
     timeoutMs: CHAPTER_WRITE_TIMEOUT_MS,
   });
 }
+
+// ---------------------------------------------------------------- remove what was logged (#427)
+
+/** Removes the rating of a chapter. The playtime and the choices stay. 404 when there is none. */
+export function removeChapterRating(entryId: number, chapterId: number): Promise<void> {
+  return authedFetch<void>(`${chapterPath(entryId, chapterId)}/rating`, {
+    method: "DELETE",
+    timeoutMs: CHAPTER_WRITE_TIMEOUT_MS,
+  });
+}
+
+/** Removes the newest playtime entry of a chapter and answers the new progress. */
+export function removeLastChapterPlaytime(entryId: number, chapterId: number): Promise<ChapterProgress> {
+  return authedFetch<ChapterProgress>(`${chapterPath(entryId, chapterId)}/playtime/last`, {
+    method: "DELETE",
+    timeoutMs: CHAPTER_WRITE_TIMEOUT_MS,
+  });
+}
+
+/** Removes the choice at a decision point. A chapter with several points needs the point id. */
+export function removeDecision(entryId: number, chapterId: number, decisionPointId?: number): Promise<void> {
+  const query = decisionPointId === undefined ? "" : `?decision_point_id=${decisionPointId}`;
+  return authedFetch<void>(`${chapterPath(entryId, chapterId)}/decision${query}`, {
+    method: "DELETE",
+    timeoutMs: CHAPTER_WRITE_TIMEOUT_MS,
+  });
+}
+

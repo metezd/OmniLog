@@ -3,7 +3,7 @@
 import { useActionState, useState, type FormEvent } from "react";
 
 import ErrorState from "@/components/states/ErrorState";
-import { type ReviewActionState, submitReviewAction } from "@/lib/actions/library";
+import { deleteReviewAction, type ReviewActionState, submitReviewAction } from "@/lib/actions/library";
 import type { Review } from "@/types/api";
 
 interface ReviewSectionProps {
@@ -23,9 +23,20 @@ export default function ReviewSection({
   const [clientError, setClientError] = useState<string | null>(null);
   const [showActionError, setShowActionError] = useState(true);
   const [revealSpoiler, setRevealSpoiler] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const [state, formAction, pending] = useActionState(
     async (prev: ReviewActionState, formData: FormData): Promise<ReviewActionState> => {
+      if (formData.get("intent") === "delete") {
+        // Removing the review (#427): the section shows the empty form again
+        const removed = await deleteReviewAction(prev, formData);
+        setConfirmDelete(false);
+        if (removed.status === "idle") {
+          setIsEditing(false);
+          setDraftText("");
+        }
+        return removed;
+      }
       const result = await submitReviewAction(prev, formData);
       if (result.status === "saved") {
         setIsEditing(false);
@@ -37,7 +48,9 @@ export default function ReviewSection({
     initialState,
   );
 
-  const currentReview = state.status === "saved" ? state.review : (state.review ?? initialReview);
+  // `review: null` in the state means that the review was removed, so it does not fall back
+  const currentReview =
+    state.status === "saved" ? state.review : state.review !== undefined ? state.review : initialReview;
   const showForm = !currentReview || isEditing;
   const activeError =
     clientError !== null
@@ -139,6 +152,35 @@ export default function ReviewSection({
               >
                 Edit Review
               </button>
+              {confirmDelete ? (
+                <form action={formAction} className="flex items-center gap-2">
+                  <input type="hidden" name="entryId" value={entryId} />
+                  <input type="hidden" name="mediaItemId" value={mediaItemId} />
+                  <input type="hidden" name="intent" value="delete" />
+                  <button
+                    type="submit"
+                    disabled={pending}
+                    className="rounded-lg border border-rose-400/40 bg-rose-400/20 px-2.5 py-1 text-[11px] font-semibold text-rose-100 hover:bg-rose-400/30 disabled:opacity-50"
+                  >
+                    {pending ? "Deleting…" : "Confirm delete"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDelete(false)}
+                    className="rounded-lg border border-white/15 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-slate-200 hover:bg-white/15"
+                  >
+                    Keep it
+                  </button>
+                </form>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(true)}
+                  className="rounded-lg border border-rose-400/30 bg-rose-400/10 px-2.5 py-1 text-[11px] font-medium text-rose-200 hover:bg-rose-400/20"
+                >
+                  Delete Review
+                </button>
+              )}
             </div>
           </div>
 

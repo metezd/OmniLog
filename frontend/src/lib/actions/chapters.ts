@@ -2,7 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 
-import { logPlaytime, rateChapter, recordDecision } from "@/lib/server/chapters";
+import {
+  logPlaytime,
+  rateChapter,
+  recordDecision,
+  removeChapterRating,
+  removeDecision,
+  removeLastChapterPlaytime,
+} from "@/lib/server/chapters";
 import { BackendError } from "@/lib/server/backend";
 import { toErrorState } from "@/lib/server/error-state";
 
@@ -117,3 +124,46 @@ export async function recordDecisionAction(
   }
   return { status: "saved", message: `Choice "${choice}" saved` };
 }
+
+const REMOVED_MESSAGES = {
+  rating: "Rating removed",
+  playtime: "Last entry removed",
+  decision: "Choice removed",
+} as const;
+
+/**
+ * Takes back what was logged for a chapter (#427): the rating, the newest playtime entry or the
+ * choice at a decision point. The form sends `what` with one of these three values.
+ */
+export async function removeChapterDataAction(
+  _previous: ChapterActionState,
+  formData: FormData,
+): Promise<ChapterActionState> {
+  const entryId = Number(formData.get("entryId"));
+  const chapterId = Number(formData.get("chapterId"));
+  const mediaItemId = Number(formData.get("mediaItemId"));
+  const what = String(formData.get("what") ?? "");
+  const dpRaw = formData.get("decisionPointId");
+  const decisionPointId = dpRaw ? Number(dpRaw) : undefined;
+
+  if (!Number.isInteger(entryId) || !Number.isInteger(chapterId) || !(what in REMOVED_MESSAGES)) {
+    return { status: "error", message: "Nothing to remove." };
+  }
+
+  try {
+    if (what === "rating") await removeChapterRating(entryId, chapterId);
+    else if (what === "playtime") await removeLastChapterPlaytime(entryId, chapterId);
+    else await removeDecision(entryId, chapterId, decisionPointId);
+  } catch (error) {
+    rethrowIfRedirect(error);
+    return { status: "error", message: chapterErrorMessage(error) };
+  }
+
+  revalidatePath("/diary");
+  revalidatePath("/stats");
+  if (Number.isInteger(mediaItemId) && mediaItemId > 0) {
+    revalidatePath(`/title/${mediaItemId}`);
+  }
+  return { status: "saved", message: REMOVED_MESSAGES[what as keyof typeof REMOVED_MESSAGES] };
+}
+
