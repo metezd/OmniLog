@@ -6,6 +6,7 @@ All notable changes to this project are written in this file. The format follows
 
 ### Added
 
+- The setting `SPOILER_PROVIDER` (`openai` by default, or `local`): `local` checks reviews with the local patterns and keeps their text inside the system, also when `OPENAI_API_KEY` is set for the embeddings. `docs/deployment.md` has a new section 4.1 that lists what is sent to IGDB, TMDB and OpenAI, and the README says that an empty `OPENAI_API_KEY` keeps all review text inside the system (#397).
 - `Strict-Transport-Security: max-age=31536000` from the API itself when the request came over HTTPS (`X-Forwarded-Proto: https`), for the Render setup. Behind Caddy the API proxy drops it and sends its own, so the header is not sent twice (#394).
 - `scripts/import_lists.py`, which imports a movie list from a CSV file or a Letterboxd export through the API, and the coverage of `scripts/` in CI and SonarQube (#336).
 - `Cache-Control: private, max-age=300, stale-while-revalidate=600` on successful catalog search and title details answers, and a warm-up ping from the login and register pages that wakes a sleeping backend, at most once a minute (#250).

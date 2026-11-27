@@ -163,6 +163,12 @@ EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small").strip()
 EMBEDDING_DIMENSIONS = int(os.getenv("EMBEDDING_DIMENSIONS", "1536"))
 SPOILER_MODEL = os.getenv("SPOILER_MODEL", "gpt-4o-mini").strip()
 SPOILER_THRESHOLD = float(os.getenv("SPOILER_THRESHOLD", "0.5"))
+# Who checks a review for spoilers (#397). "openai" sends the review text to OpenAI when
+# OPENAI_API_KEY is set. "local" keeps every review inside the system and uses the local patterns,
+# also when the key is set for the embeddings of titles.
+SPOILER_PROVIDER = os.getenv("SPOILER_PROVIDER", "openai").strip().lower() or "openai"
+if SPOILER_PROVIDER not in ("local", "openai"):
+    raise RuntimeError("SPOILER_PROVIDER must be local or openai.")
 OPENAI_TIMEOUT_SECONDS = float(os.getenv("OPENAI_TIMEOUT_SECONDS", "8"))
 OPENAI_MAX_RETRIES = int(os.getenv("OPENAI_MAX_RETRIES", "2"))
 # After a failed OpenAI call, the next calls fail at once for this many seconds instead of waiting
