@@ -11,6 +11,7 @@ function entry(overrides: Partial<LibraryEntry> = {}, item: Partial<LibraryEntry
     media_item_id: 4,
     status: "IN_PROGRESS",
     rating: 8,
+    playtime_minutes: 0,
     updated_at: "2026-10-20T10:00:00Z",
     media_item: {
       id: 4,

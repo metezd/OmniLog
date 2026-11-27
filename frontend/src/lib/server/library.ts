@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { LibraryEntry, WatchStatus } from "@/types/api";
+import type { LibraryEntry, TitlePlaytimeLog, WatchStatus } from "@/types/api";
 import { authedFetch } from "./authed";
 
 // Library of the logged-in user (US-04, US-05). Rating is 1 to 10.
@@ -35,4 +35,15 @@ export function updateLibraryEntry(
  */
 export function removeFromLibrary(entryId: number): Promise<void> {
   return authedFetch<void>(`/library/${entryId}`, { method: "DELETE" });
+}
+
+/**
+ * Adds one playtime entry to a whole game or movie, without a chapter (#413). The total of the
+ * title is the sum of all entries. A series answers 422: its time is logged on the episodes.
+ */
+export function logTitlePlaytime(entryId: number, minutes: number): Promise<TitlePlaytimeLog> {
+  return authedFetch<TitlePlaytimeLog>(`/library/${entryId}/playtime`, {
+    method: "POST",
+    body: { minutes },
+  });
 }

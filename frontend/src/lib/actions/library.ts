@@ -2,9 +2,15 @@
 
 import { revalidatePath } from "next/cache";
 
+import { formatPlaytime } from "@/lib/media";
 import { BackendError } from "@/lib/server/backend";
 import { toErrorState } from "@/lib/server/error-state";
-import { addToLibrary, removeFromLibrary, updateLibraryEntry } from "@/lib/server/library";
+import {
+  addToLibrary,
+  logTitlePlaytime,
+  removeFromLibrary,
+  updateLibraryEntry,
+} from "@/lib/server/library";
 import { submitReview } from "@/lib/server/reviews";
 import type { Review, WatchStatus } from "@/types/api";
 
@@ -102,6 +108,56 @@ export async function updateLibraryEntryAction(
     revalidatePath(`/title/${mediaItemId}`);
   }
   return { status: "saved", message: "Library entry updated." };
+}
+
+// One entry is at most 100,000 minutes, like the limit of the backend (PlaytimeCreate)
+const MAX_SESSION_MINUTES = 100_000;
+
+function wholeNumber(raw: FormDataEntryValue | null): number | null {
+  const text = String(raw ?? "").trim();
+  if (text === "") return 0;
+  const value = Number(text);
+  return Number.isInteger(value) && value >= 0 ? value : null;
+}
+
+/** Logs one playtime session of a whole game or movie in hours and minutes (US-11, #413). */
+export async function logTitlePlaytimeAction(
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const entryId = Number(formData.get("entryId"));
+  const mediaItemId = Number(formData.get("mediaItemId"));
+  const hours = wholeNumber(formData.get("hours"));
+  const minutesPart = wholeNumber(formData.get("minutes"));
+
+  if (!Number.isInteger(entryId) || entryId <= 0) {
+    return { status: "error", message: "Invalid library entry." };
+  }
+  if (hours === null || minutesPart === null) {
+    return { status: "error", message: "Hours and minutes must be whole numbers." };
+  }
+  const minutes = hours * 60 + minutesPart;
+  if (minutes <= 0) {
+    return { status: "error", message: "Playtime must be at least 1 minute." };
+  }
+  if (minutes > MAX_SESSION_MINUTES) {
+    return { status: "error", message: "One session can be at most 100,000 minutes." };
+  }
+
+  try {
+    await logTitlePlaytime(entryId, minutes);
+  } catch (error) {
+    rethrowIfRedirect(error);
+    return { status: "error", message: toErrorState(error).message };
+  }
+
+  revalidatePath("/diary");
+  revalidatePath("/stats");
+  revalidatePath("/library");
+  if (Number.isInteger(mediaItemId) && mediaItemId > 0) {
+    revalidatePath(`/title/${mediaItemId}`);
+  }
+  return { status: "saved", message: `+${formatPlaytime(minutes)} logged` };
 }
 
 /** Removes a title from the user's library (US-04). */
