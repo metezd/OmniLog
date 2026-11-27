@@ -50,6 +50,10 @@ class DecisionPointNotFoundError(Exception):
     """The decision point does not exist, or it belongs to another chapter."""
 
 
+class NothingToRemoveError(Exception):
+    """The chapter has no rating, no playtime entry or no choice to remove (#427)."""
+
+
 class DecisionNotAllowedError(Exception):
     """The choice cannot be recorded: the chapter has no usable decision point, or the choice is
     not one of its options. The message names the allowed options."""
@@ -343,3 +347,77 @@ def get_chapter_progress(
         progress=_find_progress(db, entry.id, chapter.id),
         decisions=[tuple(row) for row in decisions],
     )
+
+
+# ---------------------------------------------------------------- remove what was logged (#427)
+def remove_rating(db: Session, user: User, entry_id: int, chapter_id: int) -> None:
+    """Remove the rating of a chapter. The playtime and the choices stay. Raises
+    NothingToRemoveError when the chapter has no rating."""
+    entry, chapter = get_chapter_context(db, user, entry_id, chapter_id)
+    progress = _find_progress(db, entry.id, chapter.id)
+    if progress is None or progress.rating is None:
+        raise NothingToRemoveError("This chapter has no rating")
+    progress.rating = None
+    record_event(
+        db, user.id, DiaryAction.CHAPTER_RATING_REMOVED, entry.media_item_id,
+        f"Removed the rating of {_kind_label(chapter)} {chapter.number}",
+    )
+    db.commit()
+    invalidate_stats_cache(user.id)
+
+
+def remove_last_playtime(db: Session, user: User, entry_id: int, chapter_id: int) -> ChapterProgress:
+    """Remove the newest playtime entry of a chapter and lower its total by the same minutes.
+
+    The entry and the total change in one transaction, and the total is lowered by the database
+    itself, like it is raised when an entry is logged. Raises NothingToRemoveError when the
+    chapter has no entry.
+    """
+    entry, chapter = get_chapter_context(db, user, entry_id, chapter_id)
+    progress = _find_progress(db, entry.id, chapter.id)
+    log = None
+    if progress is not None:
+        log = (
+            db.query(PlaytimeLog)
+            .filter(PlaytimeLog.chapter_progress_id == progress.id)
+            .order_by(PlaytimeLog.logged_at.desc(), PlaytimeLog.id.desc())
+            .with_for_update()
+            .first()
+        )
+    if log is None:
+        raise NothingToRemoveError("This chapter has no playtime entry")
+    minutes = log.minutes
+    db.delete(log)
+    db.query(ChapterProgress).filter(ChapterProgress.id == progress.id).update(
+        {ChapterProgress.playtime_minutes: ChapterProgress.playtime_minutes - minutes},
+        synchronize_session=False,
+    )
+    record_event(
+        db, user.id, DiaryAction.PLAYTIME_REMOVED, entry.media_item_id,
+        f"Removed {minutes} min from {_kind_label(chapter)} {chapter.number}",
+    )
+    db.commit()
+    db.refresh(progress)
+    invalidate_stats_cache(user.id)
+    return progress
+
+
+def remove_decision(
+    db: Session, user: User, entry_id: int, chapter_id: int, decision_point_id: int | None = None
+) -> None:
+    """Remove the choice at a decision point. A chapter with several decision points needs
+    `decision_point_id`, like recording a choice. Raises NothingToRemoveError when nothing was
+    chosen there."""
+    entry, chapter = get_chapter_context(db, user, entry_id, chapter_id)
+    point = _resolve_decision_point(chapter, decision_point_id)
+    decision = _find_decision(db, entry.id, point.id)
+    if decision is None:
+        raise NothingToRemoveError("Nothing was chosen at this decision point")
+    db.delete(decision)
+    record_event(
+        db, user.id, DiaryAction.DECISION_REMOVED, entry.media_item_id,
+        f"Removed the choice in {_kind_label(chapter)} {chapter.number}",
+    )
+    db.commit()
+    invalidate_stats_cache(user.id)
+

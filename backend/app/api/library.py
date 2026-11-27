@@ -24,7 +24,9 @@ from app.services.library_service import (
     MediaNotFoundError,
     TitlePlaytimeLimitError,
     TitlePlaytimeNotAllowedError,
+    TitlePlaytimeNotFoundError,
 )
+from app.services.review_service import ReviewNotFoundError
 
 router = APIRouter(prefix="/library", tags=["Library"])
 
@@ -113,6 +115,23 @@ def submit_review(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
 
 
+@router.delete("/{entry_id}/review", status_code=status.HTTP_204_NO_CONTENT)
+def delete_review(
+    entry_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Remove the review of a library entry (#427). 404 when the entry is not the user's or has
+    no review. Recorded in the diary as REVIEW_REMOVED."""
+    if not 0 < entry_id <= MAX_ID:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Library entry not found")
+    try:
+        review_service.delete_review(db, current_user, entry_id)
+    except (LibraryEntryNotFoundError, ReviewNotFoundError) as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.get("/{entry_id}/review", response_model=ReviewResponse | None)
 def get_review(
     entry_id: int,
@@ -161,3 +180,21 @@ def log_title_playtime(
         logged_at=log.logged_at,
         playtime_minutes=entry.playtime_minutes,
     )
+
+
+@router.delete("/{entry_id}/playtime/last", response_model=UserLibraryResponse)
+def remove_last_title_playtime(
+    entry_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Remove the newest playtime entry of a whole game or movie (#427). The total of the title
+    goes down by the same minutes, and the answer is the library entry with the new total. 404
+    when the title has no such entry. Recorded in the diary as PLAYTIME_REMOVED."""
+    if not 0 < entry_id <= MAX_ID:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Library entry not found")
+    try:
+        return library_service.remove_last_title_playtime(db, current_user, entry_id)
+    except (LibraryEntryNotFoundError, TitlePlaytimeNotFoundError) as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+

@@ -189,3 +189,36 @@ def log_title_playtime(
     db.refresh(log)
     invalidate_stats_cache(user_id)
     return log, _load_with_media(db, entry_pk)
+
+
+class TitlePlaytimeNotFoundError(Exception):
+    """The whole title has no playtime entry to remove (#427)."""
+
+
+def remove_last_title_playtime(db: Session, user: User, entry_id: int) -> UserLibrary:
+    """Remove the newest playtime entry of a whole game or movie and lower its total (#427).
+
+    Only entries without a chapter are removed here. The total is lowered by the database itself in
+    the same transaction. Raises TitlePlaytimeNotFoundError when there is no such entry.
+    """
+    entry = _get_own_entry(db, user, entry_id)
+    log = (
+        db.query(PlaytimeLog)
+        .filter(PlaytimeLog.library_entry_id == entry.id)
+        .order_by(PlaytimeLog.logged_at.desc(), PlaytimeLog.id.desc())
+        .with_for_update()
+        .first()
+    )
+    if log is None:
+        raise TitlePlaytimeNotFoundError("This title has no playtime entry")
+    minutes = log.minutes
+    db.delete(log)
+    db.query(UserLibrary).filter(UserLibrary.id == entry.id).update(
+        {UserLibrary.playtime_minutes: UserLibrary.playtime_minutes - minutes},
+        synchronize_session=False,
+    )
+    record_event(db, user.id, DiaryAction.PLAYTIME_REMOVED, entry.media_item_id, f"Removed {minutes} min")
+    db.commit()
+    invalidate_stats_cache(user.id)
+    return _load_with_media(db, entry.id)
+
