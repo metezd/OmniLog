@@ -22,7 +22,7 @@ All notable changes to this project are written in this file. The format follows
 
 ### Changed
 
-- `POST /auth/register` hashes the password before it checks whether the username or email is taken, so a taken name answers in the same time as a free one and only the status shows it (#395).
+- The test numbers of the Software Testing Report, `coverage.md`, `traceability.md` and the README come from one run on 2026-11-27 (`853c440`): 1479 backend tests passed and 4 skipped, coverage 96.04% of `backend/app` and `scripts/`, 375 frontend tests and 36.51% of the frontend lines. The report lists the test files added after 2026-11-25. Run it again at the code freeze (#381).
 - Tighter HTTP defaults of the API (#394): every answer without its own `Cache-Control` (library, lists, diary, statistics, errors) gets `no-store`, and the catalog keeps its own header. `ENABLE_DOCS` defaults to `false` (`backend/.env.example` turns it on for development). CORS runs without credentials and allows only the methods of the API and the headers `Authorization` and `Content-Type`.
 - The frontend checks in CI run on the Node.js version of `frontend/Dockerfile` (26 instead of 24), and a test keeps `render.yaml`, the Dockerfiles and CI in line (#379). Render stays on Python 3.15.0, the minor version of the image, because 3.15.2 stopped the build of `omnilog-api`.
 - `.github/rulesets/main.json`, `CONTRIBUTING.md` and the Dependabot workflow follow the live ruleset of `main`: merge commits instead of rebase, no linear history rule, and AI disclosure as a required check. A test keeps them in line, and the ruleset is updated with PUT instead of POST (#369).

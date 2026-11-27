@@ -61,7 +61,7 @@ No finding was marked as "won't fix" or hidden with an exclusion.
 3. Make the coverage files from the repository root (PostgreSQL and Redis running):
 
    ```bash
-   python -m pytest tests --cov=backend/app --cov-report=xml
+   python -m pytest tests --cov=backend/app --cov=scripts --cov-report=xml
    (cd frontend && npx vitest run --coverage --coverage.reporter=lcov)
    sed 's#^SF:src/#SF:frontend/src/#' frontend/coverage/lcov.info > frontend/coverage/lcov-root.info
    ```

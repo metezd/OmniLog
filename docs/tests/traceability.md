@@ -1,6 +1,6 @@
 # Requirements traceability
 
-Issue #300. This feeds the Software Testing Report (#296). Made on 2026-11-25.
+Issue #300. This feeds the Software Testing Report (#296). Made on 2026-11-25, the matrix generated again on 2026-11-27 against `853c440` (#381).
 
 ## 1. How the matrix is made
 
@@ -28,24 +28,24 @@ python tests/tools/requirements_matrix.py
 | Requirement | Subject | Test files | Tests |
 |---|---|---|---|
 | US-01 | Service health check | `test_epic1_infrastructure.py` (4), `test_health.py` (7) | 11 |
-| US-02 | Register an account | `test_epic2_auth_edge_cases.py` (22), `test_epic2_login_identifier_edge_cases.py` (18), `test_epic2_users.py` (16) | 56 |
-| US-03 | Log in | `test_epic2_auth_edge_cases.py` (22), `test_epic2_login_identifier_edge_cases.py` (18), `test_epic2_token_lifetime.py` (3), `test_epic2_users.py` (2) | 45 |
-| US-04 | Add a title to my library with a status | `test_epic2_removal.py` (35), `test_epic2_users.py` (3), `test_epic3_library_edge_cases.py` (22) | 60 |
-| US-05 | Rate a title and update its status | `test_epic2_users.py` (3), `test_epic3_library_edge_cases.py` (22) | 25 |
-| US-06 | Create custom lists | `test_epic2_journal_edge_cases.py` (27), `test_epic2_removal.py` (35), `test_epic2_users.py` (3) | 65 |
+| US-02 | Register an account | `test_epic2_auth_edge_cases.py` (22), `test_epic2_login_identifier_edge_cases.py` (18), `test_epic2_users.py` (16), `test_password_strength.py` (13) | 69 |
+| US-03 | Log in | `test_epic2_auth_edge_cases.py` (22), `test_epic2_login_identifier_edge_cases.py` (18), `test_epic2_token_lifetime.py` (3), `test_epic2_users.py` (2), `test_f1_render_rate_limit.py` (6), `test_logout.py` (12) | 63 |
+| US-04 | Add a title to my library with a status | `test_epic2_removal.py` (35), `test_epic2_users.py` (3), `test_epic3_library_edge_cases.py` (22), `test_malformed_input.py` (20), `test_response_compression_and_queries.py` (1) | 81 |
+| US-05 | Rate a title and update its status | `test_epic2_users.py` (3), `test_epic3_library_edge_cases.py` (22), `test_response_compression_and_queries.py` (1) | 26 |
+| US-06 | Create custom lists | `test_epic2_journal_edge_cases.py` (27), `test_epic2_removal.py` (35), `test_epic2_users.py` (3), `test_malformed_input.py` (20) | 85 |
 | US-07 | View my activity diary | `test_epic2_journal_edge_cases.py` (27), `test_epic2_removal.py` (35), `test_epic2_users.py` (16), `test_epic4_chapter_rating_edge_cases.py` (49), `test_epic4_decision_edge_cases.py` (44), `test_epic4_playtime_edge_cases.py` (34) | 205 |
-| US-08 | Search the catalog | `test_epic3_catalog.py` (5), `test_epic3_catalog_search_edge_cases.py` (1), `test_epic3_description_and_genres.py` (1), `test_epic3_title_details_edge_cases.py` (1), `test_public_catalog_sources.py` (21) | 29 |
-| US-09 | View title details with seasons and chapters | `test_epic3_catalog.py` (5), `test_epic3_catalog_live.py` (1), `test_epic3_catalog_search_edge_cases.py` (52), `test_epic3_description_and_genres.py` (57), `test_epic3_library_edge_cases.py` (2), `test_epic3_title_details_edge_cases.py` (52), `test_epic4_decision_points_in_details.py` (4), `test_epic4_seed_game_chapters.py` (22), `test_public_catalog_sources.py` (21) | 216 |
+| US-08 | Search the catalog | `test_epic3_catalog.py` (5), `test_epic3_catalog_search_edge_cases.py` (1), `test_epic3_description_and_genres.py` (1), `test_epic3_title_details_edge_cases.py` (1), `test_malformed_input.py` (20), `test_poster_url.py` (3), `test_public_catalog_sources.py` (27) | 58 |
+| US-09 | View title details with seasons and chapters | `test_epic3_catalog.py` (5), `test_epic3_catalog_live.py` (1), `test_epic3_catalog_search_edge_cases.py` (52), `test_epic3_description_and_genres.py` (57), `test_epic3_library_edge_cases.py` (2), `test_epic3_title_details_edge_cases.py` (52), `test_epic4_decision_points_in_details.py` (4), `test_epic4_seed_game_chapters.py` (22), `test_public_catalog_sources.py` (27) | 222 |
 | US-10 | Rate an individual chapter or episode | `test_epic4_chapter_rating_edge_cases.py` (49), `test_epic4_episodic.py` (7) | 56 |
 | US-11 | Log playtime per chapter | `test_epic4_episodic.py` (2), `test_epic4_playtime_edge_cases.py` (34) | 36 |
-| US-12 | Record branching decisions | `test_epic4_decision_edge_cases.py` (44), `test_epic4_decision_points_in_details.py` (4), `test_epic4_episodic.py` (7), `test_epic4_seed_game_chapters.py` (22) | 77 |
+| US-12 | Record branching decisions | `test_epic4_decision_edge_cases.py` (44), `test_epic4_decision_points_in_details.py` (4), `test_epic4_episodic.py` (7), `test_epic4_seed_game_chapters.py` (22), `test_malformed_input.py` (20) | 97 |
 | US-13 | Cross-media recommendations | `test_embeddings_command.py` (5), `test_epic5_ai.py` (26) | 31 |
-| US-14 | Spoiler detection in reviews | `test_epic5_ai.py` (26), `test_nfr.py` (1) | 27 |
+| US-14 | Spoiler detection in reviews | `test_epic5_ai.py` (26), `test_malformed_input.py` (20), `test_nfr.py` (1) | 47 |
 | US-15 | View personal statistics | `test_epic6_analytics.py` (2), `test_epic6_stats_cache.py` (11), `test_epic6_stats_edge_cases.py` (24) | 37 |
-| NFR-01 | Cached catalog searches are fast. | `test_epic3_catalog.py` (5), `test_epic3_catalog_search_edge_cases.py` (52), `test_epic3_description_and_genres.py` (57), `test_epic3_title_details_edge_cases.py` (52), `test_nfr.py` (7) | 173 |
-| NFR-02 | Protected endpoints require authentication. | `test_epic2_auth_edge_cases.py` (4), `test_epic2_journal_edge_cases.py` (2), `test_epic2_login_identifier_edge_cases.py` (18), `test_epic3_catalog_search_edge_cases.py` (1), `test_epic3_description_and_genres.py` (1), `test_epic3_title_details_edge_cases.py` (1), `test_epic4_chapter_rating_edge_cases.py` (49), `test_epic4_decision_edge_cases.py` (44), `test_epic4_playtime_edge_cases.py` (34), `test_epic6_stats_edge_cases.py` (24), `test_nfr.py` (1) | 179 |
-| NFR-03 | Passwords are never stored or returned in plain text. | `test_nfr.py` (1), `test_password_hashing.py` (12) | 13 |
-| NFR-04 | The API survives external API failures. | `test_epic3_catalog_search_edge_cases.py` (52), `test_epic3_description_and_genres.py` (57), `test_epic3_title_details_edge_cases.py` (52), `test_nfr.py` (7), `test_rate_limits.py` (11) | 179 |
+| NFR-01 | Cached catalog searches are fast. | `test_catalog_cache_headers.py` (8), `test_epic3_catalog.py` (5), `test_epic3_catalog_search_edge_cases.py` (52), `test_epic3_description_and_genres.py` (57), `test_epic3_title_details_edge_cases.py` (52), `test_igdb_efficiency.py` (18), `test_multilayer_cache.py` (20), `test_nfr.py` (7), `test_openai_off_the_request.py` (14), `test_response_compression_and_queries.py` (5) | 238 |
+| NFR-02 | Protected endpoints require authentication. | `test_epic2_auth_edge_cases.py` (4), `test_epic2_journal_edge_cases.py` (2), `test_epic2_login_identifier_edge_cases.py` (18), `test_epic3_catalog_search_edge_cases.py` (1), `test_epic3_description_and_genres.py` (1), `test_epic3_title_details_edge_cases.py` (1), `test_epic4_chapter_rating_edge_cases.py` (49), `test_epic4_decision_edge_cases.py` (44), `test_epic4_playtime_edge_cases.py` (34), `test_epic6_stats_edge_cases.py` (24), `test_f1_render_rate_limit.py` (6), `test_logout.py` (12), `test_nfr.py` (1), `test_response_compression_and_queries.py` (1) | 198 |
+| NFR-03 | Passwords are never stored or returned in plain text. | `test_malformed_input.py` (20), `test_nfr.py` (1), `test_password_hashing.py` (12) | 33 |
+| NFR-04 | The API survives external API failures. | `test_epic3_catalog_search_edge_cases.py` (52), `test_epic3_description_and_genres.py` (57), `test_epic3_title_details_edge_cases.py` (52), `test_igdb_efficiency.py` (18), `test_multilayer_cache.py` (20), `test_nfr.py` (7), `test_openai_off_the_request.py` (14), `test_rate_limits.py` (21) | 241 |
 | NFR-05 | Backend code is covered by automated tests. | `test_coverage_gate.py` (4) | 4 |
 
 Every story and every NFR is named by at least two test files, except NFR-05. NFR-05 is a property of the whole suite: CI measures it with `--cov-fail-under`, and `tests/test_coverage_gate.py` checks the gate settings. This reason is written in the test.
@@ -65,6 +65,6 @@ The earlier snapshot found two requirements with one test file only:
 | NFR-02 | Protected endpoints require authentication | 401 without a valid token | **23 of 23** protected endpoints answer 401 | `test_nfr02_protected_endpoints_require_token` (23 cases) |
 | NFR-03 | Passwords are never stored or returned in plain text | stored value differs, no response contains a password or hash | **passed** | `test_nfr03_*`, `test_password_hashing.py` |
 | NFR-04 | The API survives external API failures | cached data or 503, never an unhandled 500 | **passed** for IGDB and TMDB down, OpenAI down for reviews and recommendations | `test_nfr04_*` (3 tests) and the edge case files |
-| NFR-05 | Backend code is covered by automated tests | at least 70% line coverage | **94.96%** (gate in CI: 90%) | [coverage](coverage.md) |
+| NFR-05 | Backend code is covered by automated tests | at least 70% line coverage | **96.04%** of `backend/app` and `scripts/` (gate in CI: 90%), 2026-11-27 | [coverage](coverage.md) |
 
 The NFR-01 values in process are far under the limit, because they measure the code and the database without the network or other users. The HTTP load test is the second kind of evidence for the same requirement.
