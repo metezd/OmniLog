@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import LocalTime from "@/components/common/LocalTime";
 import EmptyState from "@/components/states/EmptyState";
 import ErrorState from "@/components/states/ErrorState";
 import { toErrorState } from "@/lib/server/error-state";
@@ -54,18 +55,6 @@ const ACTION_LABELS: Record<string, { label: string; badgeClass: string }> = {
     badgeClass: "border-rose-400/40 bg-rose-400/15 text-rose-200",
   },
 };
-
-function formatTimestamp(iso: string): string {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return iso;
-  return date.toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
 
 export default async function DiaryPage() {
   let entries: DiaryEntry[] = [];
@@ -135,9 +124,7 @@ export default async function DiaryPage() {
                   {summary && <span className="text-xs text-slate-300">{summary}</span>}
                 </div>
 
-                <time className="text-xs text-slate-400" dateTime={entry.created_at}>
-                  {formatTimestamp(entry.created_at)}
-                </time>
+                <LocalTime className="text-xs text-slate-400" iso={entry.created_at} />
               </div>
             );
           })}
