@@ -23,6 +23,7 @@ All notable changes to this project are written in this file. The format follows
 
 ### Changed
 
+- The Supabase database is migrated by the last job of `ci.yml`, only on `main` and only after the security lint, the backend tests, the Docker Compose smoke test and the frontend checks passed. The separate workflow `db-migrate.yml` started at the same moment as CI, so a migration could reach production with code whose tests failed (#421).
 - `GET /recommendations` computes the taste vector with `avg()` on the `vector` column in PostgreSQL (pgvector 0.5 or newer) instead of reading every liked embedding into Python, and has a per-user limit, `RATE_LIMIT_RECOMMENDATIONS` (default `30/minute`) (#396).
 - `POST /auth/register` hashes the password before it checks whether the username or email is taken, so a taken name answers in the same time as a free one and only the status shows it (#395).
 - Tighter HTTP defaults of the API (#394): every answer without its own `Cache-Control` (library, lists, diary, statistics, errors) gets `no-store`, and the catalog keeps its own header. `ENABLE_DOCS` defaults to `false` (`backend/.env.example` turns it on for development). CORS runs without credentials and allows only the methods of the API and the headers `Authorization` and `Content-Type`.
