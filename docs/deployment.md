@@ -105,6 +105,7 @@ All settings are in `.env.prod`. The file holds secrets and is ignored by Git. C
 | `OPENAI_TIMEOUT_SECONDS`, `OPENAI_MAX_RETRIES` | no | Time limit of one OpenAI call in seconds (default `8`) and number of retries (default `2`) |
 | `EMBEDDING_MODEL`, `EMBEDDING_DIMENSIONS` | no | Embedding model (default `text-embedding-3-small`) and its size (default `1536`). The OpenAI client reads them, but no endpoint creates or stores embeddings yet, so they have no visible effect |
 | `RATE_LIMIT_ENABLED` | no | `false` turns all rate limits off. Default `true`. See section 9.1 |
+| `RATE_LIMIT_LOGIN_ACCOUNT` | no | Failed logins of one account from any address, as `<count>/<period>`. Default `20/hour` (section 9.1) |
 | `RATE_LIMIT_LOGIN`, `RATE_LIMIT_REGISTER`, `RATE_LIMIT_SEARCH`, `RATE_LIMIT_REVIEW`, `RATE_LIMIT_DETAILS` | no | The rate limits as `<count>/<second\|minute\|hour\|day>`. Defaults `10/minute`, `5/hour`, `30/minute`, `20/minute` and `60/minute`. The backend does not start with a value in another form |
 | `POSTGRES_USER`, `POSTGRES_DB` | no | Defaults are `omnilog` |
 | `TAG` | no | Tag of the built images. Default is `latest` |
@@ -283,10 +284,15 @@ Open `https://localhost` in the browser and accept the certificate warning, beca
 | Endpoint | Counted per | Default | Why |
 |---|---|---|---|
 | `POST /auth/login` | Browser address | `10/minute` | Every try costs a bcrypt check |
+| `POST /auth/login`, failed tries only | Account (`RATE_LIMIT_LOGIN_ACCOUNT`) | `20/hour` | Guessing the password of one account from many addresses (#391) |
 | `POST /auth/register` | Browser address | `5/hour` | A bcrypt hash, and new accounts |
 | `GET /catalog/search` | User | `30/minute` | A new search text calls IGDB or TMDB with the shared keys |
 | `POST /library/{entry_id}/review` | User | `20/minute` | A review can call OpenAI, which costs money |
 | `GET /catalog/{media_id}` | User | `60/minute` | A title that was not loaded yet calls IGDB or TMDB, and OpenAI for its embedding (#390) |
+
+**Failed logins of one account (#391).** The limit per address does not stop someone who guesses the password of one account from many addresses. So the failed logins of each account are counted too, whatever the address. The key is a SHA-256 hash of the normalized username or email, so no name or email address is written to Redis. A username and the email of the same account are two keys. Unknown accounts are counted the same way, so the answer does not show which accounts exist. A correct login is not counted.
+
+This is a hard limit, not a slowdown: over the limit, every login of that account gets 429, also with the right password, because the password is not checked at all. A slowdown would keep a thread of the server busy for every try, and a guess could still succeed. The price is that someone can lock a user out on purpose by failing 20 times. The lock ends with its window, so it lasts at most one hour with the default, and the user's tokens that are already issued keep working. With email verification or a second factor this could become a softer rule later. Raise the count or shorten the period with `RATE_LIMIT_LOGIN_ACCOUNT` if locked-out users become a problem.
 
 A call over the limit gets `429 Too Many Requests` with a `Retry-After` header (seconds until the window ends) and `{"detail": "Too many requests. Try again in N seconds."}`. A limit counts the calls in a fixed window, for example one minute. The counts are in Redis, so all workers share them. When Redis is down, each process counts for itself and the API keeps answering. A call without a valid token gets 401 and is not counted.
 
