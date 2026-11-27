@@ -48,3 +48,20 @@ def igdb_limiter_off(monkeypatch):
     from app.core import config
 
     monkeypatch.setattr(config, "IGDB_MAX_REQUESTS_PER_SECOND", 0)
+
+
+@pytest.fixture(autouse=True)
+def background_jobs_finish():
+    """Every background job of a test ends before the next test starts (#382).
+
+    Without this a job could still write to the database or call a fake OpenAI of another test.
+    A test that checks the result of a job calls app.core.background.wait_idle() itself.
+    """
+    from app.integrations import openai_client
+
+    openai_client.reset_cooldown()
+    yield
+    from app.core import background
+
+    assert background.wait_idle(timeout=30), "a background job did not finish"
+    openai_client.reset_cooldown()
