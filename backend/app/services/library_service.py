@@ -4,7 +4,7 @@ from typing import List
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
-from app.models.entities import MediaItem, User, UserLibrary
+from app.models.entities import MediaItem, MediaType, PlaytimeLog, User, UserLibrary
 from app.schemas.library import UserLibraryCreate, UserLibraryUpdate
 from app.services import catalog_service
 from app.services.diary_service import DiaryAction, record_event
@@ -17,6 +17,20 @@ class MediaNotFoundError(Exception):
 
 class LibraryConflictError(Exception):
     """The user already has this media item in the library."""
+
+
+# A series is logged on its episodes. Games and movies can also be logged as a whole (#413).
+TITLE_PLAYTIME_MEDIA_TYPES = frozenset({MediaType.GAME, MediaType.MOVIE})
+# The total playtime of one title, like the limit of one chapter. Far below the INTEGER limit.
+MAX_TOTAL_TITLE_PLAYTIME_MINUTES = 10_000_000
+
+
+class TitlePlaytimeNotAllowedError(Exception):
+    """The title is a series, so its time is logged on the episodes."""
+
+
+class TitlePlaytimeLimitError(Exception):
+    """The new entry would make the total playtime of the title too large."""
 
 
 class LibraryEntryNotFoundError(Exception):
@@ -140,3 +154,38 @@ def remove_entry(db: Session, user: User, entry_id: int) -> None:
     record_event(db, user.id, DiaryAction.LIBRARY_REMOVED, media_item_id, "Removed from library")
     db.commit()
     invalidate_stats_cache(user.id)
+
+
+def log_title_playtime(
+    db: Session, user: User, entry_id: int, minutes: int
+) -> tuple[PlaytimeLog, UserLibrary]:
+    """Add one playtime entry to a whole game or movie, without a chapter (#413).
+
+    The entry, the new total of the library entry and the PLAYTIME_LOGGED event are saved in one
+    transaction. The total is raised by the database itself (SET total = total + minutes), so two
+    entries sent at the same moment are both counted.
+    """
+    entry = _get_own_entry(db, user, entry_id)
+
+    # Plain values are kept here, because a rollback expires the loaded objects
+    user_id = user.id
+    entry_pk = entry.id
+    media_item_id = entry.media_item_id
+
+    media_type = db.query(MediaItem.media_type).filter(MediaItem.id == media_item_id).scalar()
+    if media_type not in TITLE_PLAYTIME_MEDIA_TYPES:
+        raise TitlePlaytimeNotAllowedError("The time of a series is logged on its episodes")
+    if entry.playtime_minutes + minutes > MAX_TOTAL_TITLE_PLAYTIME_MINUTES:
+        raise TitlePlaytimeLimitError("The total playtime of a title is too large")
+
+    log = PlaytimeLog(library_entry_id=entry_pk, minutes=minutes)
+    db.add(log)
+    db.query(UserLibrary).filter(UserLibrary.id == entry_pk).update(
+        {UserLibrary.playtime_minutes: UserLibrary.playtime_minutes + minutes},
+        synchronize_session=False,
+    )
+    record_event(db, user_id, DiaryAction.PLAYTIME_LOGGED, media_item_id, f"Logged {minutes} min")
+    db.commit()
+    db.refresh(log)
+    invalidate_stats_cache(user_id)
+    return log, _load_with_media(db, entry_pk)

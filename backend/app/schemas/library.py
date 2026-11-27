@@ -39,5 +39,19 @@ class UserLibraryResponse(BaseModel):
     media_item_id: int
     status: WatchStatus
     rating: Optional[int] = None
+    # Minutes logged on the whole title (#413). Time logged on chapters is not part of it.
+    playtime_minutes: int = 0
     updated_at: Optional[UtcDateTime] = None
     media_item: MediaItemResponse
+
+
+class TitlePlaytimeLogResponse(BaseModel):
+    """The saved entry and the new total of the whole title (#413)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    library_entry_id: int
+    minutes: int
+    logged_at: UtcDateTime
+    playtime_minutes: int  # total of all entries of the whole title
