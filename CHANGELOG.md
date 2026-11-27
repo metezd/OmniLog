@@ -20,7 +20,7 @@ All notable changes to this project are written in this file. The format follows
 
 ### Changed
 
-- The frontend checks in CI run on the Node.js version of `frontend/Dockerfile` (26 instead of 24), and Render runs the Python of `backend/Dockerfile` (3.15.2 instead of 3.15.0). A test keeps `render.yaml`, the Dockerfiles and CI in line (#379).
+- The frontend checks in CI run on the Node.js version of `frontend/Dockerfile` (26 instead of 24), and a test keeps `render.yaml`, the Dockerfiles and CI in line (#379). Render stays on Python 3.15.0, the minor version of the image, because 3.15.2 stopped the build of `omnilog-api`.
 - `.github/rulesets/main.json`, `CONTRIBUTING.md` and the Dependabot workflow follow the live ruleset of `main`: merge commits instead of rebase, no linear history rule, and AI disclosure as a required check. A test keeps them in line, and the ruleset is updated with PUT instead of POST (#369).
 - The AI usage page, the notes of Sidar Ürey and the register of AI mistakes show the work up to 2026-11-26: eight new caught mistakes (17 in all), the AI disclosure check and the current controls (#308, #310).
 - `.github/CODEOWNERS` gives each of the six members the area of their role in the Charter, and a test checks that every path in it exists (#293).
