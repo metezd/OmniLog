@@ -127,10 +127,12 @@ def test_auth_answers_are_not_cached():
     assert response.headers["Cache-Control"] == "no-store"
 
 
-def test_other_answers_keep_their_cache_header():
+def test_other_answers_are_not_cached_either():
+    # #394: no-store is the default, an endpoint can set its own (the catalog, see
+    # tests/requirements/test_http_defaults.py)
     response = client.get("/health")
 
-    assert response.headers.get("Cache-Control") != "no-store"
+    assert response.headers["Cache-Control"] == "no-store"
 
 
 # 401 for tokens that miss a claim
@@ -181,13 +183,25 @@ def _docs_status(enable_docs):
     return result.stdout.split()
 
 
-def test_docs_are_on_by_default():
-    assert _docs_status(None) == ["200", "200", "200"]
+def test_docs_are_off_by_default():
+    # #394: a start without the setting (uvicorn on a server) must not show every endpoint
+    assert _docs_status(None) == ["404", "404", "404"]
 
 
-@pytest.mark.parametrize("value", ["false", "0", "no", "off", "False"])
+@pytest.mark.parametrize("value", ["false", "0", "no", "off", "False", ""])
 def test_docs_can_be_turned_off(value):
     assert _docs_status(value) == ["404", "404", "404"]
+
+
+@pytest.mark.parametrize("value", ["true", "1", "yes", "on", "True"])
+def test_docs_can_be_turned_on_for_development(value):
+    assert _docs_status(value) == ["200", "200", "200"]
+
+
+def test_env_example_turns_the_docs_on_for_development():
+    example = (BACKEND_DIR / ".env.example").read_text(encoding="utf-8")
+
+    assert re.search(r"^ENABLE_DOCS=true$", example, re.MULTILINE)
 
 
 @pytest.mark.parametrize("config_file", ["render.yaml", "docker-compose.prod.yml"])

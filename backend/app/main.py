@@ -51,12 +51,18 @@ app.add_middleware(SecurityHeadersMiddleware)
 # Small answers stay plain, because the compression would cost more than it saves.
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
+# The token is sent in the Authorization header and the API sets no cookie, so a browser needs no
+# credentials mode. Only the methods of the API and the headers that a client sends are allowed
+# (#394). A preflight that asks for anything else gets no Access-Control-Allow-* answer.
+CORS_ALLOW_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"]
+CORS_ALLOW_HEADERS = ["Authorization", "Content-Type"]
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_credentials=False,
+    allow_methods=CORS_ALLOW_METHODS,
+    allow_headers=CORS_ALLOW_HEADERS,
 )
 
 register_exception_handlers(app)
