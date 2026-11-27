@@ -27,7 +27,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
@@ -410,7 +410,9 @@ def get_title_details(db: Session, media_id: int) -> MediaItem:
 
     # Only a title with an outside id can be loaded. A title that was added by hand has none.
     # A title that was loaded recently is served from the database (L2), with no outside call.
-    if item.external_api_id is not None and not is_fresh(item):
+    if item.external_api_id is not None and (
+        not is_fresh(item) or _series_lacks_runtimes(db, item)
+    ):
         if item.media_type == MediaType.SERIES:
             _refresh_series(db, item)
         else:
@@ -433,6 +435,27 @@ def is_fresh(item: MediaItem) -> bool:
         return False
     age = utc_now() - item.last_synced
     return timedelta(0) <= age < timedelta(days=ttl_days)
+
+
+def _series_lacks_runtimes(db: Session, item: MediaItem) -> bool:
+    """True when an episode of the series was saved without a length (#411).
+
+    Episodes saved before the runtime fallback have none, so such a series is loaded again once,
+    even when its saved copy is fresh. After that every episode has a length.
+    """
+    if item.media_type != MediaType.SERIES:
+        return False
+    missing = (
+        db.query(Chapter.id)
+        .filter(
+            Chapter.media_item_id == item.id,
+            Chapter.kind == ChapterKind.EPISODE,
+            or_(Chapter.runtime_minutes.is_(None), Chapter.runtime_minutes == 0),
+        )
+        .limit(1)
+        .first()
+    )
+    return missing is not None
 
 
 def _load_details(db: Session, media_id: int) -> MediaItem:
@@ -583,6 +606,9 @@ def _season_from_cache(raw: object) -> Optional[ExternalSeason]:
             )
         )
     if len({episode.number for episode in episodes}) != len(episodes):
+        return None
+    if not all(episode.runtime_minutes for episode in episodes):
+        # An entry from before the runtime fallback (#411) counts as a miss, so it is loaded again
         return None
 
     return ExternalSeason(
