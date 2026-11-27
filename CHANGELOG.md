@@ -35,6 +35,7 @@ All notable changes to this project are written in this file. The format follows
 
 ### Fixed
 
+- The title details and the catalog search no longer hold a database connection while IGDB or TMDB answers. When every try of a call gets no answer, that host is not called again for `EXTERNAL_API_COOLDOWN_SECONDS` (default 60), so a title that was never loaded no longer waits for all tries on every open while the service is down (#428).
 - `omnilog-api` on Render uses the Supabase database. `render.yaml` no longer has the Render database `omnilog-db`, which is not used any more, and `DATABASE_URL` is set in the dashboard (`sync: false`), so a Blueprint sync does not point it back to `omnilog-db`. Its name could not be resolved any more, so every start of the API failed (#402).
 - `alembic upgrade head` tries the database again for about 30 seconds (10 tries, 3 seconds apart) when it cannot be reached. On Render the name of the database could not be resolved for a few seconds after a new instance started, so the start command stopped and the deploy of `omnilog-api` was marked as failed, although a second try worked (#402).
 - The workflow "Database Migration (Supabase)" failed on every push to `main` (`No 'script_location' key found`), and its red check stopped the deploys of `omnilog-api` on Render. It now builds the backend image and runs `alembic upgrade head` inside it, with a random `SECRET_KEY` for the run. `render.yaml` uses Python 3.15.0 again, because the build of `omnilog-api` failed with 3.15.2.

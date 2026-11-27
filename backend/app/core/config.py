@@ -113,6 +113,10 @@ DETAILS_CACHE_TTL_SECONDS = int(os.getenv("DETAILS_CACHE_TTL_SECONDS", "86400"))
 EXTERNAL_API_TIMEOUT_SECONDS = float(os.getenv("EXTERNAL_API_TIMEOUT_SECONDS", "8"))
 EXTERNAL_API_MAX_RETRIES = int(os.getenv("EXTERNAL_API_MAX_RETRIES", "3"))
 EXTERNAL_API_BACKOFF_SECONDS = float(os.getenv("EXTERNAL_API_BACKOFF_SECONDS", "0.5"))
+# When all tries of a call to IGDB, TMDB or a keyless source got no answer (timeouts, no
+# connection), that host is not called again for this many seconds, and the saved data is used
+# (#428). 0 turns the pause off.
+EXTERNAL_API_COOLDOWN_SECONDS = max(float(os.getenv("EXTERNAL_API_COOLDOWN_SECONDS", "60")), 0.0)
 
 # Outgoing limit for IGDB: the most requests per second that this backend process sends to it.
 # IGDB allows 4 per second for one Twitch application and answers 429 above that. A call that

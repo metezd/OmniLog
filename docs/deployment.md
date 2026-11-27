@@ -131,6 +131,7 @@ Use passwords that have only letters and digits (`openssl rand -hex 32`). The pa
 | `EXTERNAL_API_TIMEOUT_SECONDS` | `8` | Time limit of one call to IGDB or TMDB |
 | `EXTERNAL_API_MAX_RETRIES` | `3` | Retries after a timeout, a 429 or a 5xx answer |
 | `EXTERNAL_API_BACKOFF_SECONDS` | `0.5` | First wait between retries. It doubles after each retry |
+| `EXTERNAL_API_COOLDOWN_SECONDS` | `60` | When every try of a call got no answer (timeouts, no connection), that host is not called again for this many seconds, and the saved data is used (#428). An answer such as 503 is still tried again as before. `0` turns the pause off |
 | `IGDB_MAX_REQUESTS_PER_SECOND` | `3` | The most requests per second that one backend process sends to IGDB (IGDB allows 4). A call that would wait more than 5 seconds fails at once, and the saved copy is used. `0` turns it off. The limit counts per process: the default setup runs one, so give each process its share when you start more |
 
 The backend finds the database and Redis through `DATABASE_URL` and `REDIS_URL`, which the compose file builds from the passwords.
