@@ -32,8 +32,12 @@ def test_us02_nul_byte_in_username_rejected(client):
 
 
 def test_us02_password_at_72_byte_limit_accepted(client):
-    """US-02: 18 four-byte characters is exactly 72 bytes and is accepted."""
-    creds = dict(new_credentials(), password="\U0001F600" * 18)
+    """US-02: 18 different four-byte characters are exactly 72 bytes and are accepted.
+
+    They are different and not in order, because one repeated character and a sequence are
+    refused (BR-20).
+    """
+    creds = dict(new_credentials(), password="".join(chr(0x1F600 + 2 * i) for i in range(18)))
 
     response = client.post("/auth/register", json=creds)
 
@@ -175,14 +179,18 @@ def test_us02_username_over_50_characters_after_normalization_rejected(client):
 
 
 # ---------------------------------------------------------------- bcrypt truncation
+# 72 ASCII characters, not one repeated character, which is refused (BR-20)
+PASSWORD_72 = "Abc-123-" * 9
+
+
 def test_us03_overlong_login_password_cannot_match_by_truncation(client):
-    """US-03: bcrypt ignores bytes after 72, so "a"*72 + "extra" must not log in as "a"*72."""
-    creds = dict(new_credentials(), password="a" * 72)
+    """US-03: bcrypt ignores bytes after 72, so a 72-byte password + "extra" must not log in."""
+    creds = dict(new_credentials(), password=PASSWORD_72)
     assert client.post("/auth/register", json=creds).status_code == 201
 
     response = client.post(
         "/auth/login",
-        json={"username": creds["username"], "password": "a" * 72 + "extra"},
+        json={"username": creds["username"], "password": PASSWORD_72 + "extra"},
     )
 
     assert response.status_code == 401
@@ -191,7 +199,7 @@ def test_us03_overlong_login_password_cannot_match_by_truncation(client):
 
 def test_us03_exact_72_byte_password_still_logs_in(client):
     """US-03: a password of exactly 72 bytes registers and logs in normally."""
-    creds = dict(new_credentials(), password="a" * 72)
+    creds = dict(new_credentials(), password=PASSWORD_72)
     assert client.post("/auth/register", json=creds).status_code == 201
 
     response = client.post("/auth/login", json={"username": creds["username"], "password": creds["password"]})
