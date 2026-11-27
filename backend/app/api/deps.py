@@ -46,7 +46,8 @@ def get_current_user(
 ) -> User:
     """Return the logged in user, or raise 401 when the token is missing or invalid."""
     user = db.get(User, token.user_id)
-    if user is None:
+    # A token made before the last "log out on all devices" or password change is refused (#426)
+    if user is None or token.version != user.token_version:
         raise _unauthorized()
     return user
 
