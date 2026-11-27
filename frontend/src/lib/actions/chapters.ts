@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { logPlaytime, rateChapter, recordDecision } from "@/lib/server/chapters";
+import { BackendError } from "@/lib/server/backend";
 import { toErrorState } from "@/lib/server/error-state";
 
 export type ChapterActionState =
@@ -13,6 +14,21 @@ export type ChapterActionState =
 function rethrowIfRedirect(error: unknown): void {
   const digest = (error as { digest?: unknown } | null)?.digest;
   if (typeof digest === "string" && digest.startsWith("NEXT_REDIRECT")) throw error;
+}
+
+/**
+ * The message for a failed change (#411). A rule of the backend (422) is shown as it is, for
+ * example that the total is too large. When the backend did not answer in time the change may
+ * still be saved, so the user is asked to reload first instead of trying again at once.
+ */
+function chapterErrorMessage(error: unknown): string {
+  if (error instanceof BackendError) {
+    if (error.status === 422 && error.message) return error.message;
+    if (error.status === 0 && error.cause instanceof DOMException && error.cause.name === "TimeoutError") {
+      return "The server took too long to answer. Reload the page to see if it was saved before you try again.";
+    }
+  }
+  return toErrorState(error).message;
 }
 
 /** Rates a chapter or episode from 1 to 5 stars (US-10). */
@@ -33,7 +49,7 @@ export async function rateChapterAction(
     await rateChapter(entryId, chapterId, rating);
   } catch (error) {
     rethrowIfRedirect(error);
-    return { status: "error", message: toErrorState(error).message };
+    return { status: "error", message: chapterErrorMessage(error) };
   }
 
   revalidatePath("/diary");
@@ -61,7 +77,7 @@ export async function logPlaytimeAction(
     await logPlaytime(entryId, chapterId, minutes);
   } catch (error) {
     rethrowIfRedirect(error);
-    return { status: "error", message: toErrorState(error).message };
+    return { status: "error", message: chapterErrorMessage(error) };
   }
 
   revalidatePath("/diary");
@@ -92,7 +108,7 @@ export async function recordDecisionAction(
     await recordDecision(entryId, chapterId, choice, decisionPointId);
   } catch (error) {
     rethrowIfRedirect(error);
-    return { status: "error", message: toErrorState(error).message };
+    return { status: "error", message: chapterErrorMessage(error) };
   }
 
   revalidatePath("/diary");

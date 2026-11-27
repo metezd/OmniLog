@@ -30,7 +30,32 @@ if not _raw_url:
     raise RuntimeError("Missing required environment variable: DATABASE_URL")
 DATABASE_URL = normalize_database_url(_raw_url)
 
-engine = create_engine(DATABASE_URL)
+def engine_options(url: str) -> dict:
+    """The pool settings of the engine (#411).
+
+    On Render the database (Supabase) or a proxy between closes a connection that was idle for a
+    while, and a Render instance that slept wakes up with such dead connections in its pool. The
+    first request then failed or waited for a long time.
+
+    - pool_pre_ping: each connection is tested with a cheap ping when it leaves the pool, and a
+      dead one is replaced, so the request gets a working connection.
+    - pool_recycle: a connection older than 300 seconds is closed and opened again.
+    - TCP keepalives and connect_timeout (psycopg2 only): a connection that the network dropped
+      fails in seconds instead of hanging until the frontend gives up.
+    """
+    options: dict = {"pool_pre_ping": True, "pool_recycle": 300}
+    if make_url(url).get_dialect().driver == "psycopg2":
+        options["connect_args"] = {
+            "connect_timeout": 10,
+            "keepalives": 1,
+            "keepalives_idle": 30,
+            "keepalives_interval": 10,
+            "keepalives_count": 5,
+        }
+    return options
+
+
+engine = create_engine(DATABASE_URL, **engine_options(DATABASE_URL))
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 

@@ -3,7 +3,7 @@ import logging
 import re
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime, timezone
 from typing import Any, Callable, Optional
 
@@ -30,6 +30,9 @@ MAX_DESCRIPTION_LENGTH = 5000
 MAX_NUMBER = 100_000
 MAX_SEASONS = 200
 MAX_EPISODES_PER_SEASON = 1000
+# The length of an episode when neither the episode, nor the series, nor the other episodes of the
+# series give one (#411). A drama episode is about this long.
+DEFAULT_EPISODE_RUNTIME_MINUTES = 45
 
 # Replaced in tests, so retries do not really wait
 sleep = time.sleep
@@ -212,6 +215,43 @@ def clean_number(value: Any) -> Optional[int]:
     if isinstance(value, bool) or not isinstance(value, int):
         return None
     return value if 0 <= value <= MAX_NUMBER else None
+
+
+def average_runtime(values: Any) -> Optional[int]:
+    """The rounded average of the lengths in minutes that are known and above 0, or None.
+
+    TMDB gives a series `episode_run_time` as a list such as [42, 45], and it is often empty.
+    """
+    if not isinstance(values, (list, tuple)):
+        return None
+    known = [n for n in (clean_number(v) for v in values) if n]
+    return round(sum(known) / len(known)) if known else None
+
+
+def fill_missing_runtimes(
+    seasons: list["ExternalSeason"], series_runtime: Optional[int]
+) -> list["ExternalSeason"]:
+    """Give every episode without a length (missing or 0) a length (#411).
+
+    The order: the length of the episode itself, then the usual episode length of the series,
+    then the average of the episodes of the series that have one, then
+    DEFAULT_EPISODE_RUNTIME_MINUTES. A length that the source gives is never changed.
+    """
+    fallback = series_runtime or average_runtime(
+        [episode.runtime_minutes for season in seasons for episode in season.episodes]
+    ) or DEFAULT_EPISODE_RUNTIME_MINUTES
+
+    filled = []
+    for season in seasons:
+        if all(episode.runtime_minutes for episode in season.episodes):
+            filled.append(season)
+            continue
+        episodes = [
+            episode if episode.runtime_minutes else replace(episode, runtime_minutes=fallback)
+            for episode in season.episodes
+        ]
+        filled.append(replace(season, episodes=episodes))
+    return filled
 
 
 def clean_title(value: Any) -> Optional[str]:
