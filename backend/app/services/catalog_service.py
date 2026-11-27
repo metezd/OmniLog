@@ -49,7 +49,7 @@ from app.integrations.common import (
     dedupe,
 )
 from app.integrations.genres import normalize_genres
-from app.services.embedding_service import safely_update_embedding
+from app.services.embedding_service import schedule_embedding
 from app.models.entities import Chapter, ChapterKind, DecisionPoint, Genre, MediaItem, MediaType, Season
 
 logger = logging.getLogger(__name__)
@@ -417,7 +417,8 @@ def get_title_details(db: Session, media_id: int) -> MediaItem:
             _refresh_details(db, item)
 
     item = _load_details(db, media_id)
-    safely_update_embedding(db, item)
+    # The embedding is made after the answer, so the page never waits for OpenAI (#382)
+    schedule_embedding(db, item)
     return item
 
 
