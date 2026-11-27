@@ -19,32 +19,6 @@ def _require(name: str) -> str:
 # postgresql+psycopg2://omnilog:omnilog@localhost:5432/omnilog
 DATABASE_URL = _require("DATABASE_URL")
 
-
-def _whole_number(name: str, default: int, minimum: int) -> int:
-    """A whole number setting of at least `minimum`. A wrong value stops the start with its name."""
-    text = os.getenv(name, str(default)).strip()
-    try:
-        value = int(text)
-    except ValueError:
-        raise RuntimeError(f"{name} must be a whole number, got {text!r}") from None
-    if value < minimum:
-        raise RuntimeError(f"{name} must be {minimum} or more, got {value}")
-    return value
-
-
-# The connection pool of the database (#392). The endpoints run in a thread pool of 40 threads, so
-# more threads than connections can wait here. DB_POOL_TIMEOUT is how long a request waits for a
-# free connection before it gets 503. DB_POOL_RECYCLE replaces a connection after this many
-# seconds, before a managed database or a firewall drops it. Every connection is also checked
-# before use (pool_pre_ping), so a dropped connection is replaced without an error.
-DB_POOL_SIZE = _whole_number("DB_POOL_SIZE", 5, 1)
-DB_MAX_OVERFLOW = _whole_number("DB_MAX_OVERFLOW", 10, 0)
-DB_POOL_TIMEOUT = _whole_number("DB_POOL_TIMEOUT", 10, 1)
-DB_POOL_RECYCLE = _whole_number("DB_POOL_RECYCLE", 1800, 1)
-# The longest time of one SQL statement of the API, in milliseconds. 0 turns it off. The migrations
-# use their own engine without it. A long job (python -m app.sync, app.embeddings) can set it to 0.
-DB_STATEMENT_TIMEOUT_MS = _whole_number("DB_STATEMENT_TIMEOUT_MS", 15000, 0)
-
 # Secret used to sign JWT tokens. It has no default on purpose: a public
 # default value would let anyone forge tokens. Generate one with:
 #   python -c "import secrets; print(secrets.token_urlsafe(32))"
