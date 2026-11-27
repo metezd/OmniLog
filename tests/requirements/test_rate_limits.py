@@ -190,3 +190,90 @@ def test_a_wrong_limit_setting_stops_the_start(monkeypatch, text):
 
     with pytest.raises(RuntimeError, match="RATE_LIMIT_TEST"):
         config._rate_limit("RATE_LIMIT_TEST", "1/minute")
+
+
+# ------------------------------------------------------------------------- failed logins of one account
+def right_login(client: TestClient, credentials: dict):
+    return client.post("/auth/login", json={"username": credentials["username"], "password": credentials["password"]})
+
+
+def test_failed_logins_of_one_account_are_limited_from_any_address(limits_on, monkeypatch):
+    """#391: each address had its own 10 tries a minute, so one account could be guessed from many."""
+    monkeypatch.setattr(config, "RATE_LIMIT_LOGIN_ACCOUNT", (3, 3600))
+    credentials = new_credentials()
+    register_and_login(client_at("10.0.6.1"), credentials)
+
+    for number in range(3):
+        assert login(client_at(f"10.0.6.{10 + number}"), credentials["username"]).status_code == 401
+    assert_limited(login(client_at("10.0.6.20"), credentials["username"]), retry_after=3600)
+
+
+def test_over_the_account_limit_even_the_right_password_is_refused(limits_on, monkeypatch):
+    """Over the limit the password is not checked, so a guess cannot succeed either."""
+    monkeypatch.setattr(config, "RATE_LIMIT_LOGIN_ACCOUNT", (2, 3600))
+    credentials = new_credentials()
+    client = client_at("10.0.6.30")
+    register_and_login(client, credentials)
+    for _ in range(2):
+        login(client_at("10.0.6.31"), credentials["username"])
+
+    right = client.post("/auth/login", json={"username": credentials["username"], "password": credentials["password"]})
+
+    assert_limited(right, retry_after=3600)
+
+
+def test_a_correct_login_is_not_counted_against_the_account(limits_on, monkeypatch):
+    monkeypatch.setattr(config, "RATE_LIMIT_LOGIN_ACCOUNT", (2, 3600))
+    credentials = new_credentials()
+    client = client_at("10.0.6.40")
+    register_and_login(client, credentials)
+    for _ in range(3):
+        assert right_login(client_at("10.0.6.41"), credentials).status_code == 200
+
+    assert login(client_at("10.0.6.42"), credentials["username"]).status_code == 401
+
+
+def test_the_account_limit_does_not_block_another_account(limits_on, monkeypatch):
+    monkeypatch.setattr(config, "RATE_LIMIT_LOGIN_ACCOUNT", (1, 3600))
+    victim, other = new_credentials(), new_credentials()
+    register_and_login(client_at("10.0.6.50"), victim)
+    register_and_login(client_at("10.0.6.54"), other)
+    login(client_at("10.0.6.51"), victim["username"])
+    assert login(client_at("10.0.6.52"), victim["username"]).status_code == 429
+
+    assert right_login(client_at("10.0.6.53"), other).status_code == 200
+
+
+def test_unknown_accounts_are_counted_the_same_way(limits_on, monkeypatch):
+    """The answer must not show whether an account exists."""
+    monkeypatch.setattr(config, "RATE_LIMIT_LOGIN_ACCOUNT", (2, 3600))
+
+    for number in range(2):
+        assert login(client_at(f"10.0.6.6{number}"), "nobody-at-all").status_code == 401
+    assert_limited(login(client_at("10.0.6.69"), "nobody-at-all"), retry_after=3600)
+
+
+def test_the_account_limit_ends_with_its_window(limits_on, monkeypatch):
+    monkeypatch.setattr(config, "RATE_LIMIT_LOGIN_ACCOUNT", (1, 3600))
+    login(client_at("10.0.6.70"), "window-account")
+    assert login(client_at("10.0.6.71"), "window-account").status_code == 429
+
+    FakeClock.now += 3600
+    assert login(client_at("10.0.6.72"), "window-account").status_code == 401
+
+
+def test_the_key_of_an_account_holds_no_name_or_email(limits_on, monkeypatch):
+    from app.api.auth import account_key
+
+    monkeypatch.setattr(config, "RATE_LIMIT_LOGIN_ACCOUNT", (5, 3600))
+    login(client_at("10.0.6.80"), "secret.person@example.com")
+
+    keys = [str(key) for key in (cache.redis_client().keys("omni:ratelimit:login_account:*") if cache.redis_client() else rate_limit._local)]
+    keys = [key for key in keys if "login_account" in key]
+    assert keys, "no failure was counted"
+    assert all("secret" not in key and "example" not in key for key in keys)
+    assert account_key("secret.person@example.com") in keys[0]
+
+
+def test_the_default_of_the_account_limit():
+    assert config.RATE_LIMIT_LOGIN_ACCOUNT == (20, 3600)
