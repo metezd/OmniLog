@@ -5,7 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, limit_per_user
 from app.core.database import get_db
 from app.models.entities import MediaType, User
 from app.schemas.media import MediaItemResponse
@@ -16,7 +16,13 @@ from app.services.recommendations_service import (
 router = APIRouter(prefix="/recommendations", tags=["Recommendations"])
 
 
-@router.get("", response_model=list[MediaItemResponse], status_code=status.HTTP_200_OK)
+@router.get(
+    "",
+    response_model=list[MediaItemResponse],
+    status_code=status.HTTP_200_OK,
+    # Each call averages the liked embeddings and runs a vector search, so it is limited (#396)
+    dependencies=[Depends(limit_per_user("recommendations"))],
+)
 def get_recommendations(
     target: Annotated[MediaType, Query(...)],
     limit: Annotated[int, Query(ge=1, le=50)] = 10,

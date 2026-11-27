@@ -125,7 +125,7 @@ if IGDB_MAX_REQUESTS_PER_SECOND < 0:
 
 # - Rate limits (#217)
 # Each limit is "<count>/<period>", where the period is second, minute, hour or day. Login and
-# register are counted per client address, search and review per user. RATE_LIMIT_ENABLED=false
+# register are counted per client address, search, review, details and recommendations per user. RATE_LIMIT_ENABLED=false
 # turns all of them off (the tests do this, and the rate limit tests turn them on again).
 _RATE_LIMIT_PERIODS = {"second": 1, "minute": 60, "hour": 3600, "day": 86400}
 
@@ -153,6 +153,8 @@ RATE_LIMIT_SEARCH = _rate_limit("RATE_LIMIT_SEARCH", "30/minute")
 RATE_LIMIT_REVIEW = _rate_limit("RATE_LIMIT_REVIEW", "20/minute")
 # Opening a title that was not loaded yet calls IGDB or TMDB, and OpenAI for its embedding (#390)
 RATE_LIMIT_DETAILS = _rate_limit("RATE_LIMIT_DETAILS", "60/minute")
+# Each recommendation call averages the liked embeddings and runs a vector search (#396)
+RATE_LIMIT_RECOMMENDATIONS = _rate_limit("RATE_LIMIT_RECOMMENDATIONS", "30/minute")
 
 # OpenAI integration (AI-powered embeddings and spoiler detection).
 # Leave OPENAI_API_KEY empty to disable OpenAI-backed features.

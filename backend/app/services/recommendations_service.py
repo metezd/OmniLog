@@ -30,9 +30,17 @@ def get_recommendations(
         UserLibrary.user_id == user_id
     )
 
+    # The taste vector is the average of the embeddings of the liked titles. PostgreSQL computes
+    # it with avg() on the vector column (pgvector 0.5 or newer), so one vector comes back
+    # instead of every liked embedding, and no Python loop runs over them (#396).
     try:
-        liked_rows = (
-            db.query(MediaEmbedding.embedding)
+        taste_vector = (
+            db.query(
+                func.avg(
+                    MediaEmbedding.embedding, type_=MediaEmbedding.embedding.type
+                ).label("embedding")
+            )
+            .select_from(MediaEmbedding)
             .join(
                 UserLibrary,
                 UserLibrary.media_item_id == MediaEmbedding.media_item_id,
@@ -48,20 +56,12 @@ def get_recommendations(
                     )
                 ),
             )
-            .all()
+            .scalar()
         )
     except Exception:
-        logger.exception("Could not load taste embeddings; using fallback")
+        logger.exception("Could not load the taste vector; using fallback")
         db.rollback()
-        liked_rows = []
-
-    taste_vector = None
-    if liked_rows:
-        vectors = [row[0] for row in liked_rows]
-        taste_vector = [
-            sum(float(vector[index]) for vector in vectors) / len(vectors)
-            for index in range(len(vectors[0]))
-        ]
+        taste_vector = None
 
     base_query = (
         db.query(MediaItem)
