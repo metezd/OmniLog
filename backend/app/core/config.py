@@ -35,14 +35,15 @@ CORS_ORIGINS = [
     ).split(",")
     if origin.strip()
 ]
-# The API sends cookies and credentials, so a wildcard origin would let any website call it as
-# the logged-in user. Fail at start-up instead of running with an open CORS policy.
+# Only these websites may call the API from a browser. A wildcard would let any website read the
+# answers. Fail at start-up instead of running with an open CORS policy.
 if "*" in CORS_ORIGINS:
     raise RuntimeError("CORS_ORIGINS must list explicit origins. A wildcard (*) is not allowed.")
 
-# Show the API documentation (/docs, /redoc and /openapi.json). On by default for development.
-# Turn it off in production, so the full list of endpoints is not public.
-ENABLE_DOCS = os.getenv("ENABLE_DOCS", "true").strip().lower() in ("1", "true", "yes", "on")
+# Show the API documentation (/docs, /redoc and /openapi.json). Off by default (#394), so a start
+# without this setting does not make the full list of endpoints public. Set ENABLE_DOCS=true in
+# backend/.env for development.
+ENABLE_DOCS = os.getenv("ENABLE_DOCS", "false").strip().lower() in ("1", "true", "yes", "on")
 
 # Allow POST /media, which adds a title to the shared catalog (#218). Off by default, so the
 # route answers 404: titles come from the catalog search. The tests turn it on to make fixtures.

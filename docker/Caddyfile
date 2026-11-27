@@ -28,5 +28,9 @@
 	request_body {
 		max_size 1MB
 	}
-	reverse_proxy backend:8000
+	# The API sends its own HSTS header for Render (#394). Drop it here, so the browser gets the
+	# one of the security_headers block above only, and never two.
+	reverse_proxy backend:8000 {
+		header_down -Strict-Transport-Security
+	}
 }
