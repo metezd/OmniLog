@@ -104,6 +104,8 @@ The backend is built for every story except the parts listed at the end of this 
 
 "Log out" ends the login token at the backend (`POST /auth/logout`) and then removes the cookie, so a copy of the token stops working at once. Other logins of the same user, for example on another device, keep working until they end after 90 minutes (`ACCESS_TOKEN_EXPIRE_MINUTES`). Tokens from before this change have no `jti` claim and are refused, so everybody logs in once again after the update.
 
+A new password must be at least 8 characters long and must not be a common password, contain the username or the name of the email, be one repeated character or be a simple sequence such as `12345678` (BR-20). Register answers 422 with the reason on the password field. Accounts made before this rule keep their password.
+
 Recommendations use the title embeddings to personalize the ranking. If no usable taste vector exists or the vector search fails, the service falls back to a popularity ranking.
 
 Not built yet:

@@ -372,10 +372,25 @@ jobs:
         with:
           persist-credentials: false
 
+      # The checks run on the Node version of the production image, read from the first FROM line
+      # of frontend/Dockerfile, so a Dependabot update of the base image is tested on the new
+      # version in its own pull request (#379).
+      - name: Read the Node.js version of the production image
+        id: node
+        working-directory: .
+        run: |
+          version="$(sed -n 's/^FROM node:\([0-9][0-9.]*\)-.*/\1/p' frontend/Dockerfile | head -n 1)"
+          if [ -z "$version" ]; then
+            echo "::error file=frontend/Dockerfile::No 'FROM node:<version>-...' line found"
+            exit 1
+          fi
+          echo "Node.js $version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
       - name: Set up Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
-          node-version: "24"
+          node-version: ${{ steps.node.outputs.version }}
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 

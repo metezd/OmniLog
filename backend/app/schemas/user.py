@@ -1,8 +1,9 @@
 import unicodedata
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, ValidationInfo, field_validator
 
+from app.core.passwords import weakness
 from app.core.security import BCRYPT_MAX_BYTES
 from app.core.usernames import canonical_username
 # NUL bytes cannot be stored in PostgreSQL text columns and bcrypt cannot hash them
@@ -37,10 +38,15 @@ class UserCreate(BaseModel):
 
     @field_validator("password")
     @classmethod
-    def password_is_valid(cls, value: str) -> str:
+    def password_is_valid(cls, value: str, info: ValidationInfo) -> str:
         _reject_nul(value)
         if len(value.encode("utf-8")) > BCRYPT_MAX_BYTES:
             raise ValueError(f"password must be at most {BCRYPT_MAX_BYTES} bytes long")
+        # The fields are checked in order, so the username and the email are already in info.data.
+        # A field that failed its own check is missing there and is not compared.
+        reason = weakness(value, info.data.get("username"), info.data.get("email"))
+        if reason:
+            raise ValueError(reason)
         return value
 
 
