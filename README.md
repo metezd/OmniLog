@@ -102,6 +102,8 @@ Each step builds on the one before. A step is done when its tests pass.
 
 The backend is built for every story except the parts listed at the end of this paragraph. All six epics have endpoints and tests: registration and login (`POST /auth/register`, `POST /auth/login`, `GET /auth/me`), the catalog (`GET /catalog/search`, `GET /catalog/{id}`, and `POST /media`, which is off by default and used only by the tests), the library (`/library`), custom lists and the activity diary (`/lists`, `/diary`), chapter ratings, playtime and decisions (`/library/{id}/chapters/{chapter_id}/...`, US-10 to US-12), personal statistics with a Redis cache (`GET /stats`, US-15), reviews with spoiler detection (`POST` and `GET /library/{id}/review`, US-14) and recommendations (`GET /recommendations`, US-13). The last full local test run (2026-11-26) gave 1145 passed and 4 skipped, with 2 warnings.
 
+A new password must be at least 8 characters long and must not be a common password, contain the username or the name of the email, be one repeated character or be a simple sequence such as `12345678` (BR-20). Register answers 422 with the reason on the password field. Accounts made before this rule keep their password.
+
 Recommendations use the title embeddings to personalize the ranking. If no usable taste vector exists or the vector search fails, the service falls back to a popularity ranking.
 
 Not built yet:

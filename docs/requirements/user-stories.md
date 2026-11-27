@@ -31,6 +31,7 @@ Acceptance criteria:
 - Given valid username, email and password, when I `POST /auth/register`, then an account is created (status 201) and the response does not contain the password or its hash.
 - Given an email or username that already exists, when I register, then I receive status 409.
 - Given an invalid email format or an empty username, when I register, then I receive status 422.
+- Given a weak password (shorter than 8 characters, a common password such as `password`, a password with my username or the name of my email, one repeated character, or a sequence such as `12345678`), when I register, then I receive status 422 with a message on the password field (BR-20).
 
 ### US-03 Log in
 **As a** registered user, **I want** to log in with my credentials, **so that** I can access my private data.
