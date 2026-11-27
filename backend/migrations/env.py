@@ -3,14 +3,15 @@ from logging.config import fileConfig
 from alembic import context
 
 from app.core.config import DATABASE_URL
-from app.core.database import Base, engine
+from app.core.database import Base, connect_with_retry, engine
 
 # Importing the models registers every table on Base.metadata
 import app.models.entities  # noqa: F401
 
 config = context.config
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # Keep the loggers of the app (imported above), so the retries of connect_with_retry are shown
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 # Autogenerate compares the database against these tables
 target_metadata = Base.metadata
@@ -29,8 +30,12 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    """Run migrations against the configured database."""
-    with engine.connect() as connection:
+    """Run migrations against the configured database.
+
+    The connection is tried again for about 30 seconds, because on Render the database name may not
+    be resolvable yet when a new instance starts.
+    """
+    with connect_with_retry(engine) as connection:
         context.configure(connection=connection, target_metadata=target_metadata)
         with context.begin_transaction():
             context.run_migrations()

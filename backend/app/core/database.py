@@ -1,10 +1,11 @@
 import logging
 import os
+import time
 from typing import Optional
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine, make_url
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import OperationalError, SQLAlchemyError
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 logger = logging.getLogger(__name__)
@@ -62,6 +63,30 @@ def check_database(target: Optional[Engine] = None) -> None:
                 "Start it with `docker compose up -d`, or set DATABASE_URL to a database that runs."
             ) from None
         logger.warning("PostgreSQL does not answer at %s (%s). /health/ready answers 503 until it does.", where, reason)
+
+
+def connect_with_retry(target: Engine, attempts: int = 10, delay_seconds: float = 3.0, sleep=time.sleep):
+    """Open a connection, and try again while the database cannot be reached yet.
+
+    On Render the migrations start right when a new instance starts. Then the private name of the
+    database (dpg-...) sometimes cannot be resolved for a few seconds, and the first try failed with
+    "could not translate host name". The start command stopped, and Render marked the deploy as
+    failed, although a second try 30 seconds later worked. Only OperationalError (no connection) is
+    tried again; any other error is raised at once. The password is never written.
+    """
+    for attempt in range(1, attempts + 1):
+        try:
+            return target.connect()
+        except OperationalError as exc:
+            if attempt == attempts:
+                raise
+            reason = type(getattr(exc, "orig", None) or exc).__name__
+            logger.warning(
+                "The database does not answer yet (%s), try %s of %s. Trying again in %s seconds.",
+                reason, attempt, attempts, delay_seconds,
+            )
+            sleep(delay_seconds)
+    raise RuntimeError("attempts must be 1 or more")
 
 
 def get_db():
