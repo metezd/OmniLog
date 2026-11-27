@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import logging
 import math
+import threading
 import time
 from typing import Any
 
@@ -21,6 +22,39 @@ from app.integrations.common import ExternalServiceError
 logger = logging.getLogger(__name__)
 
 _client: OpenAI | None = None
+
+# After a failed call, OpenAI is not called again until this time (time.monotonic()), so a slow or
+# broken OpenAI costs one wait, not one wait for every request (#382)
+_cooldown_lock = threading.Lock()
+_down_until = 0.0
+
+
+def reset_cooldown() -> None:
+    """Forget an earlier failure. Used by the tests."""
+    global _down_until
+    with _cooldown_lock:
+        _down_until = 0.0
+
+
+def _mark_down(exc: Exception) -> None:
+    """Pause OpenAI after a failure that the next call would likely meet too: no connection, a
+    timeout, too many requests (429) or a server error (5xx). A refused request (4xx) does not
+    pause it, since another text may work."""
+    global _down_until
+    if isinstance(exc, APIStatusError) and exc.status_code < 500 and exc.status_code != 429:
+        return
+    if config.OPENAI_COOLDOWN_SECONDS <= 0:
+        return
+    with _cooldown_lock:
+        _down_until = time.monotonic() + config.OPENAI_COOLDOWN_SECONDS
+    logger.warning("OpenAI is not called for %s seconds after a failure", config.OPENAI_COOLDOWN_SECONDS)
+
+
+def _check_cooldown() -> None:
+    with _cooldown_lock:
+        cooling = time.monotonic() < _down_until
+    if cooling:
+        raise ExternalServiceError("OpenAI failed a moment ago and is not called for now")
 
 
 def _get_client() -> OpenAI:
@@ -50,6 +84,7 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
     if any(not text for text in cleaned_texts):
         raise ValueError("Embedding texts must not be empty")
 
+    _check_cooldown()
     try:
         client = _get_client()
         response = client.embeddings.create(
@@ -75,6 +110,7 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
         raise
     except (APIConnectionError, APITimeoutError, APIStatusError) as exc:
         logger.warning("OpenAI embedding request failed (%s)", type(exc).__name__)
+        _mark_down(exc)
         raise ExternalServiceError("OpenAI embedding service is unavailable") from exc
     except Exception as exc:
         logger.warning("OpenAI embedding request failed (%s)", type(exc).__name__)
@@ -88,6 +124,7 @@ def classify_spoiler(text: str) -> tuple[bool, float]:
     if not cleaned_text:
         return False, 0.0
 
+    _check_cooldown()
     try:
         client = _get_client()
         response = client.chat.completions.create(
@@ -143,6 +180,7 @@ def classify_spoiler(text: str) -> tuple[bool, float]:
         raise
     except (APIConnectionError, APITimeoutError, APIStatusError) as exc:
         logger.warning("OpenAI spoiler request failed (%s)", type(exc).__name__)
+        _mark_down(exc)
         raise ExternalServiceError("OpenAI spoiler service is unavailable") from exc
     except Exception as exc:
         logger.warning("OpenAI spoiler request failed (%s)", type(exc).__name__)

@@ -29,6 +29,7 @@ All notable changes to this project are written in this file. The format follows
 
 ### Fixed
 
+- Title details and reviews no longer wait for OpenAI. The embedding of a title and the OpenAI spoiler check run after the answer in a background job (`BACKGROUND_WORKERS`), and a review answers "not checked yet" until its result is written. After a failed call OpenAI is paused for `OPENAI_COOLDOWN_SECONDS` (default 60), so a broken OpenAI is not tried again on every open. Before, one request could wait about 25 seconds (#382).
 - A local PostgreSQL that is not running no longer makes the API switch to an empty SQLite file that answered "ready" and then 500. The API now stops at the start with a clear message, and the SQLite code is removed (#371).
 - A local SonarQube scan found 2 bugs, 1 vulnerability and 12 code smells. All are fixed (an unreachable `raise`, a password in an example comment, a form label without its field, a regular expression that could backtrack). The CI scan now also reads the frontend coverage. The results are in `docs/tests/sonarqube.md` (#299).
 - The login and register limits on Render count the browser address again, not the address of the frontend for everybody. The new setting `FORWARDED_TRUSTED_HOPS` reads it from the right end of `X-Forwarded-For`, so a client cannot choose it by writing the left end (#251).

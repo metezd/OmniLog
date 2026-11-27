@@ -96,6 +96,8 @@ All settings are in `.env.prod`. The file holds secrets and is ignored by Git. C
 | `IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET`, `TMDB_API_KEY` | no | Keys of the catalog services. Without them the catalog search cannot reach the outside services |
 | `OPENAI_API_KEY` | no | OpenAI API key. Without it, OpenAI-backed features are disabled |
 | `EMBEDDING_MODEL`, `EMBEDDING_DIMENSIONS`, `SPOILER_MODEL`, `SPOILER_THRESHOLD`, `OPENAI_TIMEOUT_SECONDS`, `OPENAI_MAX_RETRIES` | no | Models, spoiler confidence threshold, request timeout in seconds and retry count |
+| `OPENAI_COOLDOWN_SECONDS` | no | After a failed OpenAI call (no connection, timeout, 429 or 5xx), OpenAI is not called for this many seconds (default `60`, `0` turns it off) |
+| `BACKGROUND_WORKERS` | no | Threads for the work after the answer: the embedding of a title and the OpenAI spoiler check (default `2`). No request waits for OpenAI (#382) |
 | `IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET`, `TMDB_API_KEY` | no | Keys of the catalog services. Without them the catalog search cannot reach the outside services. For a demo without keys, set `IGDB_CLIENT_ID=public` (and any value in `IGDB_CLIENT_SECRET`) for games from the Steam Store, and `TMDB_API_KEY=public` for series from TVMaze and movies from Wikidata (without posters). Their ids are not IGDB or TMDB ids, so fill one database in one mode only |
 | `OPENAI_API_KEY` | no | OpenAI API key. Without it, the spoiler check of a review uses local patterns instead of OpenAI. The review is saved first in both cases. When the key is set and OpenAI fails, the spoiler fields of the review stay NULL (not checked) |
 | `SPOILER_MODEL` | no | Model that classifies a review. Default `gpt-4o-mini` |

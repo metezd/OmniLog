@@ -155,3 +155,8 @@ SPOILER_MODEL = os.getenv("SPOILER_MODEL", "gpt-4o-mini").strip()
 SPOILER_THRESHOLD = float(os.getenv("SPOILER_THRESHOLD", "0.5"))
 OPENAI_TIMEOUT_SECONDS = float(os.getenv("OPENAI_TIMEOUT_SECONDS", "8"))
 OPENAI_MAX_RETRIES = int(os.getenv("OPENAI_MAX_RETRIES", "2"))
+# After a failed OpenAI call, the next calls fail at once for this many seconds instead of waiting
+# for OpenAI again (#382). 0 turns the pause off.
+OPENAI_COOLDOWN_SECONDS = max(float(os.getenv("OPENAI_COOLDOWN_SECONDS", "60")), 0.0)
+# Threads for the work that runs after the answer: embeddings and the OpenAI spoiler check (#382)
+BACKGROUND_WORKERS = max(int(os.getenv("BACKGROUND_WORKERS", "2")), 1)
