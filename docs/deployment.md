@@ -331,6 +331,7 @@ A call that goes straight to the API domain has only one address from Render, so
 
 | Message or behavior | Cause and fix |
 |---|---|
+| The Render deploy of `omnilog-api` fails with `could not translate host name "dpg-..."` | The private name of the database is not ready yet right after a new instance starts. The migrations try again for about 30 seconds and write `The database does not answer yet ..., try N of 10`. If all ten tries fail, check that the database `omnilog-db` exists and is in the same region as the service |
 | `required variable ... is missing a value` | A value is empty in `.env.prod`. Fill it in |
 | The browser shows a certificate error on a real domain | The DNS record does not point to the server yet, or port 80 is blocked. See `docker compose ... logs proxy` |
 | The login page shows an error or the frontend log says `BACKEND_URL is not set` | The frontend has no `BACKEND_URL`. The compose file sets it, so check that you use `docker-compose.prod.yml`. On Render, set it by hand. Check also `docker compose ... logs backend` |
