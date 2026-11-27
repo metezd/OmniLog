@@ -43,3 +43,12 @@ def test_migrations_run_before_the_api_starts():
 
     assert start.startswith("alembic upgrade head && ")
     assert "uvicorn app.main:app" in start
+
+
+def test_the_database_url_is_set_in_the_dashboard():
+    """The database is Supabase (#402). A Blueprint sync must not set DATABASE_URL back to a Render
+    database, so it has sync: false and no fromDatabase."""
+    env = {item["key"]: item for item in WEB_SERVICES["omnilog-api"]["envVars"]}
+
+    assert env["DATABASE_URL"] == {"key": "DATABASE_URL", "sync": False}
+    assert "databases" not in BLUEPRINT
