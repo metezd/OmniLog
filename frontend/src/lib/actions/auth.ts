@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { BackendError, backendFetch } from "@/lib/server/backend";
-import { createSession, destroySession } from "@/lib/server/session";
+import { createSession, destroySession, getSessionToken } from "@/lib/server/session";
 
 // Server Actions of the login, the registration and the logout. The forms call them, and they
 // call the backend. The token goes into an httpOnly cookie and never reaches the page.
@@ -110,11 +110,24 @@ export async function registerAction(_previous: AuthFormState, formData: FormDat
   redirect(AFTER_LOGIN);
 }
 
+/** How long the logout waits for the backend before it removes the cookie anyway. */
+const LOGOUT_TIMEOUT_MS = 5_000;
+
 /**
- * Log out. The cookie is removed. The token itself stays valid until it ends, because the backend
- * does not keep a list of tokens, but nobody has it anymore.
+ * Log out. The backend ends the token first (`POST /auth/logout`, #378), so a copy of it stops
+ * working too. Then the cookie is removed. When the backend cannot be reached or refuses the token,
+ * the cookie is still removed: the user always ends up logged out in this browser.
  */
 export async function logoutAction(): Promise<void> {
+  const token = await getSessionToken();
+  if (token) {
+    try {
+      await backendFetch("/auth/logout", { method: "POST", token, timeoutMs: LOGOUT_TIMEOUT_MS });
+    } catch (error) {
+      if (!(error instanceof BackendError)) throw error;
+      // Already ended, expired, or the backend is down. The token ends at its exp anyway.
+    }
+  }
   await destroySession();
   redirect("/login");
 }
