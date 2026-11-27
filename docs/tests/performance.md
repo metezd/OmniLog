@@ -83,9 +83,23 @@ The endpoints are normal (`def`) functions, so FastAPI runs them in a pool of 40
 
 **Errors.** No run below the knee had a single error.
 
+### After the pool settings (2026-11-27, #432)
+
+The pool got its settings (`DB_POOL_SIZE`, `DB_MAX_OVERFLOW`, `DB_POOL_TIMEOUT`, default 5 + 10 and 10 seconds), and a full pool now answers 503 with `Retry-After` instead of 500 after 30 seconds. The same stack and script, no CPU limit, 30 seconds per run:
+
+| Pool | Users | Requests/s | p50 | p95 | p99 | Errors | Limits |
+|---|---|---|---|---|---|---|---|
+| 5 + 10 (default) | 40 | 470.0 | 76.6 ms | 196.0 ms | 297.8 ms | 0% | passed |
+| 5 + 10 (default) | 80 | 75.9 | 178.1 ms | **10 075 ms** | 19 890 ms | **2.8%**, all 503 "busy" | failed |
+| 20 + 20 | 80 | 433.6 | 182.2 ms | **309 ms** | 384 ms | **0%** | **passed** |
+
+With the default pool the API no longer locks up at 80 users: it answers 76 requests per second instead of 6, and the errors are quick 503 answers instead of 500 after 30 seconds. A pool as large as the thread pool (20 + 20) passes the limits at 80 users. The results are in `tests/performance/results/2026-11-27/`.
+
+The default stays 5 + 10, because every connection of the API is a connection of the database plan. On Supabase the Session pooler has a fixed pool size that depends on the plan (see the database settings of the project). Raise `DB_POOL_SIZE` and `DB_MAX_OVERFLOW` only as far as the plan allows.
+
 ## 6. Recommendations
 
-1. **Make the database pool fit the thread pool.** Set `pool_size` and `max_overflow` in `create_engine` so that the pool has at least as many connections as there are threads (for example 20 plus 20), and a short `pool_timeout` (for example 5 seconds), so that an overload gives quick errors instead of a 30 second lock. Check the connection limit of the database plan first. This needs its own issue and a repeat of this test.
+1. **Make the database pool fit the thread pool.** Done in #432 as settings (see above). Set `pool_size` and `max_overflow` in `create_engine` so that the pool has at least as many connections as there are threads (for example 20 plus 20), and a short `pool_timeout` (for example 5 seconds), so that an overload gives quick errors instead of a 30 second lock. Check the connection limit of the database plan first. This needs its own issue and a repeat of this test.
 2. **More than one process.** Start uvicorn with 2 to 4 workers (`--workers`) on a plan with more than one core. One process uses one core at most.
 3. **Render's free plan** has far less CPU than one M3 core. Expect the knee there well under 20 users. Measure it with a harmless, short test only after the team agrees, never with this script against the shared hosted system.
 
