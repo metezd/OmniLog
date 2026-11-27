@@ -6,6 +6,13 @@ import { authedFetch } from "./authed";
 // Episodic logging for one chapter or episode of a library entry (US-10, US-11, US-12).
 // `entryId` is the id of the library entry, not of the title.
 
+/**
+ * Longest wait for a change (#411). The backend on Render sleeps when nobody uses it, and its first
+ * answer after that took about 30 seconds. With the usual 10 seconds the change was often saved
+ * after the page had already shown an error, and a second click saved it twice.
+ */
+export const CHAPTER_WRITE_TIMEOUT_MS = 60_000;
+
 function chapterPath(entryId: number, chapterId: number): string {
   return `/library/${entryId}/chapters/${chapterId}`;
 }
@@ -19,6 +26,7 @@ export function rateChapter(entryId: number, chapterId: number, rating: number):
   return authedFetch<ChapterRating>(`${chapterPath(entryId, chapterId)}/rating`, {
     method: "PUT",
     body: { rating },
+    timeoutMs: CHAPTER_WRITE_TIMEOUT_MS,
   });
 }
 
@@ -27,6 +35,7 @@ export function logPlaytime(entryId: number, chapterId: number, minutes: number)
   return authedFetch<PlaytimeLog>(`${chapterPath(entryId, chapterId)}/playtime`, {
     method: "POST",
     body: { minutes },
+    timeoutMs: CHAPTER_WRITE_TIMEOUT_MS,
   });
 }
 
@@ -40,5 +49,6 @@ export function recordDecision(
   return authedFetch<Decision>(`${chapterPath(entryId, chapterId)}/decision`, {
     method: "PUT",
     body: { choice, decision_point_id: decisionPointId },
+    timeoutMs: CHAPTER_WRITE_TIMEOUT_MS,
   });
 }
