@@ -230,9 +230,10 @@ def test_empty_redis_url_is_kept_empty_by_the_config():
 
 
 def test_health_ready_answers_with_an_empty_redis_url(client, redis_url):
+    """An empty REDIS_URL is "not_configured", not "down" (#422)."""
     redis_url("")
 
     response = client.get("/health/ready")
 
     assert response.status_code == 200
-    assert response.json()["cache"] == "down"
+    assert response.json()["cache"] == "not_configured"
