@@ -20,6 +20,7 @@ All notable changes to this project are written in this file. The format follows
 
 ### Changed
 
+- The frontend checks in CI run on the Node.js version of `frontend/Dockerfile` (26 instead of 24), and Render runs the Python of `backend/Dockerfile` (3.15.2 instead of 3.15.0). A test keeps `render.yaml`, the Dockerfiles and CI in line (#379).
 - `.github/rulesets/main.json`, `CONTRIBUTING.md` and the Dependabot workflow follow the live ruleset of `main`: merge commits instead of rebase, no linear history rule, and AI disclosure as a required check. A test keeps them in line, and the ruleset is updated with PUT instead of POST (#369).
 - The AI usage page, the notes of Sidar Ürey and the register of AI mistakes show the work up to 2026-11-26: eight new caught mistakes (17 in all), the AI disclosure check and the current controls (#308, #310).
 - `.github/CODEOWNERS` gives each of the six members the area of their role in the Charter, and a test checks that every path in it exists (#293).
@@ -29,6 +30,7 @@ All notable changes to this project are written in this file. The format follows
 ### Fixed
 
 - Every time in an answer of the API is sent in UTC with a `Z` (`2026-11-26T19:34:34.794654Z`) instead of without a time zone, and the diary shows it in the time zone of the browser. Before, the diary was printed in the time zone of the server and read the time as local time, so in Turkey it was 3 hours early (#383).
+- Title details and reviews no longer wait for OpenAI. The embedding of a title and the OpenAI spoiler check run after the answer in a background job (`BACKGROUND_WORKERS`), and a review answers "not checked yet" until its result is written. After a failed call OpenAI is paused for `OPENAI_COOLDOWN_SECONDS` (default 60), so a broken OpenAI is not tried again on every open. Before, one request could wait about 25 seconds (#382).
 - A local PostgreSQL that is not running no longer makes the API switch to an empty SQLite file that answered "ready" and then 500. The API now stops at the start with a clear message, and the SQLite code is removed (#371).
 - A local SonarQube scan found 2 bugs, 1 vulnerability and 12 code smells. All are fixed (an unreachable `raise`, a password in an example comment, a form label without its field, a regular expression that could backtrack). The CI scan now also reads the frontend coverage. The results are in `docs/tests/sonarqube.md` (#299).
 - The login and register limits on Render count the browser address again, not the address of the frontend for everybody. The new setting `FORWARDED_TRUSTED_HOPS` reads it from the right end of `X-Forwarded-For`, so a client cannot choose it by writing the left end (#251).
@@ -42,6 +44,7 @@ All notable changes to this project are written in this file. The format follows
 
 ### Security
 
+- "Log out" ends the token at the backend with the new `POST /auth/logout`, so a copied token stops working at once instead of 90 minutes later. Every token has a `jti` claim, and the ended ones are kept in the new table `revoked_tokens` (migration 0014) until they would expire. Other tokens of the same user keep working. Tokens without `jti` are refused, so every user logs in once again after the update (#378).
 - The poster proxy `GET /api/poster` no longer follows a redirect of the poster host, so a redirect cannot lead the server to another address. More tests for the proxy (#332).
 - Penetration finding F7 is fixed and the missing headers are added: no `Server` or `X-Powered-By` header, `X-Frame-Options`, `Content-Security-Policy` and `Permissions-Policy` from the API on every answer (also on a 500), the browser headers from the frontend, and HSTS and the same headers from Caddy (#304).
 - Penetration finding F3 is fixed: the update schema of a title checks `poster_url` too, and the frontend sends a Content-Security-Policy with a nonce for scripts and only the app, `data:`, `blob:` and the TMDB and IGDB image hosts for images (#303).

@@ -1,4 +1,5 @@
 """Review submission and NLP spoiler detection (US-14, DFD 5.4 and 5.5)."""
+import hashlib
 import logging
 import re
 from typing import Optional, Tuple
@@ -6,8 +7,9 @@ from typing import Optional, Tuple
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from app.core import config
+from app.core import background, config
 from app.core.clock import utc_now
+from app.core.database import SessionLocal
 from app.models.entities import Review, User, UserLibrary
 from app.schemas.review import ReviewCreate
 from app.services.diary_service import DiaryAction, record_event
@@ -76,10 +78,13 @@ def upsert_review(
 ) -> tuple[Review, bool]:
     """Create or replace the user's review for a library entry and run spoiler detection (US-14).
 
-    Three steps, so no database connection is held while OpenAI answers:
     1. Save the review with the spoiler fields NULL ("not checked") and commit.
-    2. Run the spoiler check. No transaction is open here.
-    3. Write the result in a second short transaction.
+    2. Run the spoiler check:
+       - with OPENAI_API_KEY, after the answer in a background job, so the request never waits
+         for OpenAI (#382). The answer says "not checked yet" (NULL), and GET shows the result
+         when the job has written it;
+       - without it, the local patterns run at once, in no time, and the answer has the result.
+    3. Write the result in a second short transaction, without a connection held during step 2.
     A failed check leaves the fields NULL. The review is never lost because of it.
     """
     entry = (
@@ -120,17 +125,32 @@ def upsert_review(
     review_id = review.id
     db.commit()  # ends the transaction and returns the connection to the pool
 
-    # Step 2: the check, without an open transaction.
-    contains_spoiler, spoiler_score, model_version = detect_spoilers(text)
+    if config.OPENAI_API_KEY:
+        # The key holds the text, so an edit during a running check gets a check of its own
+        digest = hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+        background.submit_once(f"spoiler:{review_id}:{digest}", _check_in_background, review_id, text)
+    else:
+        _check_and_store(db, review_id, text)
 
-    # Step 3: write the result.
+    review = db.get(Review, review_id)
+    return review, is_new
+
+
+def _check_and_store(db: Session, review_id: int, text: str) -> None:
+    """Steps 2 and 3: the check, without an open transaction, then its result."""
+    contains_spoiler, spoiler_score, model_version = detect_spoilers(text)
     if model_version is not None:
         _store_spoiler_result(
             db, review_id, text, contains_spoiler, spoiler_score, model_version
         )
 
-    review = db.get(Review, review_id)
-    return review, is_new
+
+def _check_in_background(review_id: int, text: str) -> None:
+    db = SessionLocal()
+    try:
+        _check_and_store(db, review_id, text)
+    finally:
+        db.close()
 
 
 def _store_spoiler_result(

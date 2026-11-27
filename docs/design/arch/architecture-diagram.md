@@ -17,7 +17,7 @@ flowchart LR
     CADDY["Caddy Reverse Proxy (docker/Caddyfile)\nPorts 80 / 443 Automatic HTTPS"]
   end
 
-  subgraph FrontendContainer["Frontend Container (Node 24 / Next.js 16)"]
+  subgraph FrontendContainer["Frontend Container (Node 26 / Next.js 16)"]
     MW["Route Guard (src/proxy.ts)\nlib/auth/routes.ts + lib/auth/token.ts"]
     ACT["Server Actions (src/lib/actions)\nauth.ts, library.ts, chapters.ts, lists.ts"]
     SRV["Server Data Layer (src/lib/server)\nauthed.ts, backend.ts, session.ts (omnilog_session httpOnly cookie)\ncatalog.ts, library.ts, journal.ts, chapters.ts, reviews.ts, recommendations.ts, stats.ts, user.ts"]

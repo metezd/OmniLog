@@ -314,6 +314,7 @@ describe("logoutAction", () => {
   it("removes the session cookie, keeps the other cookies and goes to the login page", async () => {
     cookieStore.set("theme", "dark");
     cookieStore.set(SESSION_COOKIE, token());
+    server.use(http.post(`${BASE}/auth/logout`, () => new HttpResponse(null, { status: 204 })));
 
     const url = await redirectOf(logoutAction());
 
@@ -325,10 +326,51 @@ describe("logoutAction", () => {
     expect(await redirectOf(logoutAction())).toBe("/login");
   });
 
-  it("does not call the backend", async () => {
-    // A call without a handler would fail the test, so no call is the proof
-    cookieStore.set(SESSION_COOKIE, token());
+  it("ends the token at the backend before it removes the cookie", async () => {
+    const session = token();
+    cookieStore.set(SESSION_COOKIE, session);
+    const calls: { authorization: string | null; cookieThen: boolean }[] = [];
+    server.use(
+      http.post(`${BASE}/auth/logout`, ({ request }) => {
+        calls.push({
+          authorization: request.headers.get("authorization"),
+          cookieThen: cookieStore.names.includes(SESSION_COOKIE),
+        });
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
 
-    await redirectOf(logoutAction());
+    expect(await redirectOf(logoutAction())).toBe("/login");
+
+    expect(calls).toEqual([{ authorization: `Bearer ${session}`, cookieThen: true }]);
+    expect(cookieStore.names).not.toContain(SESSION_COOKIE);
+  });
+
+  it.each([
+    ["the token is already ended", () => HttpResponse.json({ detail: "Not authenticated" }, { status: 401 })],
+    ["the backend fails", () => HttpResponse.json({ detail: "boom" }, { status: 500 })],
+    ["the backend cannot be reached", () => HttpResponse.error()],
+  ])("still removes the cookie when %s", async (_case, answer) => {
+    cookieStore.set(SESSION_COOKIE, token());
+    server.use(http.post(`${BASE}/auth/logout`, answer));
+
+    expect(await redirectOf(logoutAction())).toBe("/login");
+    expect(cookieStore.names).not.toContain(SESSION_COOKIE);
+  });
+
+  it("does not call the backend for an expired cookie", async () => {
+    // The action swallows a failed call, so the handler counts the calls instead
+    let calls = 0;
+    server.use(
+      http.post(`${BASE}/auth/logout`, () => {
+        calls += 1;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    cookieStore.set(SESSION_COOKIE, token(-1));
+
+    expect(await redirectOf(logoutAction())).toBe("/login");
+    expect(calls).toBe(0);
+    expect(cookieStore.names).not.toContain(SESSION_COOKIE);
   });
 });

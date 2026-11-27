@@ -7,7 +7,8 @@ import logging
 
 from sqlalchemy.orm import Session
 
-from app.core import config
+from app.core import background, config
+from app.core.database import SessionLocal
 from app.integrations.openai_client import embed_texts
 from app.models.entities import MediaEmbedding, MediaItem
 
@@ -39,20 +40,37 @@ def build_embedding_text(item: MediaItem) -> str | None:
     return "\n".join(parts)
 
 
+def _source_hash(source_text: str) -> str:
+    return hashlib.sha256(source_text.encode("utf-8")).hexdigest()
+
+
+def _stored(db: Session, item: MediaItem) -> MediaEmbedding | None:
+    return (
+        db.query(MediaEmbedding)
+        .filter_by(media_item_id=item.id, model_name=config.EMBEDDING_MODEL)
+        .one_or_none()
+    )
+
+
+def needs_embedding(db: Session, item: MediaItem) -> bool:
+    """True when the title has text for an embedding and no stored one for that text."""
+    source_text = build_embedding_text(item)
+    if source_text is None:
+        return False
+    existing = _stored(db, item)
+    return existing is None or existing.source_text_hash != _source_hash(source_text)
+
+
 def update_embedding(db: Session, item: MediaItem) -> bool:
     """Create or update an embedding in a savepoint; do not commit the caller's session."""
     source_text = build_embedding_text(item)
     if source_text is None:
         return False
 
-    source_hash = hashlib.sha256(source_text.encode("utf-8")).hexdigest()
+    source_hash = _source_hash(source_text)
     model_name = config.EMBEDDING_MODEL
 
-    existing = (
-        db.query(MediaEmbedding)
-        .filter_by(media_item_id=item.id, model_name=model_name)
-        .one_or_none()
-    )
+    existing = _stored(db, item)
     if existing is not None and existing.source_text_hash == source_hash:
         return False
 
@@ -92,3 +110,24 @@ def safely_update_embedding(db: Session, item: MediaItem) -> bool:
     except Exception:
         logger.exception("Could not update embedding for media item %s", item.id)
         return False
+
+
+def schedule_embedding(db: Session, item: MediaItem) -> bool:
+    """Make the embedding of a title after the answer, when it needs one (#382).
+
+    The title details (GET /catalog/{id}) call this instead of waiting for OpenAI. Without
+    OPENAI_API_KEY nothing is scheduled. True when a job was added.
+    """
+    if not config.OPENAI_API_KEY or not needs_embedding(db, item):
+        return False
+    return background.submit_once(f"embedding:{item.id}", _embed_in_background, item.id)
+
+
+def _embed_in_background(media_item_id: int) -> None:
+    db = SessionLocal()
+    try:
+        item = db.get(MediaItem, media_item_id)
+        if item is not None and safely_update_embedding(db, item):
+            db.commit()
+    finally:
+        db.close()

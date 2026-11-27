@@ -60,7 +60,7 @@ All tests are in `tests/`. The acceptance tests of a story are named `test_usNN_
 | NFR-04 | `test_nfr.py`: `test_nfr04_survives_external_api_failure`, `test_nfr04_recommendations_survive_openai_down`, `test_nfr04_review_survives_openai_down_and_is_saved` | `test_epic3_catalog_search_edge_cases.py`, `test_epic3_title_details_edge_cases.py`, `test_openai_client.py`. Note: the recommendations never call OpenAI, so `test_nfr04_recommendations_survive_openai_down` passes without testing a fallback |
 | NFR-05 | The coverage gate in `.github/workflows/ci.yml` (`--cov-fail-under=90`, higher than the 70% that NFR-05 asks for) | The last local run (2026-11-26) measured 95.88% line coverage of `backend/app` |
 
-The business rules BR-10 to BR-13 are checked in the Epic 4 edge-case files, and BR-16 in `test_epic6_stats_edge_cases.py`. BR-18 (no `@` in a username) is checked in `test_epic2_login_identifier_edge_cases.py`.
+The business rules BR-10 to BR-13 are checked in the Epic 4 edge-case files, and BR-16 in `test_epic6_stats_edge_cases.py`. BR-18 (no `@` in a username) is checked in `test_epic2_login_identifier_edge_cases.py`, and BR-20 (the password rules) in `test_password_strength.py`.
 
 ## 3. Consistency checks
 

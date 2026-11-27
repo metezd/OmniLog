@@ -2,9 +2,9 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, limit_per_client
+from app.api.deps import get_current_token, get_current_user, limit_per_client
 from app.core.database import get_db
-from app.core.security import create_access_token
+from app.core.security import AccessToken, create_access_token
 from app.models.entities import User
 from app.schemas.user import Token, UserCreate, UserLogin, UserResponse
 from app.services import auth_service
@@ -38,6 +38,16 @@ def login(data: UserLogin, db: Session = Depends(get_db)):
             headers={"WWW-Authenticate": "Bearer"},
         )
     return Token(access_token=create_access_token(user.id))
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+def logout(token: AccessToken = Depends(get_current_token), db: Session = Depends(get_db)):
+    """End the token of this request (#378). Other tokens of the same user keep working.
+
+    A token that is already logged out, expired or invalid gets 401, like on every protected
+    endpoint.
+    """
+    auth_service.revoke_token(db, token)
 
 
 @router.get("/me", response_model=UserResponse)

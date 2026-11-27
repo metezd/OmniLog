@@ -344,18 +344,25 @@ def test_us14_failing_openai_on_update_resets_old_result(
 def test_us14_no_connection_is_checked_out_during_the_openai_call(
     client, auth_headers, library_entry, monkeypatch
 ):
-    """The spoiler check runs without an open transaction (no pool connection is held)."""
+    """The spoiler check runs after the answer and without an open transaction (#382).
+
+    The fake OpenAI waits until the answer is back. Then no pool connection may be held: the
+    request has ended, and the background job opens its transaction only after the call.
+    """
+    import threading
     from types import SimpleNamespace
 
-    from app.core import config
+    from app.core import background, config
     from app.core.database import engine
     from app.integrations import openai_client
     from tests.requirements.fake_openai import FakeOpenAI
 
     fake = FakeOpenAI()
+    answered = threading.Event()
     checked_out = []
 
     def create(**kwargs):
+        assert answered.wait(timeout=10), "the request waited for OpenAI"
         checked_out.append(engine.pool.checkedout())
         return fake._create_completion(**kwargs)
 
@@ -367,11 +374,16 @@ def test_us14_no_connection_is_checked_out_during_the_openai_call(
     )
 
     response = _post_review(client, auth_headers, library_entry)
+    answered.set()
 
     assert response.status_code == 201
-    assert response.json()["contains_spoiler"] is True
-    assert response.json()["spoiler_model_version"] == config.SPOILER_MODEL
+    assert response.json()["contains_spoiler"] is None, "the answer must not wait for the check"
+    assert background.wait_idle(timeout=10)
     assert checked_out == [0], "a database connection was held during the OpenAI call"
+
+    review = client.get(f"/library/{library_entry['id']}/review", headers=auth_headers).json()
+    assert review["contains_spoiler"] is True
+    assert review["spoiler_model_version"] == config.SPOILER_MODEL
 
 
 def test_us14_local_classifier_uses_the_threshold_setting(
