@@ -1,10 +1,10 @@
 """Schemas for custom lists (US-06) and the activity diary (US-07)."""
-from datetime import datetime
 from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.core.validation import NoNulStr
+from app.schemas.types import UtcDateTime
 
 
 # --- US-06: Custom lists ---
@@ -30,7 +30,7 @@ class CustomListItemResponse(BaseModel):
     id: int
     list_id: int
     media_item_id: int
-    added_at: datetime
+    added_at: UtcDateTime
 
 
 class CustomListResponse(BaseModel):
@@ -38,7 +38,7 @@ class CustomListResponse(BaseModel):
 
     id: int
     name: str
-    created_at: datetime
+    created_at: UtcDateTime
     items: List[CustomListItemResponse] = []
 
 
@@ -51,4 +51,4 @@ class DiaryEntryResponse(BaseModel):
     # Empty for events that are not about a title, such as LIST_CREATED
     media_item_id: Optional[int] = None
     details: Optional[str] = None
-    created_at: datetime
+    created_at: UtcDateTime

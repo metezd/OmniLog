@@ -1,10 +1,10 @@
 """Schemas for library entry reviews and spoiler moderation (US-14)."""
-from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.core.validation import NoNulStr
+from app.schemas.types import UtcDateTime
 
 
 class ReviewCreate(BaseModel):
@@ -28,5 +28,5 @@ class ReviewResponse(BaseModel):
     contains_spoiler: Optional[bool] = None
     spoiler_score: Optional[float] = None
     spoiler_model_version: Optional[str] = None
-    created_at: datetime
-    updated_at: Optional[datetime] = None
+    created_at: UtcDateTime
+    updated_at: Optional[UtcDateTime] = None

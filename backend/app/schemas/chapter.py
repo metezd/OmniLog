@@ -1,10 +1,10 @@
 """Schemas for the personal record of a chapter or episode (US-10, US-11 and US-12)."""
-from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.validation import NoNulStr
+from app.schemas.types import UtcDateTime
 
 
 class ChapterRatingUpdate(BaseModel):
@@ -24,7 +24,7 @@ class ChapterRatingResponse(BaseModel):
     library_entry_id: int
     chapter_id: int
     rating: int = Field(ge=1, le=5)
-    updated_at: datetime
+    updated_at: UtcDateTime
 
 
 # One playtime entry is at most 100,000 minutes (about 69 days). The total of a chapter is
@@ -46,7 +46,7 @@ class PlaytimeLogResponse(BaseModel):
     id: int
     chapter_id: int
     minutes: int
-    logged_at: datetime
+    logged_at: UtcDateTime
     playtime_minutes: int  # total of all entries of this chapter
 
 
@@ -66,7 +66,7 @@ class DecisionItem(BaseModel):
 
     decision_point_id: int
     choice: str
-    decided_at: datetime
+    decided_at: UtcDateTime
 
 
 class DecisionResponse(DecisionItem):
@@ -91,7 +91,7 @@ class ChapterProgressResponse(BaseModel):
     chapter_id: int
     rating: Optional[int] = None
     playtime_minutes: int = 0
-    updated_at: Optional[datetime] = None
+    updated_at: Optional[UtcDateTime] = None
     choice: Optional[str] = None
-    decided_at: Optional[datetime] = None
+    decided_at: Optional[UtcDateTime] = None
     decisions: list[DecisionItem] = []
