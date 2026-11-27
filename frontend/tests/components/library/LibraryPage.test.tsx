@@ -18,6 +18,7 @@ function entry(id: number, title: string): LibraryEntry {
     media_item_id: id,
     status: "COMPLETED",
     rating: 9,
+    playtime_minutes: 0,
     updated_at: null,
     media_item: { id, title, media_type: "SERIES", poster_url: null, release_date: null, external_api_id: null, genres: [] },
   };

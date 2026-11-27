@@ -153,7 +153,8 @@ def test_series_seasons_and_episodes_are_complete(client, auth_headers, fake_ext
     assert first == {**first, "number": 1, "kind": "EPISODE", "title": "Pilot",
                      "release_date": "2008-01-20", "runtime_minutes": 58}
     assert second["title"] == "Cat's in the Bag..."
-    assert third["runtime_minutes"] is None  # TMDB did not know the length
+    # TMDB did not know the length: the average of the known episodes, 58 48 47 47 (#411)
+    assert third["runtime_minutes"] == 50
     assert [e["number"] for e in seasons[2]["episodes"]] == [1, 2]
 
 
@@ -622,8 +623,9 @@ def test_bad_values_in_an_answer_are_skipped_and_cleaned(client, auth_headers, f
     assert (seasons[1]["title"], seasons[1]["air_date"]) == ("Season One", None)
     first, second, fine = seasons[1]["episodes"]
     assert first["title"] == "x" * 200
-    assert (first["release_date"], first["runtime_minutes"]) == (None, None)
-    assert (second["title"], second["runtime_minutes"]) == (None, None)
+    # A bad length counts as missing and gets the one known length of the series (#411)
+    assert (first["release_date"], first["runtime_minutes"]) == (None, 44)
+    assert (second["title"], second["runtime_minutes"]) == (None, 44)
     assert (fine["number"], fine["title"], fine["runtime_minutes"]) == (4, "Fine", 44)
 
 

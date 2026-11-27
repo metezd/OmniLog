@@ -2,7 +2,11 @@
 import { http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { submitReviewAction, type ReviewActionState } from "@/lib/actions/library";
+import {
+  logTitlePlaytimeAction,
+  submitReviewAction,
+  type ReviewActionState,
+} from "@/lib/actions/library";
 import type { Review } from "@/types/api";
 import { cookieStore } from "../../mocks/cookie-store";
 import { server } from "../../mocks/server";
@@ -181,5 +185,72 @@ describe("submitReviewAction", () => {
       review: existing,
       draft: "Updated review text",
     });
+  });
+});
+
+describe("logTitlePlaytimeAction", () => {
+  it("adds hours and minutes and sends POST /library/{entry_id}/playtime (#413)", async () => {
+    let seenBody: unknown;
+    server.use(
+      http.post(`${BASE}/library/10/playtime`, async ({ request }) => {
+        seenBody = await request.json();
+        return HttpResponse.json(
+          {
+            id: 1,
+            library_entry_id: 10,
+            minutes: 90,
+            logged_at: "2026-11-27T12:00:00Z",
+            playtime_minutes: 90,
+          },
+          { status: 201 },
+        );
+      }),
+    );
+
+    const state = await logTitlePlaytimeAction(
+      { status: "idle" },
+      form({ entryId: "10", mediaItemId: "42", hours: "1", minutes: "30" }),
+    );
+
+    expect(seenBody).toEqual({ minutes: 90 });
+    expect(state).toEqual({ status: "saved", message: "+1h 30m logged" });
+    expect(revalidatePathMock).toHaveBeenCalledWith("/title/42");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/stats");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/diary");
+  });
+
+  it.each([
+    [{ hours: "", minutes: "" }, "Playtime must be at least 1 minute."],
+    [{ hours: "0", minutes: "0" }, "Playtime must be at least 1 minute."],
+    [{ hours: "-1", minutes: "10" }, "Hours and minutes must be whole numbers."],
+    [{ hours: "1.5", minutes: "" }, "Hours and minutes must be whole numbers."],
+    [{ hours: "2000", minutes: "0" }, "One session can be at most 100,000 minutes."],
+  ])("rejects %o before calling the backend", async (values, message) => {
+    const state = await logTitlePlaytimeAction(
+      { status: "idle" },
+      form({ entryId: "10", mediaItemId: "42", ...values }),
+    );
+
+    expect(state).toEqual({ status: "error", message });
+    expect(revalidatePathMock).not.toHaveBeenCalled();
+  });
+
+  it("shows the message of the backend, for example 422 for a series", async () => {
+    server.use(
+      http.post(`${BASE}/library/10/playtime`, () =>
+        HttpResponse.json(
+          { detail: "The time of a series is logged on its episodes" },
+          { status: 422 },
+        ),
+      ),
+    );
+
+    const state = await logTitlePlaytimeAction(
+      { status: "idle" },
+      form({ entryId: "10", mediaItemId: "42", minutes: "45" }),
+    );
+
+    expect(state.status).toBe("error");
+    expect(revalidatePathMock).not.toHaveBeenCalled();
   });
 });

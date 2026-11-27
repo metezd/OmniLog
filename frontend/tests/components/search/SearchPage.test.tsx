@@ -34,6 +34,7 @@ function entry(media_item_id: number): LibraryEntry {
     media_item_id,
     status: "PLAN_TO_WATCH",
     rating: null,
+    playtime_minutes: 0,
     updated_at: null,
     media_item: item(media_item_id, "Saved"),
   };

@@ -24,7 +24,9 @@ from app.integrations.common import (
     clean_text,
     clean_title,
     clean_url,
+    average_runtime,
     dedupe,
+    fill_missing_runtimes,
     is_safe_image_path,
     json_body,
     request_with_retry,
@@ -191,6 +193,8 @@ def fetch_series(external_id: int) -> Optional[ExternalSeries]:
             logger.warning("TMDB sent no details for season %s of series %s", number, external_id)
             continue
         seasons.append(_normalize_season(number, listed[number], details[number]))
+    # TMDB leaves the runtime of many episodes empty (#411)
+    seasons = fill_missing_runtimes(seasons, average_runtime(show.get("episode_run_time")))
     return ExternalSeries(seasons=seasons, details=_details_of(show))
 
 
@@ -490,6 +494,9 @@ def _fetch_public_series(external_id: int) -> Optional[ExternalSeries]:
 
     eps_by_season = _group_public_episodes(raw_episodes)
     seasons = _build_public_seasons(raw_seasons, eps_by_season)
+    # TVMaze gives the usual length of an episode as averageRuntime, older answers as runtime
+    series_runtime = average_runtime([show.get("averageRuntime")]) or average_runtime([show.get("runtime")])
+    seasons = fill_missing_runtimes(seasons, series_runtime)
     return ExternalSeries(seasons=seasons, details=details)
 
 

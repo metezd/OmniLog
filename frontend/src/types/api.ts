@@ -66,8 +66,18 @@ export interface LibraryEntry {
   media_item_id: number;
   status: WatchStatus;
   rating: number | null; // 1 to 10
+  playtime_minutes: number; // logged on the whole title, without the chapters
   updated_at: string | null;
   media_item: MediaItem;
+}
+
+/** One playtime entry of a whole game or movie, without a chapter (#413). */
+export interface TitlePlaytimeLog {
+  id: number;
+  library_entry_id: number;
+  minutes: number;
+  logged_at: string;
+  playtime_minutes: number; // total of all entries of the whole title
 }
 
 // ---- Episodic logging

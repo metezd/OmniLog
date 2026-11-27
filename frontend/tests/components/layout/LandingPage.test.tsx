@@ -38,6 +38,7 @@ function makeEntry(
     media_item_id: mediaItemId,
     status: "IN_PROGRESS",
     rating,
+    playtime_minutes: 0,
     updated_at: null,
     media_item: {
       id: mediaItemId,

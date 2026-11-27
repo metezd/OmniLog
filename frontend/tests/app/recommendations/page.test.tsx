@@ -39,6 +39,7 @@ function makeEntry(media_item_id: number): LibraryEntry {
     media_item_id,
     status: "COMPLETED",
     rating: 9,
+    playtime_minutes: 0,
     updated_at: null,
     media_item: makeItem(media_item_id, "Owned Title", "GAME"),
   };
