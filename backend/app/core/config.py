@@ -155,6 +155,9 @@ RATE_LIMIT_REVIEW = _rate_limit("RATE_LIMIT_REVIEW", "20/minute")
 RATE_LIMIT_DETAILS = _rate_limit("RATE_LIMIT_DETAILS", "60/minute")
 # Each recommendation call averages the liked embeddings and runs a vector search (#396)
 RATE_LIMIT_RECOMMENDATIONS = _rate_limit("RATE_LIMIT_RECOMMENDATIONS", "30/minute")
+# All writes of one user that have no limit of their own: the library, the chapters and the lists
+# (#431). Most of them also add a diary row, so without a limit one account could fill the database.
+RATE_LIMIT_WRITES = _rate_limit("RATE_LIMIT_WRITES", "120/minute")
 
 # OpenAI integration (AI-powered embeddings and spoiler detection).
 # Leave OPENAI_API_KEY empty to disable OpenAI-backed features.
