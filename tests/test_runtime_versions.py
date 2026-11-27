@@ -35,7 +35,8 @@ def test_render_python_is_the_python_of_the_backend_image():
     image = _image_version("backend/Dockerfile", "python")
     render = _render_env("omnilog-api", "PYTHON_VERSION")
 
-    # Render needs a full version such as 3.15.2 in PYTHON_VERSION
+    # Render needs a full version such as 3.15.0 in PYTHON_VERSION. Only the minor version must be
+    # the one of the image: Render may not offer the newest patch yet (3.15.2 failed the build).
     assert re.fullmatch(r"\d+\.\d+\.\d+", render), render
     assert render.startswith(image + "."), f"render.yaml has {render}, the image has {image}"
 
