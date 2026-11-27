@@ -6,6 +6,7 @@ All notable changes to this project are written in this file. The format follows
 
 ### Added
 
+- `Strict-Transport-Security: max-age=31536000` from the API itself when the request came over HTTPS (`X-Forwarded-Proto: https`), for the Render setup. Behind Caddy the API proxy drops it and sends its own, so the header is not sent twice (#394).
 - `scripts/import_lists.py`, which imports a movie list from a CSV file or a Letterboxd export through the API, and the coverage of `scripts/` in CI and SonarQube (#336).
 - `Cache-Control: private, max-age=300, stale-while-revalidate=600` on successful catalog search and title details answers, and a warm-up ping from the login and register pages that wakes a sleeping backend, at most once a minute (#250).
 - `docs/design/render-pdf.sh`, which renders the Software Design Report to PDF with pandoc and Chromium in Docker (#295).
@@ -20,6 +21,7 @@ All notable changes to this project are written in this file. The format follows
 
 ### Changed
 
+- Tighter HTTP defaults of the API (#394): every answer without its own `Cache-Control` (library, lists, diary, statistics, errors) gets `no-store`, and the catalog keeps its own header. `ENABLE_DOCS` defaults to `false` (`backend/.env.example` turns it on for development). CORS runs without credentials and allows only the methods of the API and the headers `Authorization` and `Content-Type`.
 - The frontend checks in CI run on the Node.js version of `frontend/Dockerfile` (26 instead of 24), and a test keeps `render.yaml`, the Dockerfiles and CI in line (#379). Render stays on Python 3.15.0, the minor version of the image, because 3.15.2 stopped the build of `omnilog-api`.
 - `.github/rulesets/main.json`, `CONTRIBUTING.md` and the Dependabot workflow follow the live ruleset of `main`: merge commits instead of rebase, no linear history rule, and AI disclosure as a required check. A test keeps them in line, and the ruleset is updated with PUT instead of POST (#369).
 - The AI usage page, the notes of Sidar Ürey and the register of AI mistakes show the work up to 2026-11-26: eight new caught mistakes (17 in all), the AI disclosure check and the current controls (#308, #310).
