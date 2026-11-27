@@ -665,3 +665,18 @@ class MediaEmbedding(Base):
     )
 
     media_item = relationship("MediaItem")
+
+
+class RevokedToken(Base):
+    """A login token that was ended by POST /auth/logout before its own end (#378).
+
+    The row is kept until the token would expire anyway. Later logouts delete the old rows.
+    """
+
+    __tablename__ = "revoked_tokens"
+
+    # The jti claim of the token (app.core.security.JTI_MAX_LENGTH)
+    jti = Column(String(64), primary_key=True)
+    user_id = Column(Integer, ForeignKey(_FK_USERS_ID, ondelete="CASCADE"), nullable=False, index=True)
+    # The exp claim of the token, in UTC
+    expires_at = Column(DateTime, nullable=False, index=True)

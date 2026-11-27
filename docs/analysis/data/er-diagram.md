@@ -6,7 +6,7 @@ The entities are explained in [domain-model.md](domain-model.md). Tables marked 
 
 | Table | State |
 |---|---|
-| `users`, `media_items`, `genres`, `media_item_genres`, `seasons`, `chapters`, `user_libraries`, `custom_lists`, `custom_list_items`, `diary_entries`, `chapter_progress`, `playtime_logs`, `decision_points`, `decision_options`, `user_decisions`, `reviews`, `media_embeddings` | **Implemented** |
+| `users`, `media_items`, `genres`, `media_item_genres`, `seasons`, `chapters`, `user_libraries`, `custom_lists`, `custom_list_items`, `diary_entries`, `chapter_progress`, `playtime_logs`, `decision_points`, `decision_options`, `user_decisions`, `reviews`, `media_embeddings`, `revoked_tokens` | **Implemented** |
 | `external_sources`, `sync_job_logs`, `user_taste_vectors` | **Proposed, not built** |
 
 The diary table is called `diary_entries` in the code. Earlier drafts called it `activity_events`.
@@ -262,6 +262,15 @@ Notation: PK is primary key, FK is foreign key, UK is unique, NN is not null. A 
 | `created_at` | DATETIME | NULL, default now | Account creation time |
 
 The column `is_admin` of the design (manual sync and admin screens) is not built.
+
+### revoked_tokens (Implemented, migration 0014)
+| Column | Type | Constraints | Description |
+|---|---|---|---|
+| `jti` | VARCHAR(64) | PK | The `jti` claim of a login token that was ended by `POST /auth/logout` (#378) |
+| `user_id` | INTEGER | FK users.id ON DELETE CASCADE, NN, indexed | The owner of the token |
+| `expires_at` | DATETIME | NN, indexed | The `exp` claim of the token (UTC). After it the token is refused anyway, and the next logout deletes the row |
+
+Every request with a token looks up its `jti` here, so a token that was logged out gets 401 until it would have expired. Other tokens of the same user keep working.
 
 ### external_sources (Proposed, not built)
 | Column | Type | Constraints | Description |

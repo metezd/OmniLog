@@ -42,10 +42,10 @@ def test_the_token_expires_after_the_configured_lifetime(client):
 
 
 def test_the_token_has_the_claims_that_the_frontend_reads():
-    """The frontend needs exp (cookie lifetime). The user id is in sub. iat is the time of issue (#220)."""
+    """The frontend needs exp (cookie lifetime). The user id is in sub. iat is the time of issue (#220). jti lets POST /auth/logout end the token (#378)."""
     from app.core.security import create_access_token
 
     claims = jwt.decode(create_access_token(7), options={"verify_signature": False})
 
-    assert set(claims) == {"sub", "iat", "exp"}
+    assert set(claims) == {"sub", "iat", "exp", "jti"}
     assert claims["sub"] == "7"

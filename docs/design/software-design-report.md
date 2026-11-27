@@ -140,7 +140,7 @@ The backend uses function-based modules in `backend/app/api/` and `backend/app/s
 
 | Router Module (`backend/app/api/`) | Endpoints & Handler Functions | Service Module (`backend/app/services/`) | Service Functions |
 |---|---|---|---|
-| `auth.py` (`/auth`) | `POST /auth/register` (`register`), `POST /auth/login` (`login`), `GET /auth/me` (`read_current_user`) | `auth_service.py` | `register_user(db, data)`, `authenticate_user(db, identifier, password)` |
+| `auth.py` (`/auth`) | `POST /auth/register` (`register`), `POST /auth/login` (`login`), `POST /auth/logout` (`logout`), `GET /auth/me` (`read_current_user`) | `auth_service.py` | `register_user(db, data)`, `authenticate_user(db, identifier, password)`, `revoke_token(db, token)`, `is_revoked(db, jti)` |
 | `media.py` (`/media`) | `POST /media` (`create_media`), `GET /media/{media_id}` (`get_media`) | `media_service.py` | `create_media_item(db, data)` |
 | `catalog.py` (`/catalog`) | `GET /catalog/search` (`search_catalog`), `GET /catalog/{media_id}` (`get_title_details`) | `catalog_service.py` | `normalize_query(text)`, `search_catalog(db, media_type, text)`, `get_title_details(db, media_id)` |
 | `library.py` (`/library`) | `POST /library` (`add_to_library`), `GET /library?limit&offset` (`get_library`), `PATCH /library/{entry_id}` (`update_library_entry`), `DELETE /library/{entry_id}` (`remove_library_entry`), `POST /library/{entry_id}/review` (`submit_review`), `GET /library/{entry_id}/review` (`get_review`) | `library_service.py`, `review_service.py` | `add_entry`, `list_entries`, `update_entry`, `remove_entry`; `detect_spoilers`, `upsert_review`, `get_review` |
