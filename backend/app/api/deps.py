@@ -9,36 +9,45 @@ from sqlalchemy.orm import Session
 
 from app.core import config, rate_limit
 from app.core.database import get_db
-from app.core.security import decode_access_token
+from app.core.security import AccessToken, read_access_token
 from app.models.entities import User
+from app.services import auth_service
 
 # auto_error=False lets us return 401 ourselves instead of FastAPI's 403
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
-def get_current_user(
+def _unauthorized() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Not authenticated",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
+def get_current_token(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
+    db: Session = Depends(get_db),
+) -> AccessToken:
+    """Return the claims of a valid token, or raise 401 when it is missing, invalid, expired or
+    logged out (#378)."""
+    if credentials is None:
+        raise _unauthorized()
+
+    token = read_access_token(credentials.credentials)
+    if token is None or auth_service.is_revoked(db, token.jti):
+        raise _unauthorized()
+    return token
+
+
+def get_current_user(
+    token: AccessToken = Depends(get_current_token),
     db: Session = Depends(get_db),
 ) -> User:
     """Return the logged in user, or raise 401 when the token is missing or invalid."""
-
-    def unauthorized() -> HTTPException:
-        return HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    if credentials is None:
-        raise unauthorized()
-
-    user_id = decode_access_token(credentials.credentials)
-    if user_id is None:
-        raise unauthorized()
-
-    user = db.get(User, user_id)
+    user = db.get(User, token.user_id)
     if user is None:
-        raise unauthorized()
+        raise _unauthorized()
     return user
 
 

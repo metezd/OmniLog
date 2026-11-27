@@ -5,8 +5,9 @@ from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.core.security import BCRYPT_MAX_BYTES, DUMMY_HASH, hash_password, verify_password
-from app.models.entities import User
+from app.core.clock import utc_now
+from app.core.security import BCRYPT_MAX_BYTES, DUMMY_HASH, AccessToken, hash_password, verify_password
+from app.models.entities import RevokedToken, User
 from app.schemas.user import UserCreate
 
 
@@ -62,3 +63,24 @@ def authenticate_user(db: Session, identifier: str, password: str) -> Optional[U
     if not verify_password(password, user.hashed_password):
         return None
     return user
+
+
+def revoke_token(db: Session, token: AccessToken) -> None:
+    """End a token before its own end (POST /auth/logout, #378).
+
+    The row is kept until the token would expire. Rows of tokens that have expired are deleted
+    here, so the table stays small without a scheduled job. Logging out twice is not an error.
+    """
+    now = utc_now()
+    db.query(RevokedToken).filter(RevokedToken.expires_at <= now).delete(synchronize_session=False)
+    if db.get(RevokedToken, token.jti) is None:
+        db.add(RevokedToken(jti=token.jti, user_id=token.user_id, expires_at=token.expires_at))
+    try:
+        db.commit()
+    except IntegrityError:
+        # Two logouts of the same token at the same time: the other one stored it
+        db.rollback()
+
+
+def is_revoked(db: Session, jti: str) -> bool:
+    return db.get(RevokedToken, jti) is not None
