@@ -192,6 +192,35 @@ def test_a_wrong_limit_setting_stops_the_start(monkeypatch, text):
         config._rate_limit("RATE_LIMIT_TEST", "1/minute")
 
 
+# ------------------------------------------------------------------------------------ title details
+def test_title_details_are_limited_per_user(limits_on, monkeypatch):
+    """A title that was not loaded yet calls IGDB or TMDB and OpenAI, so opening is limited (#390)."""
+    monkeypatch.setattr(config, "RATE_LIMIT_DETAILS", (2, 60))
+    client = client_at("10.0.5.1")
+    first = register_and_login(client, new_credentials())
+    second = register_and_login(client, new_credentials())
+    media = create_media(client, first)
+
+    for _ in range(2):
+        assert client.get(f"/catalog/{media['id']}", headers=first).status_code == 200
+    assert_limited(client.get(f"/catalog/{media['id']}", headers=first), retry_after=60)
+    assert client.get(f"/catalog/{media['id']}", headers=second).status_code == 200
+
+    FakeClock.now += 60
+    assert client.get(f"/catalog/{media['id']}", headers=first).status_code == 200
+
+
+def test_title_details_without_a_token_are_401_and_not_counted(limits_on, monkeypatch):
+    monkeypatch.setattr(config, "RATE_LIMIT_DETAILS", (1, 60))
+    client = client_at("10.0.5.2")
+    headers = register_and_login(client, new_credentials())
+    media = create_media(client, headers)
+
+    for _ in range(3):
+        assert client.get(f"/catalog/{media['id']}").status_code == 401
+    assert client.get(f"/catalog/{media['id']}", headers=headers).status_code == 200
+
+
 # ------------------------------------------------------------------------- failed logins of one account
 def right_login(client: TestClient, credentials: dict):
     return client.post("/auth/login", json={"username": credentials["username"], "password": credentials["password"]})

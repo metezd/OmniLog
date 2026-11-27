@@ -62,7 +62,11 @@ def search_catalog(
 
 
 # Declared after /search, so the text "search" is never read as an id
-@router.get("/{media_id}", response_model=MediaDetailResponse)
+@router.get(
+    "/{media_id}",
+    response_model=MediaDetailResponse,
+    dependencies=[Depends(limit_per_user("details"))],
+)
 def get_title_details(
     media_id: int,
     response: Response,

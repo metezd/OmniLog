@@ -147,6 +147,8 @@ RATE_LIMIT_LOGIN_ACCOUNT = _rate_limit("RATE_LIMIT_LOGIN_ACCOUNT", "20/hour")
 RATE_LIMIT_REGISTER = _rate_limit("RATE_LIMIT_REGISTER", "5/hour")
 RATE_LIMIT_SEARCH = _rate_limit("RATE_LIMIT_SEARCH", "30/minute")
 RATE_LIMIT_REVIEW = _rate_limit("RATE_LIMIT_REVIEW", "20/minute")
+# Opening a title that was not loaded yet calls IGDB or TMDB, and OpenAI for its embedding (#390)
+RATE_LIMIT_DETAILS = _rate_limit("RATE_LIMIT_DETAILS", "60/minute")
 
 # OpenAI integration (AI-powered embeddings and spoiler detection).
 # Leave OPENAI_API_KEY empty to disable OpenAI-backed features.
