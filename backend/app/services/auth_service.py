@@ -16,8 +16,14 @@ class AccountConflictError(Exception):
 
 
 def register_user(db: Session, data: UserCreate) -> User:
-    """Create a user with a hashed password. Raises AccountConflictError on duplicates."""
+    """Create a user with a hashed password. Raises AccountConflictError on duplicates.
+
+    The 409 for a taken name stays, because without email verification the user must be told
+    (#395, docs/deployment.md, section 9.2). The password is hashed before the check, so a taken
+    and a free name cost the same bcrypt time and the time does not add a second signal.
+    """
     email = data.email.lower()
+    hashed_password = hash_password(data.password)
 
     taken = (
         db.query(User)
@@ -30,7 +36,7 @@ def register_user(db: Session, data: UserCreate) -> User:
     user = User(
         username=data.username,
         email=email,
-        hashed_password=hash_password(data.password),
+        hashed_password=hashed_password,
     )
     db.add(user)
     try:

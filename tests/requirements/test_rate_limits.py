@@ -103,6 +103,40 @@ def test_register_is_limited_per_address(limits_on):
     assert client.post("/auth/register", json=new_credentials()).status_code == 201
 
 
+def test_register_is_limited_per_address_for_a_day(limits_on, monkeypatch):
+    """#395: besides 5 per hour, 20 per day, so one address cannot test 120 emails a day."""
+    # The fake clock is not at the start of a day: the day window ends 16 hours later
+    day_end = (int(FakeClock.now // 86400) + 1) * 86400
+    client = client_at("10.0.1.3")
+    for _hour in range(4):
+        for _ in range(5):
+            assert client.post("/auth/register", json=new_credentials()).status_code == 201
+        FakeClock.now += 3600
+
+    # The hour limit is open again, the day limit is reached
+    assert_limited(client.post("/auth/register", json=new_credentials()), retry_after=int(day_end - FakeClock.now))
+    assert client_at("10.0.1.4").post("/auth/register", json=new_credentials()).status_code == 201
+
+    FakeClock.now = day_end
+    assert client.post("/auth/register", json=new_credentials()).status_code == 201
+
+
+def test_a_taken_name_counts_against_the_register_limits(limits_on):
+    """#395: every 409 answers whether an email has an account, so it is counted too."""
+    client = client_at("10.0.1.5")
+    credentials = new_credentials()
+    assert client.post("/auth/register", json=credentials).status_code == 201
+    for _ in range(4):
+        assert client.post("/auth/register", json=credentials).status_code == 409
+
+    assert_limited(client.post("/auth/register", json=credentials), retry_after=3600)
+
+
+def test_the_default_of_the_register_day_limit():
+    assert config.RATE_LIMIT_REGISTER == (5, 3600)
+    assert config.RATE_LIMIT_REGISTER_DAY == (20, 86400)
+
+
 # ------------------------------------------------------------------------------------ search
 def search(client: TestClient, headers: dict, text: str = "zelda"):
     return client.get("/catalog/search", params={"q": text, "type": "GAME"}, headers=headers)
