@@ -125,6 +125,43 @@ def record_decision(
     )
 
 
+def _progress_response(view: chapter_service.ChapterProgressView) -> ChapterProgressResponse:
+    decisions = [
+        DecisionItem(decision_point_id=point_id, choice=label, decided_at=decided_at)
+        for point_id, label, decided_at in view.decisions
+    ]
+    return ChapterProgressResponse(
+        library_entry_id=view.library_entry_id,
+        chapter_id=view.chapter_id,
+        rating=view.progress.rating if view.progress else None,
+        playtime_minutes=view.progress.playtime_minutes if view.progress else 0,
+        updated_at=view.progress.updated_at if view.progress else None,
+        choice=decisions[0].choice if decisions else None,
+        decided_at=decisions[0].decided_at if decisions else None,
+        decisions=decisions,
+    )
+
+
+@router.get("", response_model=list[ChapterProgressResponse])
+def list_chapter_progress(
+    entry_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """What the user has recorded for every chapter or episode of the title, in one answer (#419).
+
+    Only chapters with a rating, playtime or a choice are listed, ordered by chapter id. A chapter
+    that is missing has no data: no rating, 0 minutes and no choice. Reading creates nothing.
+    """
+    if not 0 < entry_id <= MAX_ID:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Library entry not found")
+    try:
+        views = chapter_service.list_chapter_progress(db, current_user, entry_id)
+    except LibraryEntryNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    return [_progress_response(view) for view in views]
+
+
 @router.get("/{chapter_id}", response_model=ChapterProgressResponse)
 def get_chapter_progress(
     entry_id: int,
@@ -141,17 +178,4 @@ def get_chapter_progress(
         view = chapter_service.get_chapter_progress(db, current_user, entry_id, chapter_id)
     except (LibraryEntryNotFoundError, ChapterNotFoundError) as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
-    decisions = [
-        DecisionItem(decision_point_id=point_id, choice=label, decided_at=decided_at)
-        for point_id, label, decided_at in view.decisions
-    ]
-    return ChapterProgressResponse(
-        library_entry_id=view.library_entry_id,
-        chapter_id=view.chapter_id,
-        rating=view.progress.rating if view.progress else None,
-        playtime_minutes=view.progress.playtime_minutes if view.progress else 0,
-        updated_at=view.progress.updated_at if view.progress else None,
-        choice=decisions[0].choice if decisions else None,
-        decided_at=decisions[0].decided_at if decisions else None,
-        decisions=decisions,
-    )
+    return _progress_response(view)

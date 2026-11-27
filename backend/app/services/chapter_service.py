@@ -343,3 +343,47 @@ def get_chapter_progress(
         progress=_find_progress(db, entry.id, chapter.id),
         decisions=[tuple(row) for row in decisions],
     )
+
+
+def list_chapter_progress(db: Session, user: User, entry_id: int) -> list[ChapterProgressView]:
+    """What the user has recorded for every chapter of one library entry, in two queries (#419).
+
+    Only chapters with a rating, playtime or a choice are returned, ordered by chapter id. A chapter
+    that is not in the list has no data. The title page used one request per chapter before, which
+    was 300 requests and 1800 queries for a series with 300 episodes. Raises
+    LibraryEntryNotFoundError for an entry of another user.
+    """
+    entry = (
+        db.query(UserLibrary)
+        .filter(UserLibrary.id == entry_id, UserLibrary.user_id == user.id)
+        .first()
+    )
+    if entry is None:
+        raise LibraryEntryNotFoundError("Library entry not found")
+
+    progress_by_chapter = {
+        progress.chapter_id: progress
+        for progress in db.query(ChapterProgress).filter(ChapterProgress.library_entry_id == entry.id)
+    }
+    decisions_by_chapter: dict[int, list[tuple[int, str, datetime]]] = {}
+    rows = (
+        db.query(DecisionPoint.chapter_id, DecisionPoint.id, DecisionOption.label, UserDecision.decided_at)
+        .join(UserDecision, UserDecision.decision_point_id == DecisionPoint.id)
+        .join(DecisionOption, DecisionOption.id == UserDecision.option_id)
+        .filter(UserDecision.library_entry_id == entry.id)
+        .order_by(DecisionPoint.chapter_id, DecisionPoint.position, DecisionPoint.id)
+        .all()
+    )
+    for chapter_id, point_id, label, decided_at in rows:
+        decisions_by_chapter.setdefault(chapter_id, []).append((point_id, label, decided_at))
+
+    chapter_ids = sorted(set(progress_by_chapter) | set(decisions_by_chapter))
+    return [
+        ChapterProgressView(
+            library_entry_id=entry.id,
+            chapter_id=chapter_id,
+            progress=progress_by_chapter.get(chapter_id),
+            decisions=decisions_by_chapter.get(chapter_id, []),
+        )
+        for chapter_id in chapter_ids
+    ]
