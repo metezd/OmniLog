@@ -242,3 +242,22 @@ def test_diary_entries_have_the_two_indexes(db):
 
     assert indexes["ix_diary_entries_user_id_created_at"]["column_names"][:2] == ["user_id", "created_at"]
     assert indexes["ix_diary_entries_media_item_id"]["column_names"] == ["media_item_id"]
+
+
+# ---------------------------------------------------------------- an offset that is too large (#420)
+@pytest.mark.parametrize("path", ["/diary", "/library", "/lists"])
+@pytest.mark.parametrize("offset", [2**31, 2**63])
+def test_an_offset_above_the_maximum_returns_422(client, auth_headers, path, offset):
+    """PostgreSQL keeps OFFSET as a 64 bit number, and 2**63 gave 500 before."""
+    response = client.get(path, params={"offset": offset}, headers=auth_headers)
+
+    assert response.status_code == 422
+    assert response.json()["detail"][0]["loc"] == ["query", "offset"]
+
+
+@pytest.mark.parametrize("path", ["/diary", "/library", "/lists"])
+def test_the_largest_offset_is_allowed(client, auth_headers, path):
+    response = client.get(path, params={"offset": 2**31 - 1}, headers=auth_headers)
+
+    assert response.status_code == 200
+    assert response.json() == []
