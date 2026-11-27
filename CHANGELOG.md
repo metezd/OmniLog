@@ -41,6 +41,7 @@ All notable changes to this project are written in this file. The format follows
 
 ### Security
 
+- "Log out" ends the token at the backend with the new `POST /auth/logout`, so a copied token stops working at once instead of 90 minutes later. Every token has a `jti` claim, and the ended ones are kept in the new table `revoked_tokens` (migration 0014) until they would expire. Other tokens of the same user keep working. Tokens without `jti` are refused, so every user logs in once again after the update (#378).
 - The poster proxy `GET /api/poster` no longer follows a redirect of the poster host, so a redirect cannot lead the server to another address. More tests for the proxy (#332).
 - Penetration finding F7 is fixed and the missing headers are added: no `Server` or `X-Powered-By` header, `X-Frame-Options`, `Content-Security-Policy` and `Permissions-Policy` from the API on every answer (also on a 500), the browser headers from the frontend, and HSTS and the same headers from Caddy (#304).
 - Penetration finding F3 is fixed: the update schema of a title checks `poster_url` too, and the frontend sends a Content-Security-Policy with a nonce for scripts and only the app, `data:`, `blob:` and the TMDB and IGDB image hosts for images (#303).
