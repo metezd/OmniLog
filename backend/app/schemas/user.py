@@ -1,5 +1,4 @@
 import unicodedata
-from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, ValidationInfo, field_validator
 
@@ -8,6 +7,7 @@ from app.core.security import BCRYPT_MAX_BYTES
 from app.core.usernames import canonical_username
 # NUL bytes cannot be stored in PostgreSQL text columns and bcrypt cannot hash them
 from app.core.validation import reject_nul as _reject_nul
+from app.schemas.types import UtcDateTime
 
 
 class UserCreate(BaseModel):
@@ -88,4 +88,4 @@ class UserResponse(BaseModel):
     id: int
     email: EmailStr = Field(max_length=100)
     username: str
-    created_at: datetime
+    created_at: UtcDateTime

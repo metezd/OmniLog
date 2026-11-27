@@ -1,10 +1,10 @@
-from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.entities import WatchStatus
 from app.schemas.media import MediaItemResponse
+from app.schemas.types import UtcDateTime
 
 # strict=True: JSON numbers only. Without it, true becomes 1.0 and "9" becomes 9.0 (US-05, BR-04).
 _RATING = Field(default=None, ge=1, le=10, strict=True)
@@ -39,5 +39,5 @@ class UserLibraryResponse(BaseModel):
     media_item_id: int
     status: WatchStatus
     rating: Optional[int] = None
-    updated_at: Optional[datetime] = None
+    updated_at: Optional[UtcDateTime] = None
     media_item: MediaItemResponse
