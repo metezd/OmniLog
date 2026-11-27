@@ -75,3 +75,9 @@ export function resolvePosterUrl(posterUrl: string | null): string | null {
   }
   return posterUrl;
 }
+
+/** Minutes as hours and minutes, for example 125 -> "2h 5m" and 0 -> "0h 0m" (#413). */
+export function formatPlaytime(totalMinutes: number): string {
+  const minutes = Number.isFinite(totalMinutes) && totalMinutes > 0 ? Math.floor(totalMinutes) : 0;
+  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+}

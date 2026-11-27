@@ -6,6 +6,7 @@ All notable changes to this project are written in this file. The format follows
 
 ### Added
 
+- Playtime of a whole game or movie, without a chapter: `POST /library/{entry_id}/playtime` (a series answers 422, its time is logged on the episodes), `playtime_minutes` in every library entry, the minutes in the statistics, and a "Playtime Logging" card with hours, minutes and the total on the title page of a game or movie. Needs migration `0015` (#413).
 - `Strict-Transport-Security: max-age=31536000` from the API itself when the request came over HTTPS (`X-Forwarded-Proto: https`), for the Render setup. Behind Caddy the API proxy drops it and sends its own, so the header is not sent twice (#394).
 - `scripts/import_lists.py`, which imports a movie list from a CSV file or a Letterboxd export through the API, and the coverage of `scripts/` in CI and SonarQube (#336).
 - `Cache-Control: private, max-age=300, stale-while-revalidate=600` on successful catalog search and title details answers, and a warm-up ping from the login and register pages that wakes a sleeping backend, at most once a minute (#250).

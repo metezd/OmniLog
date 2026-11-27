@@ -86,7 +86,8 @@ def get_stats(db: Session, user: User) -> StatsResponse:
 
 
 def _playtime_by_entry(db: Session, user: User) -> Dict[int, int]:
-    """Total minutes for each library entry. An entry without playtime is not in the result."""
+    """Total minutes for each library entry: its chapters and the whole title together. An entry
+    without playtime is not in the result."""
     rows = (
         db.query(ChapterProgress.library_entry_id, func.sum(ChapterProgress.playtime_minutes))
         .join(UserLibrary, UserLibrary.id == ChapterProgress.library_entry_id)
@@ -94,7 +95,16 @@ def _playtime_by_entry(db: Session, user: User) -> Dict[int, int]:
         .group_by(ChapterProgress.library_entry_id)
         .all()
     )
-    return {entry_id: int(total) for entry_id, total in rows}
+    totals = {entry_id: int(total) for entry_id, total in rows}
+    # Time logged on a whole game or movie, without a chapter (#413)
+    title_rows = (
+        db.query(UserLibrary.id, UserLibrary.playtime_minutes)
+        .filter(UserLibrary.user_id == user.id, UserLibrary.playtime_minutes > 0)
+        .all()
+    )
+    for entry_id, minutes in title_rows:
+        totals[entry_id] = totals.get(entry_id, 0) + int(minutes)
+    return totals
 
 
 def _media_split(type_counts: Dict[MediaType, int]) -> Dict[str, int]:

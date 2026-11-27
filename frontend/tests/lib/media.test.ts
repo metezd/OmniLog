@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { MEDIA_TYPE_LABELS, releaseYear, resolvePosterUrl, STATUS_LABELS } from "@/lib/media";
+import {
+  formatPlaytime,
+  MEDIA_TYPE_LABELS,
+  releaseYear,
+  resolvePosterUrl,
+  STATUS_LABELS,
+} from "@/lib/media";
 
 describe("releaseYear", () => {
   it.each([
@@ -35,5 +41,19 @@ describe("resolvePosterUrl", () => {
   it("returns null for null and preserves non-CDN URLs", () => {
     expect(resolvePosterUrl(null)).toBeNull();
     expect(resolvePosterUrl("https://images.test/cp2077.jpg")).toBe("https://images.test/cp2077.jpg");
+  });
+});
+
+describe("formatPlaytime", () => {
+  it("writes minutes as hours and minutes", () => {
+    expect(formatPlaytime(0)).toBe("0h 0m");
+    expect(formatPlaytime(59)).toBe("0h 59m");
+    expect(formatPlaytime(125)).toBe("2h 5m");
+    expect(formatPlaytime(6000)).toBe("100h 0m");
+  });
+
+  it("treats a negative or broken value as 0", () => {
+    expect(formatPlaytime(-5)).toBe("0h 0m");
+    expect(formatPlaytime(Number.NaN)).toBe("0h 0m");
   });
 });

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import TitleDetailPage from "@/app/title/[id]/page";
@@ -17,6 +17,7 @@ vi.mock("@/lib/actions/library", () => ({
   addToLibraryAction: vi.fn(),
   updateLibraryEntryAction: vi.fn(),
   removeLibraryEntryAction: vi.fn(),
+  logTitlePlaytimeAction: vi.fn(),
   submitReviewAction: vi.fn(),
 }));
 vi.mock("@/lib/actions/chapters", () => ({
@@ -64,6 +65,7 @@ function makeEntry(media_item_id = 42): LibraryEntry {
     media_item_id,
     status: "IN_PROGRESS",
     rating: 9,
+    playtime_minutes: 0,
     updated_at: null,
     media_item: {
       id: media_item_id,
@@ -178,6 +180,42 @@ describe("TitleDetailPage", () => {
     expect(screen.getByText("No genres listed")).toBeInTheDocument();
     expect(screen.getByText("No description available.")).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("No chapters or episodes");
+  });
+
+  it("shows the playtime card of a game with the title and chapter minutes together (#413)", async () => {
+    catalogMock.mockResolvedValue(makeDetail());
+    libraryMock.mockResolvedValue([{ ...makeEntry(42), playtime_minutes: 90 }]);
+    reviewMock.mockResolvedValue(null);
+    progressMock.mockResolvedValue({
+      library_entry_id: 10,
+      chapter_id: 101,
+      rating: null,
+      playtime_minutes: 35,
+      updated_at: null,
+      choice: null,
+      decided_at: null,
+      decisions: [],
+    });
+
+    await renderTitle("42");
+
+    expect(screen.getByRole("heading", { name: "Playtime Logging" })).toBeInTheDocument();
+    expect(screen.getByTestId("title-playtime-total")).toHaveTextContent("2h 5m logged");
+    expect(screen.getByText("Includes 0h 35m logged on chapters.")).toBeInTheDocument();
+  });
+
+  it("calls it watch time for a movie and shows no card for a series (#413)", async () => {
+    catalogMock.mockResolvedValue(makeDetail({ media_type: "MOVIE", chapters: [] }));
+    libraryMock.mockResolvedValue([makeEntry(42)]);
+    reviewMock.mockResolvedValue(null);
+
+    await renderTitle("42");
+    expect(screen.getByRole("heading", { name: "Watch Time Logging" })).toBeInTheDocument();
+    cleanup();
+
+    catalogMock.mockResolvedValue(makeDetail({ media_type: "SERIES", chapters: [] }));
+    await renderTitle("42");
+    expect(screen.queryByTestId("title-playtime-total")).not.toBeInTheDocument();
   });
 
   it("shows not_found ErrorState when the id parameter is invalid", async () => {

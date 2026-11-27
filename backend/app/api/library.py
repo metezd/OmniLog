@@ -9,16 +9,28 @@ from app.api.deps import get_current_user, limit_per_user
 from app.api.pagination import Page, library_page
 from app.core.database import get_db
 from app.models.entities import User
-from app.schemas.library import UserLibraryCreate, UserLibraryResponse, UserLibraryUpdate
+from app.schemas.chapter import PlaytimeCreate
+from app.schemas.library import (
+    TitlePlaytimeLogResponse,
+    UserLibraryCreate,
+    UserLibraryResponse,
+    UserLibraryUpdate,
+)
 from app.schemas.review import ReviewCreate, ReviewResponse
 from app.services import library_service, review_service
 from app.services.library_service import (
     LibraryConflictError,
     LibraryEntryNotFoundError,
     MediaNotFoundError,
+    TitlePlaytimeLimitError,
+    TitlePlaytimeNotAllowedError,
 )
 
 router = APIRouter(prefix="/library", tags=["Library"])
+
+# Ids are 32 bit integers in the database. A larger id cannot exist, so it is a 404 and the
+# query is never sent (it would fail with a database error).
+MAX_ID = 2**31 - 1
 
 
 @router.post("", response_model=UserLibraryResponse, status_code=status.HTTP_201_CREATED)
@@ -115,3 +127,37 @@ def get_review(
         return review
     except LibraryEntryNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+
+
+@router.post(
+    "/{entry_id}/playtime",
+    response_model=TitlePlaytimeLogResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def log_title_playtime(
+    entry_id: int,
+    payload: PlaytimeCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Log the minutes spent on a whole game or movie, without a chapter (US-11, #413).
+
+    Every call adds one entry, and the total of the title is the sum of the entries. A series
+    answers 422, because its time is logged on the episodes. The entry is recorded in the diary
+    as PLAYTIME_LOGGED (US-07) and counts in the statistics (US-15).
+    """
+    if not 0 < entry_id <= MAX_ID:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Library entry not found")
+    try:
+        log, entry = library_service.log_title_playtime(db, current_user, entry_id, payload.minutes)
+    except LibraryEntryNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    except (TitlePlaytimeNotAllowedError, TitlePlaytimeLimitError) as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc))
+    return TitlePlaytimeLogResponse(
+        id=log.id,
+        library_entry_id=entry.id,
+        minutes=log.minutes,
+        logged_at=log.logged_at,
+        playtime_minutes=entry.playtime_minutes,
+    )

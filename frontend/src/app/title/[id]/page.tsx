@@ -8,6 +8,7 @@ import ErrorState from "@/components/states/ErrorState";
 import ChapterProgressCard from "@/components/title/ChapterProgressCard";
 import LibraryControls from "@/components/title/LibraryControls";
 import ReviewSection from "@/components/title/ReviewSection";
+import TitlePlaytimeCard from "@/components/title/TitlePlaytimeCard";
 import {
   MEDIA_TYPE_BADGE_CLASSES,
   MEDIA_TYPE_LABELS,
@@ -86,6 +87,12 @@ export default async function TitleDetailPage({ params }: TitlePageProps) {
   }
 
   const year = releaseYear(detail.release_date);
+  // A game or a movie can be logged as a whole. A series is logged on its episodes (#413).
+  const logsWholeTitle = detail.media_type === "GAME" || detail.media_type === "MOVIE";
+  const chapterMinutes = Array.from(progressMap.values()).reduce(
+    (sum, prog) => sum + prog.playtime_minutes,
+    0,
+  );
 
   return (
     <div className="relative z-10 mx-auto w-full max-w-7xl space-y-8 px-4 py-8 sm:px-8">
@@ -157,6 +164,13 @@ export default async function TitleDetailPage({ params }: TitlePageProps) {
       {libraryEntry && (
         <div className="space-y-6">
           <LibraryControls entry={libraryEntry} />
+          {logsWholeTitle && (
+            <TitlePlaytimeCard
+              entry={libraryEntry}
+              chapterMinutes={chapterMinutes}
+              label={detail.media_type === "MOVIE" ? "Watch Time" : "Playtime"}
+            />
+          )}
           <ReviewSection
             entryId={libraryEntry.id}
             mediaItemId={detail.id}

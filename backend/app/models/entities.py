@@ -182,6 +182,9 @@ class UserLibrary(Base):
         Enum(WatchStatus), default=WatchStatus.PLAN_TO_WATCH, nullable=False
     )
     rating = Column(Float, nullable=True)  # Rating between 1 and 10
+    # Total of the playtime entries of the whole title (#413), for a game or a movie that is
+    # logged without a chapter. The time logged on chapters stays in chapter_progress.
+    playtime_minutes = Column(Integer, nullable=False, default=0, server_default=text("0"))
     updated_at = Column(
         DateTime, default=utc_now, onupdate=utc_now
     )
@@ -218,6 +221,7 @@ class UserLibrary(Base):
         CheckConstraint(
             "rating >= 1 AND rating <= 10", name="chk_rating_range"
         ),
+        CheckConstraint("playtime_minutes >= 0", name="chk_library_playtime"),
     )
 
 
@@ -466,15 +470,23 @@ class ChapterProgress(Base):
     )
 
 
-# 10. PLAYTIME LOG TABLE: one entry of time spent on a chapter (US-11)
+# 10. PLAYTIME LOG TABLE: one entry of time spent on a chapter, or on a whole title (US-11, #413)
 class PlaytimeLog(Base):
     __tablename__ = "playtime_logs"
 
     id = Column(Integer, primary_key=True)
+    # An entry belongs to a chapter (through its progress row) or to a whole title (through the
+    # library entry), never to both. The check constraint below enforces this.
     chapter_progress_id = Column(
         Integer,
         ForeignKey("chapter_progress.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
+        index=True,
+    )
+    library_entry_id = Column(
+        Integer,
+        ForeignKey(_FK_USER_LIBRARIES_ID, ondelete="CASCADE"),
+        nullable=True,
         index=True,
     )
     minutes = Column(Integer, nullable=False)  # At least 1 (BR-12)
@@ -488,7 +500,13 @@ class PlaytimeLog(Base):
 
     progress = relationship("ChapterProgress", back_populates="playtime_logs")
 
-    __table_args__ = (CheckConstraint("minutes >= 1", name="chk_playtime_minutes"),)
+    __table_args__ = (
+        CheckConstraint("minutes >= 1", name="chk_playtime_minutes"),
+        CheckConstraint(
+            "num_nonnulls(chapter_progress_id, library_entry_id) = 1",
+            name="chk_playtime_log_target",
+        ),
+    )
 
 
 # 11. DECISION POINT TABLE: a branching moment inside a chapter (US-12)
