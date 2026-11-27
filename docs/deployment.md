@@ -106,6 +106,7 @@ All settings are in `.env.prod`. The file holds secrets and is ignored by Git. C
 | `EMBEDDING_MODEL`, `EMBEDDING_DIMENSIONS` | no | Embedding model (default `text-embedding-3-small`) and its size (default `1536`). The OpenAI client reads them, but no endpoint creates or stores embeddings yet, so they have no visible effect |
 | `RATE_LIMIT_ENABLED` | no | `false` turns all rate limits off. Default `true`. See section 9.1 |
 | `RATE_LIMIT_LOGIN_ACCOUNT` | no | Failed logins of one account from any address, as `<count>/<period>`. Default `20/hour` (section 9.1) |
+| `RATE_LIMIT_REGISTER_DAY` | no | Registrations of one browser address in a day, besides `RATE_LIMIT_REGISTER`, as `<count>/<period>`. Default `20/day` (section 9.2) |
 | `RATE_LIMIT_LOGIN`, `RATE_LIMIT_REGISTER`, `RATE_LIMIT_SEARCH`, `RATE_LIMIT_REVIEW`, `RATE_LIMIT_DETAILS` | no | The rate limits as `<count>/<second\|minute\|hour\|day>`. Defaults `10/minute`, `5/hour`, `30/minute`, `20/minute` and `60/minute`. The backend does not start with a value in another form |
 | `POSTGRES_USER`, `POSTGRES_DB` | no | Defaults are `omnilog` |
 | `TAG` | no | Tag of the built images. Default is `latest` |
@@ -282,6 +283,7 @@ Open `https://localhost` in the browser and accept the certificate warning, beca
 | A break-in to a container gives full control | The backend and the frontend run as a normal user, not as root |
 | A forgotten setting | Compose and the frontend build stop with a message when a required value is missing |
 | Guessing passwords, creating many accounts, using up the IGDB, TMDB or OpenAI quota | Rate limits on login, register, search, title details and review answer 429 with `Retry-After` (section 9.1) |
+| Finding out whether an email or a username has an account | Login gives the same answer, at about the same time, for unknown accounts. Registration answers 409 for a taken name on purpose, slowed by a limit per hour and per day (section 9.2) |
 
 ### 9.1 Rate limits
 
@@ -290,6 +292,7 @@ Open `https://localhost` in the browser and accept the certificate warning, beca
 | `POST /auth/login` | Browser address | `10/minute` | Every try costs a bcrypt check |
 | `POST /auth/login`, failed tries only | Account (`RATE_LIMIT_LOGIN_ACCOUNT`) | `20/hour` | Guessing the password of one account from many addresses (#391) |
 | `POST /auth/register` | Browser address | `5/hour` | A bcrypt hash, and new accounts |
+| `POST /auth/register` | Browser address (`RATE_LIMIT_REGISTER_DAY`) | `20/day` | A slow search for registered emails (#395, section 9.2) |
 | `GET /catalog/search` | User | `30/minute` | A new search text calls IGDB or TMDB with the shared keys |
 | `POST /library/{entry_id}/review` | User | `20/minute` | A review can call OpenAI, which costs money |
 | `GET /catalog/{media_id}` | User | `60/minute` | A title that was not loaded yet calls IGDB or TMDB, and OpenAI for its embedding (#390) |
@@ -316,6 +319,20 @@ A client cannot choose the counted address by sending its own `X-Forwarded-For`:
 This needs `BACKEND_URL` to be the public `https` address of `omnilog-api`. If the frontend calls the backend over the private network of Render, no second address is added, so set `FORWARDED_TRUSTED_HOPS=1`. A header that is too short or holds a value that is not an address falls back to the address that uvicorn gives.
 
 A call that goes straight to the API domain has only one address from Render, so with `2` its counted address is the last address that the client wrote. Such a client can still change its counted address. The login form and the registration form never do this, because they go through the frontend. Check on the deployed service which addresses arrive before you rely on these limits.
+
+### 9.2 Registration shows which names are taken (#395)
+
+Registering a username or an email that already has an account answers `409 Username or email is already registered`. So anyone can find out whether an email address has an account: register with it and read the status. Login does not show this (same answer for unknown accounts and wrong passwords, and a bcrypt check for both), so registration is the only place.
+
+**Decision: the project accepts this risk and keeps the 409.** There is no email verification. Without it, the only way to tell a user that the name or the email is taken is the answer of the registration. An answer that is the same for a taken and a free name (for example "check your inbox") needs an email that the backend can send, and that is not built. When email verification is added, the registration should answer the same for both and send the message by email instead, and this section should be changed.
+
+What makes the search slow instead:
+
+- **Two limits per browser address.** `RATE_LIMIT_REGISTER` (`5/hour`) and `RATE_LIMIT_REGISTER_DAY` (`20/day`). Without the second limit one address could test 120 emails a day, with it 20. A real user registers once, so the lower numbers cost nothing. The day is a fixed window that ends at 00:00 UTC. A wrong form (422) and a 409 count like a new account, because each one answers the question.
+- **The same time for a taken and a free name.** The password is hashed with bcrypt before the check, so both answers cost one hash (`app/services/auth_service.py`). Before #395 a taken name answered without a hash and was faster. Only the status shows the answer now, not the time.
+- **No names in the logs or in Redis.** The limit is counted by address, and the 429 log line does not name the address (section 9.1).
+
+What is still possible: someone with many addresses (a botnet, many cloud machines) can test 20 emails a day from each one. The data that this gives is only "this email has an OmniLog account". The username of the account, the library and the diary are not shown. If this becomes a problem, lower `RATE_LIMIT_REGISTER_DAY`, or add email verification as said above.
 
 ## 10. What is not included yet
 
