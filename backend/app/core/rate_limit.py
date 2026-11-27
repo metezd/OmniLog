@@ -60,17 +60,22 @@ def _count_locally(key: str, window_end: float, now: float) -> int:
         return count
 
 
+def _window(name: str, identity: str) -> tuple[str, int, int, float, float]:
+    """(key, limit, period, end of the window, now) of the current window of `identity`."""
+    limit, period = _limit(name)
+    now = time.time()
+    window = int(now // period)
+    window_end = (window + 1) * period
+    return f"{_KEY_PREFIX}{name}:{identity}:{window}", limit, period, window_end, now
+
+
 def hit(name: str, identity: str) -> Optional[int]:
     """Count one call of `identity` for the limit `name`.
 
     Returns None when the call is allowed, or the number of seconds until the window ends when the
     limit is reached.
     """
-    limit, period = _limit(name)
-    now = time.time()
-    window = int(now // period)
-    window_end = (window + 1) * period
-    key = f"{_KEY_PREFIX}{name}:{identity}:{window}"
+    key, limit, period, window_end, now = _window(name, identity)
 
     count: Optional[int] = None
     client = cache.redis_client()
@@ -87,6 +92,62 @@ def hit(name: str, identity: str) -> Optional[int]:
     return max(1, math.ceil(window_end - now))
 
 
+def _current_count(key: str, now: float) -> int:
+    client = cache.redis_client()
+    if client is not None:
+        try:
+            return int(client.get(key) or 0)
+        except (redis.RedisError, ValueError) as exc:
+            if isinstance(exc, redis.RedisError):
+                cache.mark_redis_down(exc)
+    with _lock:
+        count, end = _local.get(key, (0, now))
+    return count if end > now else 0
+
+
+def failures_over_limit(name: str, identity: str) -> Optional[int]:
+    """Seconds until the window ends when `identity` already has `limit` failures, else None.
+
+    It does not count anything. record_failure counts, after the call has failed (#391).
+    """
+    key, limit, _period, window_end, now = _window(name, identity)
+    if _current_count(key, now) < limit:
+        return None
+    return max(1, math.ceil(window_end - now))
+
+
+def record_failure(name: str, identity: str) -> None:
+    """Count one failed call of `identity` for the limit `name`."""
+    key, _limit_count, period, window_end, now = _window(name, identity)
+    client = cache.redis_client()
+    if client is not None:
+        try:
+            _count_in_redis(client, key, period)
+            return
+        except redis.RedisError as exc:
+            cache.mark_redis_down(exc)
+    _count_locally(key, window_end, now)
+
+
+def _too_many(name: str, retry_after: int) -> HTTPException:
+    # The key is not logged: a client address or an account is personal data
+    logger.info("Rate limit %s reached", name)
+    return HTTPException(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        detail=f"Too many requests. Try again in {retry_after} seconds.",
+        headers={"Retry-After": str(retry_after)},
+    )
+
+
+def check_failures(name: str, identity: str) -> None:
+    """Raise 429 with Retry-After when `identity` has used up the failures of the limit `name`."""
+    if not config.RATE_LIMIT_ENABLED:
+        return
+    retry_after = failures_over_limit(name, identity)
+    if retry_after is not None:
+        raise _too_many(name, retry_after)
+
+
 def check(name: str, identity: str) -> None:
     """Raise 429 with Retry-After when `identity` has used up the limit `name`."""
     if not config.RATE_LIMIT_ENABLED:
@@ -94,10 +155,4 @@ def check(name: str, identity: str) -> None:
     retry_after = hit(name, identity)
     if retry_after is None:
         return
-    # The key is not logged: a client address is personal data
-    logger.info("Rate limit %s reached", name)
-    raise HTTPException(
-        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-        detail=f"Too many requests. Try again in {retry_after} seconds.",
-        headers={"Retry-After": str(retry_after)},
-    )
+    raise _too_many(name, retry_after)
