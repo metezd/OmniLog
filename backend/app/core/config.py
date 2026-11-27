@@ -146,6 +146,9 @@ RATE_LIMIT_LOGIN = _rate_limit("RATE_LIMIT_LOGIN", "10/minute")
 # Failed logins of one account, from any address (#391). See docs/deployment.md, section 9.1.
 RATE_LIMIT_LOGIN_ACCOUNT = _rate_limit("RATE_LIMIT_LOGIN_ACCOUNT", "20/hour")
 RATE_LIMIT_REGISTER = _rate_limit("RATE_LIMIT_REGISTER", "5/hour")
+# A second register limit per address for a whole day, so a slow search for registered emails
+# gets 20 answers a day and not 120 (#395). See docs/deployment.md, section 9.2.
+RATE_LIMIT_REGISTER_DAY = _rate_limit("RATE_LIMIT_REGISTER_DAY", "20/day")
 RATE_LIMIT_SEARCH = _rate_limit("RATE_LIMIT_SEARCH", "30/minute")
 RATE_LIMIT_REVIEW = _rate_limit("RATE_LIMIT_REVIEW", "20/minute")
 # Opening a title that was not loaded yet calls IGDB or TMDB, and OpenAI for its embedding (#390)

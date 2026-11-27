@@ -26,9 +26,15 @@ def account_key(identifier: str) -> str:
     "/register",
     response_model=UserResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(limit_per_client("register"))],
+    dependencies=[Depends(limit_per_client("register")), Depends(limit_per_client("register_day"))],
 )
 def register(data: UserCreate, db: Session = Depends(get_db)):
+    """Create an account. A taken username or email answers 409 (US-02).
+
+    The 409 shows that an email has an account. The project accepts this, because there is no
+    email verification that could tell the user instead. The limits per hour and per day keep a
+    search for addresses slow (#395, docs/deployment.md, section 9.2).
+    """
     try:
         return auth_service.register_user(db, data)
     except AccountConflictError as exc:
