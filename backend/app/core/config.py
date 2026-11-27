@@ -168,6 +168,8 @@ def _rate_limit(name: str, default: str) -> tuple[int, int]:
 
 RATE_LIMIT_ENABLED = os.getenv("RATE_LIMIT_ENABLED", "true").strip().lower() in ("1", "true", "yes", "on")
 RATE_LIMIT_LOGIN = _rate_limit("RATE_LIMIT_LOGIN", "10/minute")
+# Failed logins of one account, from any address (#391). See docs/deployment.md, section 9.1.
+RATE_LIMIT_LOGIN_ACCOUNT = _rate_limit("RATE_LIMIT_LOGIN_ACCOUNT", "20/hour")
 RATE_LIMIT_REGISTER = _rate_limit("RATE_LIMIT_REGISTER", "5/hour")
 RATE_LIMIT_SEARCH = _rate_limit("RATE_LIMIT_SEARCH", "30/minute")
 RATE_LIMIT_REVIEW = _rate_limit("RATE_LIMIT_REVIEW", "20/minute")
