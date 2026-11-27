@@ -28,6 +28,22 @@ def test_us02_register_duplicate_email_conflict(client, credentials):
     second = client.post("/auth/register", json=other)
 
     assert second.status_code == 409
+    # The answer that the frontend shows (#395 keeps it, docs/deployment.md, section 9.2)
+    assert second.json() == {"detail": "Username or email is already registered"}
+
+
+def test_us02_register_hashes_the_password_for_a_taken_name_too(client, credentials, monkeypatch):
+    """US-02, #395: a taken and a free name cost one bcrypt hash each, so the time is the same."""
+    from app.services import auth_service
+
+    calls = []
+    real_hash = auth_service.hash_password
+    monkeypatch.setattr(auth_service, "hash_password", lambda password: calls.append(1) or real_hash(password))
+
+    assert client.post("/auth/register", json=credentials).status_code == 201
+    assert len(calls) == 1
+    assert client.post("/auth/register", json=credentials).status_code == 409
+    assert len(calls) == 2
 
 
 def test_us02_register_invalid_email_rejected(client, credentials):
