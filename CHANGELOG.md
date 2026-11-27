@@ -43,6 +43,7 @@ All notable changes to this project are written in this file. The format follows
 
 ### Security
 
+- `GET /catalog/{id}` has a per-user limit, `RATE_LIMIT_DETAILS` (default `60/minute`), because opening a title that was not loaded yet calls IGDB or TMDB and OpenAI. A test checks that the embedding of a title is saved once and that later opens do not call OpenAI (#390).
 - "Log out" ends the token at the backend with the new `POST /auth/logout`, so a copied token stops working at once instead of 90 minutes later. Every token has a `jti` claim, and the ended ones are kept in the new table `revoked_tokens` (migration 0014) until they would expire. Other tokens of the same user keep working. Tokens without `jti` are refused, so every user logs in once again after the update (#378).
 - The poster proxy `GET /api/poster` no longer follows a redirect of the poster host, so a redirect cannot lead the server to another address. More tests for the proxy (#332).
 - Penetration finding F7 is fixed and the missing headers are added: no `Server` or `X-Powered-By` header, `X-Frame-Options`, `Content-Security-Policy` and `Permissions-Policy` from the API on every answer (also on a 500), the browser headers from the frontend, and HSTS and the same headers from Caddy (#304).
