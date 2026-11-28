@@ -7,6 +7,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import TimeoutError as PoolTimeoutError
 
 from app.integrations.common import ExternalServiceError
 
@@ -65,7 +66,25 @@ async def database_unavailable_exception_handler(
     )
 
 
+# How long a client should wait before it tries again when the pool is full
+POOL_RETRY_AFTER_SECONDS = "5"
+
+
+async def pool_timeout_exception_handler(request: Request, exc: PoolTimeoutError) -> JSONResponse:
+    """No connection of the pool was free within DB_POOL_TIMEOUT seconds (#432).
+
+    The API is busy, not broken, so this is a 503 with Retry-After instead of a 500.
+    """
+    logger.warning("No free database connection for %s %s", request.method, request.url.path)
+    return JSONResponse(
+        status_code=503,
+        content={"detail": "The server is busy. Please try again in a moment."},
+        headers={"Retry-After": POOL_RETRY_AFTER_SECONDS},
+    )
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
     app.add_exception_handler(ExternalServiceError, external_service_exception_handler)
     app.add_exception_handler(OperationalError, database_unavailable_exception_handler)
+    app.add_exception_handler(PoolTimeoutError, pool_timeout_exception_handler)

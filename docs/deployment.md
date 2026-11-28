@@ -87,10 +87,11 @@ All settings are in `.env.prod`. The file holds secrets and is ignored by Git. C
 | `SECRET_KEY` | yes | Signs the login tokens. At least 32 characters. The backend does not start with a shorter key |
 | `APP_DOMAIN` | yes | Name of the frontend, for example `app.example.com` |
 | `API_DOMAIN` | yes | Name of the backend, for example `api.example.com` |
-| `API_URL` | yes | The public address of the backend, for example `https://api.example.com`. Built into the frontend image as `NEXT_PUBLIC_API_URL`. No code reads it since the Axios client `src/lib/api.ts` was removed, but the build still stops when it is empty |
 | `CORS_ORIGINS` | yes | The address of the frontend, for example `https://app.example.com`. The backend accepts browser calls only from here |
 | `FORWARDED_TRUSTED_HOPS` | no | How many proxies add an address to `X-Forwarded-For` in front of the backend. The login and register limits then count the address that many places from the right end of the header. Default `0` (use the address that uvicorn gives, right for this Docker setup). `render.yaml` sets `1` (section 9.1) |
 | `FRONTEND_PROXY_SECRET` | no | A key that the backend and the frontend share, at least 32 characters. With it the frontend sends the browser address in `X-Client-IP`, and the backend uses that address only when `X-Frontend-Key` matches. Empty turns it off. `render.yaml` generates it for the backend and copies it to the frontend (section 9.1). Leave it empty for `docker-compose.prod.yml`: `FORWARDED_ALLOW_IPS` is enough there (see below) |
+| `DB_POOL_SIZE`, `DB_MAX_OVERFLOW`, `DB_POOL_TIMEOUT` | no | The connection pool of the API (#432): `5` connections, `10` more under load, and a wait of `10` seconds for a free one. A request that finds none in time gets 503 with `Retry-After: 5`, not 500. The endpoints run in a thread pool of 40 threads, so with 15 connections some requests wait. Keep `DB_POOL_SIZE + DB_MAX_OVERFLOW` under the connection limit of the database plan (on Supabase, the limit of the Session pooler) |
+| `DB_STATEMENT_TIMEOUT_MS` | no | The longest time of one SQL statement of the API (default `15000`, `0` turns it off). It is set with `SET statement_timeout` after a connection opens, so it also works behind the pooler of Supabase. The migrations use their own engine without it. For a long command (`python -m app.sync`), set `0` in its environment |
 | `ENABLE_DOCS` | no | Shows the API documentation at `/docs`, `/redoc` and `/openapi.json`. Default is `false`, also when the backend starts without it (#394). `docker-compose.prod.yml` and `render.yaml` set `false` too. For development, set `ENABLE_DOCS=true` in `backend/.env` |
 | `ALLOW_MEDIA_CREATE` | no | Turns on `POST /media`, which adds a title to the shared catalog. Default is `false`, so the route answers 404. Leave it off in production: titles come from the catalog search. Only the tests turn it on |
 | `IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET`, `TMDB_API_KEY` | no | Keys of the catalog services. Without them the catalog search cannot reach the outside services |
@@ -108,13 +109,13 @@ All settings are in `.env.prod`. The file holds secrets and is ignored by Git. C
 | `RATE_LIMIT_ENABLED` | no | `false` turns all rate limits off. Default `true`. See section 9.1 |
 | `RATE_LIMIT_LOGIN_ACCOUNT` | no | Failed logins of one account from any address, as `<count>/<period>`. Default `20/hour` (section 9.1) |
 | `RATE_LIMIT_REGISTER_DAY` | no | Registrations of one browser address in a day, besides `RATE_LIMIT_REGISTER`, as `<count>/<period>`. Default `20/day` (section 9.2) |
-| `RATE_LIMIT_LOGIN`, `RATE_LIMIT_REGISTER`, `RATE_LIMIT_SEARCH`, `RATE_LIMIT_REVIEW`, `RATE_LIMIT_DETAILS`, `RATE_LIMIT_RECOMMENDATIONS` | no | The rate limits as `<count>/<second\|minute\|hour\|day>`. Defaults `10/minute`, `5/hour`, `30/minute`, `20/minute`, `60/minute` and `30/minute`. `RATE_LIMIT_RECOMMENDATIONS` counts `GET /recommendations` per user (#396). The backend does not start with a value in another form |
+| `RATE_LIMIT_LOGIN`, `RATE_LIMIT_REGISTER`, `RATE_LIMIT_SEARCH`, `RATE_LIMIT_REVIEW`, `RATE_LIMIT_DETAILS`, `RATE_LIMIT_RECOMMENDATIONS`, `RATE_LIMIT_WRITES` | no | The rate limits as `<count>/<second\|minute\|hour\|day>`. Defaults `10/minute`, `5/hour`, `30/minute`, `20/minute`, `60/minute`, `30/minute` and `120/minute`. `RATE_LIMIT_RECOMMENDATIONS` counts `GET /recommendations` per user (#396). The backend does not start with a value in another form |
 | `POSTGRES_USER`, `POSTGRES_DB` | no | Defaults are `omnilog` |
 | `TAG` | no | Tag of the built images. Default is `latest` |
 
 Use passwords that have only letters and digits (`openssl rand -hex 32`). The passwords are part of the database and Redis addresses, so characters such as `/` or `@` would break them.
 
-`API_URL` is written into the JavaScript of the frontend when the image is built (Next.js does this for every variable that starts with `NEXT_PUBLIC_`). After you change it, build again with `--build`.
+The frontend needs no public address of the API: the browser never calls the backend, and the server code of the frontend calls it at `BACKEND_URL` (`http://backend:8000` in the compose file). `API_URL` and `NEXT_PUBLIC_API_URL` were removed in #430, because no code read them.
 
 `OPENAI_*`, `SPOILER_*` and `EMBEDDING_*` are passed from `.env.prod` to the backend by `docker-compose.prod.yml`. The values in the table are the defaults, so an empty or missing line keeps them.
 
@@ -131,6 +132,7 @@ Use passwords that have only letters and digits (`openssl rand -hex 32`). The pa
 | `EXTERNAL_API_TIMEOUT_SECONDS` | `8` | Time limit of one call to IGDB or TMDB |
 | `EXTERNAL_API_MAX_RETRIES` | `3` | Retries after a timeout, a 429 or a 5xx answer |
 | `EXTERNAL_API_BACKOFF_SECONDS` | `0.5` | First wait between retries. It doubles after each retry |
+| `EXTERNAL_API_COOLDOWN_SECONDS` | `60` | When every try of a call got no answer (timeouts, no connection), that host is not called again for this many seconds, and the saved data is used (#428). An answer such as 503 is still tried again as before. `0` turns the pause off |
 | `IGDB_MAX_REQUESTS_PER_SECOND` | `3` | The most requests per second that one backend process sends to IGDB (IGDB allows 4). A call that would wait more than 5 seconds fails at once, and the saved copy is used. `0` turns it off. The limit counts per process: the default setup runs one, so give each process its share when you start more |
 
 The backend finds the database and Redis through `DATABASE_URL` and `REDIS_URL`, which the compose file builds from the passwords.
@@ -278,7 +280,6 @@ No real domain is needed. The proxy makes a certificate from its own local autho
 ```
 APP_DOMAIN=localhost
 API_DOMAIN=api.localhost
-API_URL=https://api.localhost
 CORS_ORIGINS=https://localhost
 ```
 
@@ -294,7 +295,7 @@ Open `https://localhost` in the browser and accept the certificate warning, beca
 | Other websites call the API from a browser | `CORS_ORIGINS` lists only the app address. The API reads the token from the `Authorization` header and sets no cookie, so CORS runs without credentials (`allow_credentials=False`). A preflight may ask only for the methods of the API (`GET`, `POST`, `PUT`, `PATCH`, `DELETE`) and the headers `Authorization` and `Content-Type`. Anything else gets no `Access-Control-Allow-*` answer (#394) |
 | A stolen token works forever | Every token has `exp`. A token without `exp` or `sub` is rejected with 401 |
 | The browser guesses the type of an answer, sends the API address to other sites, shows a page in a frame, or learns the server software | The backend sends `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `X-Frame-Options: DENY`, `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'` and `Permissions-Policy` on every answer, also on a 500 (`app/core/security_headers.py`, the API docs pages leave out the CSP). The frontend sends the same browser headers from `next.config.ts` and no `X-Powered-By`. Uvicorn runs with `--no-server-header`. So these also work on Render, where no Caddy of ours is in front. In the Docker setup Caddy adds them too, with `Strict-Transport-Security` and without `Server` (#304) |
-| HTTPS is skipped after the first visit | Caddy sends `Strict-Transport-Security: max-age=86400` (one day). Raise it to a year after a week without problems. The backend sends `Strict-Transport-Security: max-age=31536000` itself when the request came over HTTPS (the scheme of the request, or `X-Forwarded-Proto: https` from the proxy in front), so the API on Render has it too. A plain HTTP request (development) gets none. Behind Caddy, the API proxy removes the header of the backend (`header_down -Strict-Transport-Security`) and sends its own, so a browser never gets two (#394). Check it with one `curl -sI https://<api-host>/health` |
+| HTTPS is skipped after the first visit | The API (#394), the frontend in production (#425) and Caddy send `Strict-Transport-Security: max-age=31536000` (one year). Behind Caddy, the header of the API and of the frontend is dropped, so the browser gets one. The backend sends `Strict-Transport-Security: max-age=31536000` itself when the request came over HTTPS (the scheme of the request, or `X-Forwarded-Proto: https` from the proxy in front), so the API on Render has it too. A plain HTTP request (development) gets none. Behind Caddy, the API proxy removes the header of the backend (`header_down -Strict-Transport-Security`) and sends its own, so a browser never gets two (#394). Check it with one `curl -sI https://<api-host>/health` |
 | A token or user data stays in a browser or proxy cache | Every answer of the API has `Cache-Control: no-store` unless the endpoint sets its own: the library, lists, diary, statistics and recommendations, and the errors too. Only a successful catalog answer keeps `private, max-age=300, stale-while-revalidate=600` (#250). Answers of `/auth/*` always have `no-store` (#394) |
 | A user fills the shared catalog with false titles or outside images | `POST /media` answers 404 unless `ALLOW_MEDIA_CREATE` is on. When it is on, `poster_url` must be an `https` address on `image.tmdb.org` or `images.igdb.com`. `GET /media/{id}` needs a login (#218) |
 | The full list of endpoints is public | `ENABLE_DOCS` is `false` in production, so `/docs`, `/redoc` and `/openapi.json` answer 404 |
@@ -316,6 +317,7 @@ Open `https://localhost` in the browser and accept the certificate warning, beca
 | `POST /library/{entry_id}/review` | User | `20/minute` | A review can call OpenAI, which costs money |
 | `GET /catalog/{media_id}` | User | `60/minute` | A title that was not loaded yet calls IGDB or TMDB, and OpenAI for its embedding (#390) |
 | `GET /recommendations` | User (`RATE_LIMIT_RECOMMENDATIONS`) | `30/minute` | Each call averages the embeddings of the liked titles in PostgreSQL and runs a vector search (#396) |
+| Writes: `POST`, `PATCH`, `PUT` and `DELETE` of `/library`, its chapters and `/lists` | User (`RATE_LIMIT_WRITES`), one count for all of them | `120/minute` | Most writes add a diary row, so without a limit one account could fill the database (#431). The review has its own limit |
 
 **Failed logins of one account (#391).** The limit per address does not stop someone who guesses the password of one account from many addresses. So the failed logins of each account are counted too, whatever the address. The key is a SHA-256 hash of the normalized username or email, so no name or email address is written to Redis. A username and the email of the same account are two keys. Unknown accounts are counted the same way, so the answer does not show which accounts exist. A correct login is not counted.
 
@@ -361,7 +363,7 @@ What is still possible: someone with many addresses (a botnet, many cloud machin
 - There are no automatic backups, no monitoring and no alerts.
 - The stack runs one copy of each service. Running more copies of the backend is not set up and not tested.
 - Rate limits on Render: the counted address depends on how the proxy of Render fills `X-Forwarded-For` (section 9.1). This was not checked on the deployed service. `RATE_LIMIT_ENABLED=false` turns the limits off.
-- Only login, register, search, title details, review and recommendations have a rate limit.
+- `GET /library`, `/lists`, `/diary`, `/stats` and the other reads have no rate limit.
 - The friends page of the frontend shows sample data. The login, register, library, search, title, lists, diary, statistics and recommendations screens call the backend through the server code of Next.js (`BACKEND_URL`).
 - Embeddings are not built. There is no `media_embeddings` table and no embeddings command. The recommendations (US-13) rank the catalog by the genres of the library, so they work without any key.
 - The spoiler check (US-14) uses OpenAI only when `OPENAI_API_KEY` is set and `SPOILER_PROVIDER` is `openai` (section 4.1). Without the key or with `SPOILER_PROVIDER=local`, the review is checked with local patterns. When the key is set and OpenAI does not answer, the review is saved and not checked (the spoiler fields stay NULL). The check runs after the review is committed, so no database connection is held during the OpenAI call.
@@ -376,7 +378,6 @@ What is still possible: someone with many addresses (a botnet, many cloud machin
 | `required variable ... is missing a value` | A value is empty in `.env.prod`. Fill it in |
 | The browser shows a certificate error on a real domain | The DNS record does not point to the server yet, or port 80 is blocked. See `docker compose ... logs proxy` |
 | The login page shows an error or the frontend log says `BACKEND_URL is not set` | The frontend has no `BACKEND_URL`. The compose file sets it, so check that you use `docker-compose.prod.yml`. On Render, set it by hand. Check also `docker compose ... logs backend` |
-| `src/lib/api.ts` calls go to the wrong address | `API_URL` is wrong or was changed without `--build` |
 | The API answers 4xx in the browser console with a CORS message | `CORS_ORIGINS` does not match the address of the frontend exactly. It has no trailing slash |
 | `next build` fails with a font error | The build machine cannot reach `fonts.googleapis.com` |
 | `Pool overlaps with other one on this host` when the stack starts | Another Docker network or the host already uses `172.30.42.0/24`. Change the subnet, the two fixed addresses and `FORWARDED_ALLOW_IPS` in `docker-compose.prod.yml` together |

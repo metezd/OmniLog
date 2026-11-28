@@ -2,11 +2,13 @@ import "server-only";
 
 import type { CustomList, CustomListItem, DiaryEntry } from "@/types/api";
 import { authedFetch } from "./authed";
+import { readAllPages } from "./library";
 
 // Custom lists (US-06) and the activity diary (US-07).
 
+/** All lists of the user, oldest first, read page by page (#418). */
 export function getLists(): Promise<CustomList[]> {
-  return authedFetch<CustomList[]>("/lists");
+  return readAllPages<CustomList>("/lists");
 }
 
 export function getList(listId: number): Promise<CustomList> {

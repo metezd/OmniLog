@@ -275,7 +275,8 @@ jobs:
         if: steps.sonar.outputs.available == 'true'
         run: |
           if [ -f frontend/coverage/lcov.info ]; then
-            sed 's#^SF:src/#SF:frontend/src/#' frontend/coverage/lcov.info > frontend/coverage/lcov-root.info
+            # Every path is relative to frontend/ (src/... and next.config.ts)
+            sed 's#^SF:#SF:frontend/#' frontend/coverage/lcov.info > frontend/coverage/lcov-root.info
           fi
 
       # Fails the job when the quality gate fails

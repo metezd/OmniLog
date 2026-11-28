@@ -1,9 +1,10 @@
 from logging.config import fileConfig
 
 from alembic import context
+from sqlalchemy import create_engine
 
 from app.core.config import DATABASE_URL
-from app.core.database import Base, connect_with_retry, engine
+from app.core.database import Base, DATABASE_URL as ENGINE_URL, connect_with_retry, engine_options
 
 # Importing the models registers every table on Base.metadata
 import app.models.entities  # noqa: F401
@@ -35,6 +36,9 @@ def run_migrations_online() -> None:
     The connection is tried again for about 30 seconds, because on Render the database name may not
     be resolvable yet when a new instance starts.
     """
+    # Its own engine without the statement_timeout of the API, so a migration may take longer
+    # than a request (#432)
+    engine = create_engine(ENGINE_URL, **engine_options(ENGINE_URL))
     with connect_with_retry(engine) as connection:
         context.configure(connection=connection, target_metadata=target_metadata)
         with context.begin_transaction():
