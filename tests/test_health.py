@@ -69,7 +69,7 @@ def test_not_ready_when_the_database_is_down(monkeypatch):
 
 
 def test_redis_down_is_not_fatal(monkeypatch):
-    monkeypatch.setattr(cache, "is_available", lambda: False)
+    monkeypatch.setattr(cache, "status", lambda: "down")
     client, _ = _client_with_db()
 
     response = client.get("/health/ready")
@@ -107,3 +107,63 @@ def test_cache_is_not_available_and_waits_when_ping_fails(monkeypatch):
 
     assert cache.is_available() is False
     assert len(marked) == 1
+
+
+# ---------------------------------------------------------------- the state of Redis (#422)
+@pytest.mark.parametrize(
+    ("url", "answers", "expected"),
+    [
+        ("", True, "not_configured"),
+        ("   ", True, "not_configured"),
+        ("redis://cache.internal:6379/0", True, "ok"),
+        ("redis://cache.internal:6379/0", False, "down"),
+    ],
+)
+def test_cache_status_tells_a_missing_setting_from_a_redis_that_does_not_answer(monkeypatch, url, answers, expected):
+    from app.core import config
+
+    monkeypatch.setattr(config, "REDIS_URL", url)
+    monkeypatch.setattr(cache, "is_available", lambda: answers)
+
+    assert cache.status() == expected
+
+
+@pytest.mark.parametrize(
+    ("url", "target"),
+    [
+        ("redis://default:s3cret@red-abc:6379/0", "red-abc:6379"),
+        ("rediss://user:pw@host.upstash.io:6380", "host.upstash.io:6380"),
+        ("redis://localhost", "localhost:6379"),
+        ("", ""),
+    ],
+)
+def test_the_log_target_never_holds_the_password(monkeypatch, url, target):
+    from app.core import config
+
+    monkeypatch.setattr(config, "REDIS_URL", url)
+
+    assert cache.redis_target() == target
+    assert "s3cret" not in cache.redis_target()
+
+
+@pytest.mark.parametrize(
+    ("state", "message"),
+    [("not_configured", "REDIS_URL is empty"), ("down", "does not answer"), ("ok", None)],
+)
+def test_the_start_says_why_the_cache_is_not_redis(monkeypatch, caplog, state, message):
+    import logging
+
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    monkeypatch.setattr(cache, "status", lambda: state)
+    monkeypatch.setattr(cache, "redis_target", lambda: "red-abc:6379")
+    with caplog.at_level(logging.WARNING, logger="app.main"), TestClient(app):
+        pass
+
+    if message is None:
+        assert "Redis" not in caplog.text and "REDIS_URL" not in caplog.text
+    else:
+        assert message in caplog.text
+

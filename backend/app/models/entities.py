@@ -60,6 +60,9 @@ class User(Base):
     email = Column(String(100), unique=True, index=True, nullable=False)
     hashed_password = Column(String(255), nullable=False)
     created_at = Column(DateTime, default=utc_now)
+    # Every token carries this number (claim "ver"). "Log out on all devices" and a new password
+    # raise it, so every token issued before stops working at once (#426).
+    token_version = Column(Integer, nullable=False, default=0, server_default=text("0"))
 
     # A username never has an @, so a login value with @ can only be an email (BR-18)
     __table_args__ = (

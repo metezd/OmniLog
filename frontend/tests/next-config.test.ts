@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 
-import nextConfig from "../next.config";
+import nextConfig, { HSTS_HEADER, securityHeaders } from "../next.config";
 
 // On Render the frontend has no Caddy in front, so it sends the browser headers itself (#304).
 // The Content-Security-Policy comes from src/proxy.ts (#303).
@@ -23,3 +23,15 @@ describe("security headers of the frontend (#304)", () => {
     expect(nextConfig.poweredByHeader).toBe(false);
   });
 });
+
+describe("HSTS of the frontend (#425)", () => {
+  it("sends Strict-Transport-Security for a year in production", () => {
+    expect(securityHeaders("production")).toContainEqual({ key: "Strict-Transport-Security", value: "max-age=31536000" });
+    expect(HSTS_HEADER.value).toBe("max-age=31536000");
+  });
+
+  it.each(["development", "test", undefined])("does not send it for %s, so http://localhost works", (env) => {
+    expect(securityHeaders(env).map(({ key }) => key)).not.toContain("Strict-Transport-Security");
+  });
+});
+
