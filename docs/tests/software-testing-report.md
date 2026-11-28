@@ -206,7 +206,7 @@ Details in [TDD evidence](tdd-evidence.md) (#345, #350).
 | F7 | `Server` header, missing browser headers, no headers on a 500 | Penetration test, hardening tests | Info | #343 | `test_security_hardening.py`, `next-config.test.ts` |
 | DJ | JSON nested 3000 levels deep gave 500 | Extra penetration run | Low | #341 | `test_us06_deeply_nested_json_*` |
 | D10 | Duplicate list delete routes | Coverage and OpenAPI warning | Low | #344 | `test_route_registration.py` |
-| P1 | API locks up at 80 users (database pool smaller than the thread pool) | Load test | Medium | Open, section 11 | `tests/performance/load_test.py` |
+| P1 | API locks up at 80 users (database pool smaller than the thread pool) | Load test | Medium | #432: pool settings and 503 instead of 500. With 20 + 20 connections 80 users pass | `tests/performance/load_test.py`, `test_database_pool_limits.py` |
 | C1 | `docker-compose.yml` published PostgreSQL on 5433, so the Compose smoke test fell back to SQLite | CI Docker Compose smoke test | Medium (CI) | #329 | the smoke test |
 | C2 | A rate limit test failed when 11 bcrypt logins crossed a minute | CI backend tests (flaky) | Low (test) | #331 | the same tests with a fixed clock |
 | C3 | The live IGDB test compared the exact case of "Life is Strange" | Manual CI run with real keys | Low (test) | #334 | `test_epic3_catalog_live.py` |
@@ -215,7 +215,7 @@ Details in [TDD evidence](tdd-evidence.md) (#345, #350).
 
 ## 11. Residual risks and next steps
 
-1. **Database pool (P1).** Give the SQLAlchemy pool at least as many connections as the thread pool, with a short `pool_timeout`, check the connection limit of the database plan, and run the load test again. Consider 2 to 4 uvicorn workers on a plan with more cores.
+1. **Database pool (P1).** The pool is a setting since #432, and a full pool answers 503 at once. With the default 5 + 10 connections, 80 users still fail the limits (p95 10 s, 2.8% quick 503 answers); with 20 + 20 they pass (p95 309 ms, no errors, 27.11.2026, [performance](performance.md)). Raise the pool only as far as the database plan allows, and consider 2 to 4 uvicorn workers on a plan with more cores.
 2. **Render not checked.** How the proxy of Render fills `X-Forwarded-For`, and which headers it adds, were not checked on the deployed service. One harmless request each, after the team agrees.
 3. **SonarQube in CI.** A repository admin must make the repository public or choose a paid plan or a reachable server, then set `SONAR_TOKEN`, `SONAR_PROJECT_KEY` and `SONAR_ORGANIZATION`.
 4. **Frontend coverage** is 37%. Tests for the layout and the dashboard would raise it.

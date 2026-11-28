@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
 
-from app.api.deps import get_current_user, limit_per_user
+from app.api.deps import WRITE_LIMIT, get_current_user, limit_per_user
 from app.api.pagination import Page, library_page
 from app.core.database import get_db
 from app.models.entities import User
@@ -35,7 +35,12 @@ router = APIRouter(prefix="/library", tags=["Library"])
 MAX_ID = 2**31 - 1
 
 
-@router.post("", response_model=UserLibraryResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=UserLibraryResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[WRITE_LIMIT],
+)
 def add_to_library(
     payload: UserLibraryCreate,
     db: Session = Depends(get_db),
@@ -71,7 +76,7 @@ def get_library(
     )
 
 
-@router.patch("/{entry_id}", response_model=UserLibraryResponse)
+@router.patch("/{entry_id}", response_model=UserLibraryResponse, dependencies=[WRITE_LIMIT])
 def update_library_entry(
     entry_id: int,
     payload: UserLibraryUpdate,
@@ -85,7 +90,7 @@ def update_library_entry(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
 
 
-@router.delete("/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{entry_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[WRITE_LIMIT])
 def remove_library_entry(
     entry_id: int,
     db: Session = Depends(get_db),
@@ -140,6 +145,7 @@ def get_review(
 
 @router.post(
     "/{entry_id}/playtime",
+    dependencies=[WRITE_LIMIT],
     response_model=TitlePlaytimeLogResponse,
     status_code=status.HTTP_201_CREATED,
 )

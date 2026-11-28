@@ -88,6 +88,17 @@ def _cache_key(media_type: MediaType, query: str) -> str:
     return f"omni:search:{media_type.value}:{digest}"
 
 
+def _release_connection(db: Session) -> None:
+    """End the read-only transaction of the request before an outside call (#428).
+
+    get_current_user has already read the user with this session, so a transaction holds a pool
+    connection. An IGDB or TMDB call can take many seconds with its retries, and the connection
+    would wait with it. Nothing is written at this point; if something is, it is kept as it is.
+    """
+    if not (db.new or db.dirty or db.deleted):
+        db.commit()
+
+
 def search_catalog(db: Session, media_type: MediaType, text: str) -> list[MediaItem]:
     query = normalize_query(text)
     if not query:
@@ -99,6 +110,7 @@ def search_catalog(db: Session, media_type: MediaType, text: str) -> list[MediaI
     if cached is not None:
         return _save(db, media_type, cached)
 
+    _release_connection(db)
     try:
         titles = _fetch_external(media_type, query)
     except ExternalServiceError as exc:
@@ -502,16 +514,19 @@ def _refresh_series(db: Session, item: MediaItem) -> None:
     means the data is fresh, so TMDB is not called. The saved copy is only written on a hit when
     the series was never saved. When TMDB fails, the saved copy is used, even if it is old.
     """
-    key = _details_cache_key(item.external_api_id)
+    external_id = item.external_api_id
+    key = _details_cache_key(external_id)
     outside = _outside_from_cache(cache.get_json(key))
     from_cache = outside is not None
 
     if outside is None:
+        item_id, was_synced = item.id, item.last_synced is not None
+        _release_connection(db)
         try:
-            outside = _fetch_series_seasons(item.external_api_id)
+            outside = _fetch_series_seasons(external_id)
         except ExternalServiceError as exc:
-            logger.warning("Details of series %s failed: %s", item.id, exc)
-            if item.last_synced is not None:
+            logger.warning("Details of series %s failed: %s", item_id, exc)
+            if was_synced:
                 return  # an older saved copy is better than an error
             raise CatalogUnavailableError(
                 "The catalog service is not available right now. Please try again later."
@@ -651,10 +666,12 @@ def _refresh_details(db: Session, item: MediaItem) -> None:
     from_cache = outside is not None
 
     if outside is None:
+        media_type, external_id, item_id = item.media_type, item.external_api_id, item.id
+        _release_connection(db)
         try:
-            outside = _fetch_details(item)
+            outside = _fetch_details(media_type, external_id)
         except ExternalServiceError as exc:
-            logger.warning("Details of title %s failed: %s", item.id, exc)
+            logger.warning("Details of title %s failed: %s", item_id, exc)
             return
         _cache_outside(key, _details_to_cache(outside), outside.found)
 
@@ -665,15 +682,15 @@ def _refresh_details(db: Session, item: MediaItem) -> None:
     _save_details(db, item.id, outside.details)
 
 
-def _fetch_details(item: MediaItem) -> _OutsideDetails:
-    if item.media_type == MediaType.GAME:
+def _fetch_details(media_type: MediaType, external_id: int) -> _OutsideDetails:
+    if media_type == MediaType.GAME:
         if not igdb.is_configured():
             raise ExternalServiceError("IGDB is not set up")
-        details = igdb.fetch_game_details(item.external_api_id)
+        details = igdb.fetch_game_details(external_id)
     else:
         if not tmdb.is_configured():
             raise ExternalServiceError(_TMDB_NOT_CONFIGURED_MSG)
-        details = tmdb.fetch_movie_details(item.external_api_id)
+        details = tmdb.fetch_movie_details(external_id)
     if details is None:
         return _OutsideDetails(found=False, details=_NO_DETAILS)
     return _OutsideDetails(found=True, details=details)
