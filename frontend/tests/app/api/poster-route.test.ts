@@ -3,15 +3,39 @@ import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { GET } from "@/app/api/poster/route";
+import { POSTER_LIMIT_PER_WINDOW, resetPosterLimit } from "@/lib/server/poster-limit";
 
 const fetchMock = vi.fn();
 
-function call(url?: string) {
+const POSTER = "https://image.tmdb.org/t/p/w500/abc.jpg";
+const MAX_POSTER_BYTES = 2 * 1024 * 1024;
+
+function call(url?: string, forwardedFor?: string) {
   const target = new URL("http://localhost:3000/api/poster");
   if (url !== undefined) {
     target.searchParams.set("url", url);
   }
-  return GET(new NextRequest(target));
+  const headers = forwardedFor === undefined ? undefined : { "X-Forwarded-For": forwardedFor };
+  return GET(new NextRequest(target, { headers }));
+}
+
+/** An upstream body that sends `chunks` pieces of `chunkSize` bytes and notes when it is cancelled. */
+function chunkedBody(chunks: number, chunkSize: number) {
+  const state = { sent: 0, cancelled: false };
+  const stream = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      if (state.sent >= chunks) {
+        controller.close();
+        return;
+      }
+      state.sent += 1;
+      controller.enqueue(new Uint8Array(chunkSize));
+    },
+    cancel() {
+      state.cancelled = true;
+    },
+  });
+  return { stream, state };
 }
 
 function imageResponse(contentType: string | null = "image/png") {
@@ -20,6 +44,7 @@ function imageResponse(contentType: string | null = "image/png") {
 }
 
 beforeEach(() => {
+  resetPosterLimit();
   fetchMock.mockReset();
   vi.stubGlobal("fetch", fetchMock);
 });
@@ -155,6 +180,125 @@ describe("GET /api/poster", () => {
 
       expect(response.status).toBe(502);
       expect(await response.text()).not.toContain("socket hang up");
+    });
+  });
+
+  describe("passes on raster posters only", () => {
+    it.each(["image/jpeg", "image/png", "image/webp", "image/jpeg; charset=binary"])(
+      "accepts %s",
+      async (type) => {
+        fetchMock.mockResolvedValueOnce(imageResponse(type));
+
+        const response = await call(POSTER);
+
+        expect(response.status).toBe(200);
+        expect(response.headers.get("Content-Type")).toBe(type.split(";")[0]);
+      },
+    );
+
+    it.each(["image/svg+xml", "image/gif", "image/x-icon"])("refuses %s with 502", async (type) => {
+      fetchMock.mockResolvedValueOnce(
+        new Response('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>', {
+          status: 200,
+          headers: { "Content-Type": type },
+        }),
+      );
+
+      const response = await call(POSTER);
+
+      expect(response.status).toBe(502);
+      expect(await response.text()).not.toContain("<script>");
+    });
+  });
+
+  describe("limits the size of a poster", () => {
+    it("streams the upstream body instead of reading it first", async () => {
+      const { stream, state } = chunkedBody(4, 1024);
+      fetchMock.mockResolvedValueOnce(
+        new Response(stream, { status: 200, headers: { "Content-Type": "image/jpeg" } }),
+      );
+
+      const response = await call(POSTER);
+
+      expect(response.status).toBe(200);
+      // The answer is ready before the whole upstream body was read
+      expect(state.sent).toBeLessThan(4);
+      expect((await response.arrayBuffer()).byteLength).toBe(4 * 1024);
+    });
+
+    it("refuses an answer whose Content-Length is over the limit, without reading it", async () => {
+      const { stream, state } = chunkedBody(1, 16);
+      fetchMock.mockResolvedValueOnce(
+        new Response(stream, {
+          status: 200,
+          headers: { "Content-Type": "image/jpeg", "Content-Length": String(MAX_POSTER_BYTES + 1) },
+        }),
+      );
+
+      const response = await call(POSTER);
+
+      expect(response.status).toBe(502);
+      expect(state.cancelled).toBe(true);
+    });
+
+    it("accepts a poster of exactly the limit", async () => {
+      const { stream } = chunkedBody(32, MAX_POSTER_BYTES / 32);
+      fetchMock.mockResolvedValueOnce(
+        new Response(stream, { status: 200, headers: { "Content-Type": "image/png" } }),
+      );
+
+      const response = await call(POSTER);
+
+      expect((await response.arrayBuffer()).byteLength).toBe(MAX_POSTER_BYTES);
+    });
+
+    it("stops a body without Content-Length that grows past the limit", async () => {
+      // 3 MB in 64 KB pieces, with no Content-Length
+      const { stream, state } = chunkedBody(48, 64 * 1024);
+      fetchMock.mockResolvedValueOnce(
+        new Response(stream, { status: 200, headers: { "Content-Type": "image/jpeg" } }),
+      );
+
+      const response = await call(POSTER);
+
+      await expect(response.arrayBuffer()).rejects.toThrow();
+      expect(state.cancelled).toBe(true);
+      expect(state.sent).toBeLessThan(48);
+    });
+  });
+
+  describe("limits the requests of one address", () => {
+    it("does not limit one page of 20 posters", async () => {
+      fetchMock.mockImplementation(async () => imageResponse());
+
+      for (let i = 0; i < 20; i += 1) {
+        expect((await call(POSTER, "203.0.113.7")).status).toBe(200);
+      }
+    });
+
+    it("answers 429 with Retry-After over the limit, without calling the upstream host", async () => {
+      fetchMock.mockImplementation(async () => imageResponse());
+      for (let i = 0; i < POSTER_LIMIT_PER_WINDOW; i += 1) {
+        await call(POSTER, "203.0.113.7");
+      }
+      fetchMock.mockClear();
+
+      const response = await call(POSTER, "203.0.113.7");
+
+      expect(response.status).toBe(429);
+      expect(Number(response.headers.get("Retry-After"))).toBeGreaterThan(0);
+      expect(Number(response.headers.get("Retry-After"))).toBeLessThanOrEqual(60);
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it("counts the right-most X-Forwarded-For entry, not one the browser made up", async () => {
+      fetchMock.mockImplementation(async () => imageResponse());
+      for (let i = 0; i < POSTER_LIMIT_PER_WINDOW; i += 1) {
+        await call(POSTER, `10.0.0.${i % 250}, 203.0.113.7`);
+      }
+
+      expect((await call(POSTER, "10.9.9.9, 203.0.113.7")).status).toBe(429);
+      expect((await call(POSTER, "198.51.100.1")).status).toBe(200);
     });
   });
 });
