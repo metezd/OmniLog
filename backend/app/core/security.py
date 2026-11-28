@@ -66,15 +66,25 @@ class AccessToken:
 
     user_id: int
     jti: str
+    # The token_version of the user when the token was made (#426). Tokens from before have none,
+    # which counts as 0.
+    version: int
     # UTC without a time zone, like the DateTime columns
     expires_at: datetime
 
 
-def create_access_token(user_id: int) -> str:
-    """Create a signed JWT for the given user id, with a random id (jti) of its own."""
+def create_access_token(user_id: int, version: int = 0) -> str:
+    """Create a signed JWT for the given user id, with a random id (jti) of its own and the
+    token_version of the user (claim "ver", #426)."""
     issued_at = datetime.now(timezone.utc)
     expires_at = issued_at + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    payload = {"sub": str(user_id), "iat": issued_at, "exp": expires_at, "jti": secrets.token_urlsafe(16)}
+    payload = {
+        "sub": str(user_id),
+        "iat": issued_at,
+        "exp": expires_at,
+        "jti": secrets.token_urlsafe(16),
+        "ver": int(version),
+    }
     return jwt.encode(payload, SECRET_KEY, algorithm=JWT_ALGORITHM)
 
 
@@ -96,7 +106,10 @@ def read_access_token(token: str) -> Optional[AccessToken]:
         if not isinstance(jti, str) or not 0 < len(jti) <= JTI_MAX_LENGTH:
             return None
         expires_at = datetime.fromtimestamp(int(payload["exp"]), tz=timezone.utc).replace(tzinfo=None)
-        return AccessToken(user_id=int(payload["sub"]), jti=jti, expires_at=expires_at)
+        version = payload.get("ver", 0)
+        if isinstance(version, bool) or not isinstance(version, int) or version < 0:
+            return None
+        return AccessToken(user_id=int(payload["sub"]), jti=jti, expires_at=expires_at, version=version)
     except (jwt.PyJWTError, KeyError, ValueError, TypeError, OverflowError, OSError):
         return None
 
