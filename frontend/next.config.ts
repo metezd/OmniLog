@@ -14,6 +14,8 @@ const SECURITY_HEADERS = [
 // first request over plain HTTP could be kept on HTTP by an attacker (SSL stripping). Only in
 // production: `next dev` runs on http://localhost, which must keep working. The same value as the
 // API (#394) and Caddy.
+// No `includeSubDomains`: on Render the app lives on a shared `onrender.com` name, and the header
+// must not speak for other names. No `preload` either: the preload list is hard to leave (#449).
 export const HSTS_HEADER = { key: "Strict-Transport-Security", value: "max-age=31536000" };
 
 export function securityHeaders(nodeEnv: string | undefined = process.env.NODE_ENV) {
