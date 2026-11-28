@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getTitleDetails, searchCatalog } from "@/lib/server/catalog";
 import { getAllChapterProgress, getChapterProgress, logPlaytime, rateChapter, recordDecision } from "@/lib/server/chapters";
 import { addItemToList, createList, deleteList, getDiary, getList, getLists, removeItemFromList } from "@/lib/server/journal";
-import { addToLibrary, getLibrary, removeFromLibrary, updateLibraryEntry } from "@/lib/server/library";
+import { addToLibrary, getLibrary, getLibraryEntry, removeFromLibrary, updateLibraryEntry } from "@/lib/server/library";
 import { getRecommendations } from "@/lib/server/recommendations";
 import { getReview, submitReview } from "@/lib/server/reviews";
 import { cookieStore } from "../../mocks/cookie-store";
@@ -53,7 +53,37 @@ describe("library", () => {
   it("reads the library", async () => {
     const { seen } = fakeBackend([]);
     await getLibrary();
-    expect(seen).toEqual([{ method: "GET", path: "/library", auth: `Bearer ${TOKEN}`, body: undefined }]);
+    expect(seen).toEqual([
+      { method: "GET", path: "/library?limit=500&offset=0", auth: `Bearer ${TOKEN}`, body: undefined },
+    ]);
+  });
+
+  it("reads every page of the library until a short page (#418)", async () => {
+    const seen: string[] = [];
+    server.use(
+      http.get(`${BASE}/library`, ({ request }) => {
+        const url = new URL(request.url);
+        seen.push(url.search);
+        const offset = Number(url.searchParams.get("offset"));
+        const size = offset === 0 || offset === 500 ? 500 : 7;
+        return HttpResponse.json(Array.from({ length: size }, (_, i) => ({ id: offset + i + 1 })));
+      }),
+    );
+
+    const library = await getLibrary();
+
+    expect(library).toHaveLength(1007);
+    expect(library.at(-1)).toEqual({ id: 1007 });
+    expect(seen).toEqual(["?limit=500&offset=0", "?limit=500&offset=500", "?limit=500&offset=1000"]);
+  });
+
+  it("reads the entry of one title, or null when it is not in the library", async () => {
+    const { seen } = fakeBackend([{ id: 3, media_item_id: 42 }]);
+    expect(await getLibraryEntry(42)).toEqual({ id: 3, media_item_id: 42 });
+
+    server.use(http.get(`${BASE}/library`, () => HttpResponse.json([])));
+    expect(await getLibraryEntry(43)).toBeNull();
+    expect(seen[0].path).toBe("/library?media_item_id=42");
   });
 
   it("adds a title with the field names of the backend", async () => {
@@ -162,7 +192,7 @@ describe("journal", () => {
     await getList(5);
     await getDiary();
     expect(seen.map((s) => [s.method, s.path])).toEqual([
-      ["GET", "/lists"],
+      ["GET", "/lists?limit=500&offset=0"],
       ["GET", "/lists/5"],
       ["GET", "/diary"],
     ]);

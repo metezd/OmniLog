@@ -168,7 +168,7 @@ Cached responses with a time to live. It is not a table in the relational databa
 | BR-14 | Recommendations match the target type when one is given and never include titles already in the library. | US-13 |
 | BR-15 | A review is stored with a spoiler flag set by the classifier. | US-14 |
 | BR-16 | The statistics only use the data of the logged-in user. | US-15 |
-| BR-17 | Deleting a user deletes their library, lists, diary, progress and reviews. The database does this with cascading foreign keys. No endpoint deletes a user. | NFR-03 |
+| BR-17 | Deleting a user deletes their library, lists, diary, progress and reviews. The database does this with cascading foreign keys. A user deletes their own account with `DELETE /auth/me` and the password (#426); no other endpoint deletes a user. | NFR-03 |
 | BR-18 | A username never contains `@`, so a login value with `@` is an email. The database checks it (`chk_username_no_at`, migration 0009). | US-02, US-03 |
 | BR-20 | A new password is at least 8 characters and at most 72 bytes long. It is not a common password (also not with digits or symbols at the end), it does not contain the username or the part of the email before the @, it is not one character repeated, and it is not a simple sequence or keyboard row such as `12345678` or `qwertyui`. Only registration checks this, so existing accounts can still log in. The list is `backend/app/core/common_passwords.txt`. | US-02 |
 | BR-19 | Not built. Adding a title with an external ID to the library would load its details and genres if not already synced. | US-04, US-09, US-15 |

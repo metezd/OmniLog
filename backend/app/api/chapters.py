@@ -3,7 +3,7 @@ branching decision (US-12) and read what was recorded for a chapter."""
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
+from app.api.deps import WRITE_LIMIT, get_current_user
 from app.core.database import get_db
 from app.models.entities import User
 from app.schemas.chapter import (
@@ -37,7 +37,7 @@ def _check_ids(entry_id: int, chapter_id: int) -> None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chapter not found")
 
 
-@router.put("/{chapter_id}/rating", response_model=ChapterRatingResponse)
+@router.put("/{chapter_id}/rating", response_model=ChapterRatingResponse, dependencies=[WRITE_LIMIT])
 def rate_chapter(
     entry_id: int,
     chapter_id: int,
@@ -59,6 +59,7 @@ def rate_chapter(
 
 @router.post(
     "/{chapter_id}/playtime",
+    dependencies=[WRITE_LIMIT],
     response_model=PlaytimeLogResponse,
     status_code=status.HTTP_201_CREATED,
 )
@@ -92,7 +93,7 @@ def log_playtime(
     )
 
 
-@router.put("/{chapter_id}/decision", response_model=DecisionResponse)
+@router.put("/{chapter_id}/decision", response_model=DecisionResponse, dependencies=[WRITE_LIMIT])
 def record_decision(
     entry_id: int,
     chapter_id: int,

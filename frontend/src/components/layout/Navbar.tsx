@@ -83,9 +83,14 @@ export default function Navbar({ user }: NavbarProps) {
                   {link.label}
                 </Link>
               ))}
-              <span className="hidden text-xs text-slate-400 md:block" title={user.email}>
+              {/* The account page: password, all devices, delete (#426) */}
+              <Link
+                href="/account"
+                className="hidden text-xs text-slate-400 hover:text-white md:block"
+                title={`Account of ${user.email}`}
+              >
                 @{user.username}
-              </span>
+              </Link>
               {/* The logout action removes the session cookie on the server */}
               <form action={logoutAction}>
                 <button

@@ -15,6 +15,7 @@ export const PROTECTED_PREFIXES = [
   "/recommendations",
   "/stats",
   "/profile",
+  "/account",
 ] as const;
 
 export function isProtectedPath(pathname: string): boolean {

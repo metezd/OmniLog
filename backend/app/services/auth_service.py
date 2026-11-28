@@ -6,6 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.clock import utc_now
+from app.core.passwords import weakness
 from app.core.security import BCRYPT_MAX_BYTES, DUMMY_HASH, AccessToken, hash_password, verify_password
 from app.models.entities import RevokedToken, User
 from app.schemas.user import UserCreate
@@ -90,3 +91,53 @@ def revoke_token(db: Session, token: AccessToken) -> None:
 
 def is_revoked(db: Session, jti: str) -> bool:
     return db.get(RevokedToken, jti) is not None
+
+
+# ---------------------------------------------------------------- account management (#426)
+class WrongPasswordError(Exception):
+    """The current password does not match."""
+
+
+class WeakPasswordError(Exception):
+    """The new password breaks a rule of BR-20, or it is the current password."""
+
+
+def _check_password(user: User, password: str) -> None:
+    if "\x00" in password or len(password.encode("utf-8")) > BCRYPT_MAX_BYTES:
+        raise WrongPasswordError("The password is not correct")
+    if not verify_password(password, user.hashed_password):
+        raise WrongPasswordError("The password is not correct")
+
+
+def change_password(db: Session, user: User, current_password: str, new_password: str) -> User:
+    """Set a new password and end every session of the user (#426).
+
+    The token version goes up, so every token issued before is refused, also the one of this
+    request. The caller gives back a new token for this session.
+    """
+    _check_password(user, current_password)
+    reason = weakness(new_password, user.username, user.email)
+    if reason:
+        raise WeakPasswordError(reason)
+    if verify_password(new_password, user.hashed_password):
+        raise WeakPasswordError("the new password must not be the current password")
+    user.hashed_password = hash_password(new_password)
+    user.token_version = User.token_version + 1
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+def end_all_sessions(db: Session, user: User) -> None:
+    """Log out on all devices: every token of the user is refused from now on (#426)."""
+    user.token_version = User.token_version + 1
+    db.commit()
+
+
+def delete_account(db: Session, user: User, password: str) -> None:
+    """Delete the user and all their data (#426). The database deletes the library, the lists, the
+    diary, the progress and the reviews with it (BR-17)."""
+    _check_password(user, password)
+    db.delete(user)
+    db.commit()
+

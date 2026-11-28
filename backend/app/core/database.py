@@ -3,10 +3,12 @@ import os
 import time
 from typing import Optional
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.exc import OperationalError, SQLAlchemyError
 from sqlalchemy.orm import declarative_base, sessionmaker
+
+from app.core import config
 
 logger = logging.getLogger(__name__)
 
@@ -42,8 +44,16 @@ def engine_options(url: str) -> dict:
     - pool_recycle: a connection older than 300 seconds is closed and opened again.
     - TCP keepalives and connect_timeout (psycopg2 only): a connection that the network dropped
       fails in seconds instead of hanging until the frontend gives up.
+    - pool_size, max_overflow and pool_timeout: the settings DB_POOL_SIZE, DB_MAX_OVERFLOW and
+      DB_POOL_TIMEOUT (#432). A request that waits longer than the timeout gets 503 (app.core.errors).
     """
-    options: dict = {"pool_pre_ping": True, "pool_recycle": 300}
+    options: dict = {
+        "pool_pre_ping": True,
+        "pool_recycle": 300,
+        "pool_size": config.DB_POOL_SIZE,
+        "max_overflow": config.DB_MAX_OVERFLOW,
+        "pool_timeout": config.DB_POOL_TIMEOUT,
+    }
     if make_url(url).get_dialect().driver == "psycopg2":
         options["connect_args"] = {
             "connect_timeout": 10,
@@ -55,7 +65,30 @@ def engine_options(url: str) -> dict:
     return options
 
 
+def set_statement_timeout(target: Engine, milliseconds: int) -> None:
+    """Give every new connection of the engine a statement_timeout (#432). 0 sets nothing.
+
+    It is set with SET after the connection opens, not with the startup option `options`, because
+    a connection pooler such as the one of Supabase may refuse startup options. The value stays for
+    the whole session, also when the pool gives the connection out again.
+    """
+    if milliseconds <= 0:
+        return
+
+    @event.listens_for(target, "connect")
+    def _set_timeout(dbapi_connection, _record):
+        cursor = dbapi_connection.cursor()
+        try:
+            # psycopg2 fills in the value on the client, so SET can take it as a parameter
+            cursor.execute("SET statement_timeout = %s", (int(milliseconds),))
+        finally:
+            cursor.close()
+        # SET opens a transaction in psycopg2. End it, so the connection starts clean.
+        dbapi_connection.commit()
+
+
 engine = create_engine(DATABASE_URL, **engine_options(DATABASE_URL))
+set_statement_timeout(engine, config.DB_STATEMENT_TIMEOUT_MS)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 

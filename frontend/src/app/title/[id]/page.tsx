@@ -18,7 +18,7 @@ import {
 import { getTitleDetails } from "@/lib/server/catalog";
 import { getAllChapterProgress } from "@/lib/server/chapters";
 import { toErrorState } from "@/lib/server/error-state";
-import { getLibrary } from "@/lib/server/library";
+import { getLibraryEntry } from "@/lib/server/library";
 import { getReview } from "@/lib/server/reviews";
 import type { ChapterProgress, LibraryEntry, MediaDetail, Review } from "@/types/api";
 
@@ -48,12 +48,14 @@ export default async function TitleDetailPage({ params }: TitlePageProps) {
   const progressMap = new Map<number, ChapterProgress>();
 
   try {
-    const [fetchedDetail, library] = await Promise.all([
+    // Only the entry of this title, not the whole library (#418): with more than one page of
+    // titles, a later title was not found and the page offered "Add to library" again
+    const [fetchedDetail, fetchedEntry] = await Promise.all([
       getTitleDetails(mediaId),
-      getLibrary().catch(() => []),
+      getLibraryEntry(mediaId).catch(() => null),
     ]);
     detail = fetchedDetail;
-    libraryEntry = library.find((entry) => entry.media_item_id === mediaId);
+    libraryEntry = fetchedEntry ?? undefined;
 
     if (libraryEntry) {
       // One request for the progress of all chapters (#419), not one per chapter
