@@ -57,7 +57,7 @@ dc() { docker compose -p "$PROJECT" -f "$ROOT/docker-compose.prod.yml" -f "$WORK
 echo "== building and starting the stack"
 dc build --quiet
 dc up -d --wait --wait-timeout 180 db redis backend proxy frontend >/dev/null
-if [ -n "${BACKEND_CPUS:-}" ]; then
+if [[ -n "${BACKEND_CPUS:-}" ]]; then
   docker update --cpus "$BACKEND_CPUS" "$(dc ps -q backend)" >/dev/null
   echo "backend limited to $BACKEND_CPUS CPU"
 fi
@@ -78,13 +78,13 @@ for users in "${USERS[@]}"; do
   echo "== $users users, ${SECONDS_PER_RUN}s"
   load --users "$users" --seconds "$SECONDS_PER_RUN" --json "/out/users-$users.json" || status=1
 done
-if [ -n "${SEARCH_TEXT:-}" ]; then
+if [[ -n "${SEARCH_TEXT:-}" ]]; then
   echo "== cached search, 10 users, ${SECONDS_PER_RUN}s"
   load --users 10 --seconds "$SECONDS_PER_RUN" --search "'$SEARCH_TEXT'" --json /out/search-cached.json || status=1
 fi
 docker stats --no-stream --format '{{.Name}} cpu={{.CPUPerc}} mem={{.MemUsage}}' $(dc ps -q) > "$OUT/containers.txt" || true
 
-if [ "${KEEP_STACK:-}" != "1" ]; then
+if [[ "${KEEP_STACK:-}" != "1" ]]; then
   dc down -v >/dev/null 2>&1
 fi
 exit "$status"

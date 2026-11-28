@@ -82,4 +82,25 @@ On `main` the gate passes, and 27 findings from before the new code period are o
 curl -s 'https://sonarcloud.io/api/issues/search?componentKeys=metezd_OmniLog&branch=main&resolved=false&ps=50'
 ```
 
-"Automatic Analysis" on SonarCloud must stay off, so that only the CI scan with `sonar-project.properties` counts.
+Then set the secret `SONAR_TOKEN` and the variables `SONAR_PROJECT_KEY` and `SONAR_ORGANIZATION`, and turn off "Automatic Analysis" on SonarCloud so that only CI scans.
+
+## 6. The old findings on `main` (#423)
+
+The 27 findings on `main` of 28.11.2026, and what was done:
+
+| Rule | Where | What was done |
+|---|---|---|
+| `python:S8786` (regular expression that can backtrack) | `backend/app/integrations/tmdb.py`, `_genre_name` | **Fixed.** The last word "film" is cut without a regular expression. A test checks a run of 50 000 spaces |
+| `shell:S7688` (`[` instead of `[[`) | `tests/performance/run_stack.sh`, `tests/pentest/run_stack.sh` | **Fixed** (both are bash scripts) |
+| `githubactions:S6506` (HTTPS not enforced) | `security.yml`, download of Gitleaks | **Fixed.** `curl --proto "=https" --tlsv1.2`, and the file is still checked with its SHA-256 |
+| `S6505` (install scripts run) | `ci.yml` (`npm ci`), `frontend/Dockerfile` | **Fixed.** `npm ci --ignore-scripts`. The lint, the type check, the tests and the build need no install script |
+| `S6505`, `S8543` (`npx` can download a package) | `ci.yml`, type check | **Fixed.** `./node_modules/.bin/tsc` from the lock file |
+| `S8541` (`pip` without `--only-binary :all:`) | `ci.yml` and `security.yml`, the tools ruff, uv, zizmor and Semgrep | **Fixed.** `--only-binary :all:`; all four install from wheels |
+| `secrets:S6698` (password in a comment) | `backend/app/core/config.py` | **Fixed.** The example URL shows `<user>:<password>` |
+| `Web:S5254`, `Web:S7930` | `docs/tests/penetration/raw/docker-stack/zap-report.html` | **Fixed.** `docs/**` and `tests/performance/results/**` are excluded from the analysis; the file is a generated report of OWASP ZAP |
+| `S8541`, `S8544` (`pip` of the backend) | `ci.yml` (backend and smoke test), `backend/Dockerfile` | **To mark as "Safe" on SonarCloud.** The lock file `backend/requirements.txt` has a hash for every package and `--require-hashes` checks them. `--only-binary :all:` is not possible: `pyyaml 6.0.3` has no wheel for Python 3.15 |
+| `S8544` (tools without hashes) | `ci.yml` and `security.yml`, the files `.github/requirements-*.txt` | **To mark as "Accepted" on SonarCloud.** The versions are pinned and Dependabot updates them; the tools only run in CI |
+| `secrets:S6698` (PostgreSQL password) | `ci.yml`, the service container of the tests | **To mark as "False positive" on SonarCloud.** `omnilog` is the throwaway password of a database that lives only during the job |
+
+Marking a finding needs the right "Administer Issues" of the SonarCloud project. If findings still come from files outside `sonar.sources`, "Automatic Analysis" is on and must be turned off.
+

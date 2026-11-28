@@ -16,7 +16,7 @@ def _require(name: str) -> str:
 
 
 # PostgreSQL connection string, e.g.
-# postgresql+psycopg2://omnilog:omnilog@localhost:5432/omnilog
+# postgresql+psycopg2://<user>:<password>@localhost:5432/omnilog
 DATABASE_URL = _require("DATABASE_URL")
 
 def _whole_number(name: str, default: int, minimum: int) -> int:

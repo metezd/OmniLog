@@ -8,7 +8,8 @@
 FROM node:26-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci
+# No install scripts of the packages run (SonarCloud S6505, #423). The build does not need them.
+RUN npm ci --ignore-scripts
 
 FROM node:26-alpine AS build
 WORKDIR /app

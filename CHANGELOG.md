@@ -61,6 +61,7 @@ All notable changes to this project are written in this file. The format follows
 
 ### Security
 
+- SonarCloud findings on `main` are fixed: no regular expression that can backtrack in the Wikidata genre names, `npm ci --ignore-scripts` and the local `tsc` in CI and the frontend image, `--only-binary :all:` for the CI tools, HTTPS only for the Gitleaks download, `[[` in the bash scripts, and generated reports out of the analysis. The findings that are safe are listed with their reason in `docs/tests/sonarqube.md` (#423).
 - The frontend sends `Strict-Transport-Security: max-age=31536000` in production, so on Render the login form is not served over plain HTTP after the first visit. Caddy uses the same year instead of one day and drops the header of the frontend, so the browser gets one (#425).
 - A user can change the password (`PUT /auth/password`), log out on all devices (`POST /auth/logout-all`) and delete the account (`DELETE /auth/me`) on the new account page. A new password and "log out everywhere" end every token of the user through `users.token_version` (claim `ver`, migration 0016) (#426).
 - The writes of one user to the library, the chapters and the lists share one rate limit, `RATE_LIMIT_WRITES` (default `120/minute`). Before, one account could send 800 writes in 5 seconds, each with a diary row (#431).
