@@ -25,6 +25,7 @@ x-backend-env: &backend-env
   EXTERNAL_API_TIMEOUT_SECONDS: ${EXTERNAL_API_TIMEOUT_SECONDS:-8}
   EXTERNAL_API_MAX_RETRIES: ${EXTERNAL_API_MAX_RETRIES:-3}
   EXTERNAL_API_BACKOFF_SECONDS: ${EXTERNAL_API_BACKOFF_SECONDS:-0.5}
+  EXTERNAL_API_COOLDOWN_SECONDS: ${EXTERNAL_API_COOLDOWN_SECONDS:-60}
   IGDB_MAX_REQUESTS_PER_SECOND: ${IGDB_MAX_REQUESTS_PER_SECOND:-3}
   # Not needed here: FORWARDED_ALLOW_IPS (below) already gives the browser address. It only takes
   # effect when the frontend gets the same key, which this file does not do. See docs/deployment.md.
