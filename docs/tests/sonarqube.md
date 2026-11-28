@@ -74,13 +74,13 @@ No finding was marked as "won't fix" or hidden with an exclusion.
 
 ## 5. The CI job
 
-The job "SonarQube" in `.github/workflows/ci.yml` is ready since #322. It needs the backend and the frontend jobs, downloads both coverage reports, scans and waits for the quality gate. It is skipped with a notice while the secret `SONAR_TOKEN` is not set, and that is the state now.
+The job "SonarQube" in `.github/workflows/ci.yml` (#322) needs the backend and the frontend jobs, downloads both coverage reports, scans and waits for the quality gate. Since 26.11.2026 the secret `SONAR_TOKEN` is set, and SonarCloud scans every pull request and every push to `main`; each pull request gets a comment with the result of its gate.
 
-To turn it on, a repository admin must choose one of these, because SonarCloud is free only for **public** repositories and this one is private:
+On `main` the gate passes, and 27 findings from before the new code period are open (28.11.2026, see section 8 of the [Software Testing Report](software-testing-report.md)). They are fixed or marked with a reason in #423. To list them:
 
-- make the repository public and import it on SonarCloud (free), or
-- use a paid SonarCloud plan, or
-- run a SonarQube server that GitHub Actions can reach.
+```bash
+curl -s 'https://sonarcloud.io/api/issues/search?componentKeys=metezd_OmniLog&branch=main&resolved=false&ps=50'
+```
 
 Then set the secret `SONAR_TOKEN` and the variables `SONAR_PROJECT_KEY` and `SONAR_ORGANIZATION`, and turn off "Automatic Analysis" on SonarCloud so that only CI scans.
 

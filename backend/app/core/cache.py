@@ -11,6 +11,7 @@ import logging
 import threading
 import time
 from typing import Any, Optional
+from urllib.parse import urlsplit
 
 import redis
 
@@ -91,6 +92,28 @@ def is_available() -> bool:
     except redis.RedisError as exc:
         _mark_redis_down(exc)
         return False
+
+
+def status() -> str:
+    """The state of Redis for the readiness check (#422): "ok", "down" (REDIS_URL is set but Redis
+    does not answer or the address is not valid) or "not_configured" (REDIS_URL is empty). It
+    never raises. Before, an empty REDIS_URL also showed as "down", so an operator could not tell
+    a missing setting from a Redis that does not answer."""
+    if not (config.REDIS_URL or "").strip():
+        return "not_configured"
+    return "ok" if is_available() else "down"
+
+
+def redis_target() -> str:
+    """host:port of REDIS_URL for a log line, never the password. Empty when it is not set."""
+    url = (config.REDIS_URL or "").strip()
+    if not url:
+        return ""
+    try:
+        parsed = urlsplit(url)
+        return f"{parsed.hostname or '?'}:{parsed.port or 6379}"
+    except ValueError:
+        return "an address that is not valid"
 
 
 def get_json(key: str) -> Optional[Any]:

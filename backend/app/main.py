@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Request
@@ -24,10 +25,23 @@ from app.core.config import CORS_ORIGINS, ENABLE_DOCS
 from app.core import database
 from app.core.database import get_db
 
+logger = logging.getLogger(__name__)
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     # Stop at once with a clear message when the local PostgreSQL is not running (#371)
     database.check_database(database.engine)
+    # Say once at the start why the cache is not Redis (#422). The API works without it (NFR-04),
+    # so this is only a warning, but the search cache and the rate limits stay in this process.
+    redis_state = cache.status()
+    if redis_state == "not_configured":
+        logger.warning("REDIS_URL is empty. The cache and the rate limits use the memory of this process.")
+    elif redis_state == "down":
+        logger.warning(
+            "Redis at %s does not answer. The cache and the rate limits use the memory of this process.",
+            cache.redis_target(),
+        )
     yield
 
 
@@ -104,6 +118,6 @@ def readiness_check(db: Session = Depends(get_db)):
     body = {
         "status": "ready" if ready else "unavailable",
         "database": database,
-        "cache": "ok" if cache.is_available() else "down",
+        "cache": cache.status(),
     }
     return JSONResponse(body, status_code=200 if ready else 503)

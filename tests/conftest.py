@@ -57,11 +57,13 @@ def background_jobs_finish():
     Without this a job could still write to the database or call a fake OpenAI of another test.
     A test that checks the result of a job calls app.core.background.wait_idle() itself.
     """
-    from app.integrations import openai_client
+    from app.integrations import common, openai_client
 
     openai_client.reset_cooldown()
+    common.reset_pauses()
     yield
     from app.core import background
 
     assert background.wait_idle(timeout=30), "a background job did not finish"
     openai_client.reset_cooldown()
+    common.reset_pauses()

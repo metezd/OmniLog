@@ -47,7 +47,9 @@ export default defineConfig({
     // `npm run test:coverage` (#297). Every file in src/ counts, also the ones no test imports.
     coverage: {
       provider: "v8",
-      include: ["src/**/*.{ts,tsx}"],
+      // next.config.ts holds the browser headers of every page (#304, #425), and its tests run, so it
+      // counts too. SonarCloud reads its lines from this report.
+      include: ["src/**/*.{ts,tsx}", "next.config.ts"],
       exclude: ["src/**/*.d.ts"],
       // lcov is read by SonarQube (#299)
       reporter: ["text-summary", "json-summary", "html", "lcov"],

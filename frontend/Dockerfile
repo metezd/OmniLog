@@ -1,9 +1,9 @@
 # Frontend image for production (Next.js, standalone output).
 # Build context: the frontend/ folder.
-#   docker build --build-arg NEXT_PUBLIC_API_URL=https://api.example.com -t omnilog-frontend ./frontend
+#   docker build -t omnilog-frontend ./frontend
 #
-# NEXT_PUBLIC_API_URL is written into the JavaScript at build time (Next.js does this for every
-# NEXT_PUBLIC_ variable). Changing the API address means building the image again.
+# The browser never calls the backend. The server code of the frontend calls it at BACKEND_URL,
+# which is read when the server starts, so the image needs no address at build time (#430).
 
 FROM node:26-alpine AS deps
 WORKDIR /app
@@ -17,10 +17,6 @@ ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-ARG NEXT_PUBLIC_API_URL
-# Stop early. Without the address the browser would call http://localhost:8000
-RUN test -n "$NEXT_PUBLIC_API_URL" || (echo "Build argument NEXT_PUBLIC_API_URL is required" && exit 1)
-ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 RUN npm run build
 
 FROM node:26-alpine AS runtime

@@ -91,3 +91,14 @@ def test_the_compose_default_is_the_config_default(name):
 )
 def test_the_settings_of_issue_393_can_be_changed_in_env_prod(name):
     assert COMPOSE_DEFAULT.match(str(BACKEND_ENV[name]))["name"] == name
+
+
+def test_nothing_requires_the_unused_public_api_address():
+    """#430: no code reads NEXT_PUBLIC_API_URL, so neither the frontend image nor the compose file
+    may require it (or API_URL) any more."""
+    compose_text = (ROOT / "docker-compose.prod.yml").read_text(encoding="utf-8")
+    dockerfile = (ROOT / "frontend" / "Dockerfile").read_text(encoding="utf-8")
+    blueprint = (ROOT / "render.yaml").read_text(encoding="utf-8")
+
+    assert "NEXT_PUBLIC_API_URL" not in compose_text + dockerfile + blueprint
+    assert "API_URL" not in compose_text.replace("BACKEND_URL", "")
