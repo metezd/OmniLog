@@ -33,18 +33,8 @@ vi.mock("@/lib/server/user", () => ({ getCurrentUser: vi.fn() }));
 vi.mock("@/lib/server/catalog", () => ({ searchCatalog: vi.fn(), getTitleDetails: vi.fn() }));
 vi.mock("@/lib/server/chapters", () => ({ getAllChapterProgress: vi.fn() }));
 vi.mock("@/lib/server/reviews", () => ({ getReview: vi.fn() }));
-vi.mock("@/lib/actions/library", () => ({
-  addToLibraryAction: vi.fn(),
-  updateLibraryEntryAction: vi.fn(),
-  removeLibraryEntryAction: vi.fn(),
-  logTitlePlaytimeAction: vi.fn(),
-  submitReviewAction: vi.fn(),
-}));
-vi.mock("@/lib/actions/chapters", () => ({
-  rateChapterAction: vi.fn(),
-  logPlaytimeAction: vi.fn(),
-  recordDecisionAction: vi.fn(),
-}));
+vi.mock("@/lib/actions/library", async () => (await import("../mocks/server-actions")).libraryActions);
+vi.mock("@/lib/actions/chapters", async () => (await import("../mocks/server-actions")).chapterActions);
 
 const BASE = "http://backend.test";
 
