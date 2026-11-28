@@ -120,6 +120,15 @@ def test_f7_caddy_removes_the_server_header_and_adds_the_browser_headers():
         assert rule in caddyfile, rule
     assert re.search(r"Strict-Transport-Security\s+\"max-age=\d+", caddyfile)
 
+
+def test_caddy_sends_one_hsts_header_of_one_year_for_both_sites():
+    """#425: the same value as the API and the frontend, and the HSTS of the frontend and of the
+    API is dropped behind Caddy, so the browser never gets two."""
+    caddyfile = (ROOT / "docker/Caddyfile").read_text(encoding="utf-8")
+
+    assert 'Strict-Transport-Security "max-age=31536000"' in caddyfile
+    assert caddyfile.count("header_down -Strict-Transport-Security") == 2
+
 def test_auth_answers_are_not_cached():
     # Wrong body, so it stops at validation and never needs the database
     response = client.post("/auth/login", json={})
