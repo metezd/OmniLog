@@ -99,7 +99,7 @@ export default async function TitleDetailPage({ params }: TitlePageProps) {
       {/* Hero Header */}
       <div className="liquid-glass grid grid-cols-1 gap-6 rounded-3xl border border-white/10 p-6 md:grid-cols-[220px_1fr]">
         <div className="relative h-72 w-full overflow-hidden rounded-2xl bg-black/40 md:h-80">
-          <PosterImage posterUrl={detail.poster_url} title={detail.title} />
+          <PosterImage posterUrl={detail.poster_url} title={detail.title} size="detail" />
         </div>
 
         <div className="flex flex-col justify-between space-y-4">

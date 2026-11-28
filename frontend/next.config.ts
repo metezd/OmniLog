@@ -30,16 +30,10 @@ const nextConfig: NextConfig = {
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders() }];
   },
-  images: {
-    remotePatterns: [
-      { protocol: "https", hostname: "image.tmdb.org" },
-      { protocol: "https", hostname: "images.igdb.com" },
-      { protocol: "https", hostname: "static.tvmaze.com" },
-      { protocol: "https", hostname: "shared.akamai.steamstatic.com" },
-      { protocol: "https", hostname: "cdn.akamai.steamstatic.com" },
-      { protocol: "https", hostname: "is1-ssl.mzstatic.com" },
-    ],
-  },
+  // The posters go through our own proxy /api/poster and a plain <img>, no component uses
+  // next/image. With a remotePatterns list the optimizer /_next/image resized TMDB and IGDB images
+  // for anyone who asked, so it is turned off (#451).
+  images: { unoptimized: true },
 };
 
 export default nextConfig;

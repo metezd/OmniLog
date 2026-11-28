@@ -5,6 +5,7 @@ import {
   MEDIA_TYPE_LABELS,
   releaseYear,
   resolvePosterUrl,
+  sizedPosterUrl,
   STATUS_LABELS,
 } from "@/lib/media";
 
@@ -41,6 +42,28 @@ describe("resolvePosterUrl", () => {
   it("returns null for null and preserves non-CDN URLs", () => {
     expect(resolvePosterUrl(null)).toBeNull();
     expect(resolvePosterUrl("https://images.test/cp2077.jpg")).toBe("https://images.test/cp2077.jpg");
+  });
+});
+
+describe("sizedPosterUrl (#451)", () => {
+  it("asks TMDB for w342 in a card and w500 on the title page", () => {
+    expect(sizedPosterUrl("https://image.tmdb.org/t/p/w500/abc.jpg", "card")).toBe("https://image.tmdb.org/t/p/w342/abc.jpg");
+    expect(sizedPosterUrl("https://image.tmdb.org/t/p/original/abc.jpg", "detail")).toBe(
+      "https://image.tmdb.org/t/p/w500/abc.jpg",
+    );
+  });
+
+  it("keeps other hosts, other TMDB paths and broken URLs", () => {
+    const igdb = "https://images.igdb.com/igdb/image/upload/t_cover_big/co1r7f.jpg";
+    expect(sizedPosterUrl(igdb, "card")).toBe(igdb);
+    expect(sizedPosterUrl("https://image.tmdb.org/other/abc.jpg", "card")).toBe("https://image.tmdb.org/other/abc.jpg");
+    expect(sizedPosterUrl("not a url", "card")).toBe("not a url");
+  });
+
+  it("is used by resolvePosterUrl when a size is given", () => {
+    expect(resolvePosterUrl("https://image.tmdb.org/t/p/w500/abc.jpg", "card")).toBe(
+      "/api/poster?url=https%3A%2F%2Fimage.tmdb.org%2Ft%2Fp%2Fw342%2Fabc.jpg",
+    );
   });
 });
 

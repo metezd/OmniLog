@@ -25,6 +25,7 @@ All notable changes to this project are written in this file. The format follows
 
 ### Changed
 
+- Posters in the search and library cards load lazily (`loading="lazy"`, `decoding="async"`) with a 2:3 width and height, and ask TMDB for `w342` instead of `w500` (about half the bytes per poster). The title page keeps `w500` and loads its poster at once. IGDB keeps `t_cover_big` (#451).
 - The deployment guide, `docs/tests/sonarqube.md` and the Software Testing Report no longer say that embeddings are not built, that a friends page shows sample data, or that the SonarQube job waits for a token. The report gives the current SonarCloud state of `main` (#424).
 - `/health/ready` reports `"cache": "not_configured"` when `REDIS_URL` is empty, and `"down"` only when Redis is set but does not answer. The start of the API logs which one it is (host and port, never the password), so the reason of `cache: down` on Render can be seen (#422).
 - The Supabase database is migrated by the last job of `ci.yml`, only on `main` and only after the security lint, the backend tests, the Docker Compose smoke test and the frontend checks passed. The separate workflow `db-migrate.yml` started at the same moment as CI, so a migration could reach production with code whose tests failed (#421).
@@ -65,6 +66,7 @@ All notable changes to this project are written in this file. The format follows
 
 ### Security
 
+- The Next.js image optimizer `/_next/image` is turned off (`images.unoptimized`) and the unused `images.remotePatterns` is removed. No component used `next/image`, but the route resized TMDB, IGDB, TVMaze, Steam and iTunes images for anyone who asked; it now answers 404 (#451).
 - `GET /api/poster` streams the image instead of reading it into memory and stops at 2 MB (by `Content-Length` or while the body grows), passes on only `image/jpeg`, `image/png` and `image/webp` (an SVG or another type answers 502), and allows 300 posters a minute per browser address (the right-most `X-Forwarded-For` entry). Over the limit it answers 429 with `Retry-After` (#450).
 - SonarCloud findings on `main` are fixed: no regular expression that can backtrack in the Wikidata genre names, `npm ci --ignore-scripts` and the local `tsc` in CI and the frontend image, `--only-binary :all:` for the CI tools, HTTPS only for the Gitleaks download, `[[` in the bash scripts, and generated reports out of the analysis. The findings that are safe are listed with their reason in `docs/tests/sonarqube.md` (#423).
 - The frontend sends `Strict-Transport-Security: max-age=31536000` in production, so on Render the login form is not served over plain HTTP after the first visit. Caddy uses the same year instead of one day and drops the header of the frontend, so the browser gets one (#425).

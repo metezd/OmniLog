@@ -27,6 +27,14 @@ describe("security headers of the frontend (#304)", () => {
   });
 });
 
+// No component uses next/image, so the optimizer /_next/image is off and has no remote hosts (#451).
+describe("image optimizer of the frontend (#451)", () => {
+  it("is turned off and allows no remote hosts", () => {
+    expect(nextConfig.images?.unoptimized).toBe(true);
+    expect(nextConfig.images?.remotePatterns).toBeUndefined();
+  });
+});
+
 describe("HSTS of the frontend (#425)", () => {
   it("sends Strict-Transport-Security for a year in production", () => {
     expect(securityHeaders("production")).toContainEqual({ key: "Strict-Transport-Security", value: "max-age=31536000" });

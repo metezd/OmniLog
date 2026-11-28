@@ -59,13 +59,47 @@ export const ALLOWED_POSTER_HOSTS = new Set([
 ]);
 
 /**
+ * Where a poster is shown. A card is at most about 340 CSS pixels wide (one column on a phone,
+ * four on a large screen), the title page is wider on a phone and is the first thing on the page.
+ */
+export type PosterSize = "card" | "detail";
+
+/** The TMDB size of every poster size (#451). The backend saves `w500` for every movie and series. */
+export const TMDB_POSTER_SIZES: Record<PosterSize, string> = { card: "w342", detail: "w500" };
+
+/** Width and height of the poster file of every size, so the browser knows the 2:3 shape before it loads. */
+export const POSTER_DIMENSIONS: Record<PosterSize, { width: number; height: number }> = {
+  card: { width: 342, height: 513 },
+  detail: { width: 500, height: 750 },
+};
+
+const TMDB_SIZE_PATTERN = /^\/t\/p\/(?:w\d+|original)\//;
+
+/**
+ * Asks TMDB for the size that fits where the poster is shown, for example `w342` instead of the
+ * saved `w500` in a card (#451). Other hosts are kept: IGDB `t_cover_big` is 264 pixels wide already.
+ */
+export function sizedPosterUrl(posterUrl: string, size: PosterSize): string {
+  try {
+    const parsed = new URL(posterUrl);
+    if (parsed.hostname === "image.tmdb.org" && TMDB_SIZE_PATTERN.test(parsed.pathname)) {
+      parsed.pathname = parsed.pathname.replace(TMDB_SIZE_PATTERN, `/t/p/${TMDB_POSTER_SIZES[size]}/`);
+      return parsed.toString();
+    }
+  } catch {
+    return posterUrl;
+  }
+  return posterUrl;
+}
+
+/**
  * Route known external catalog poster URLs through the Next.js /api/poster proxy so browsers
  * behind ISP/DNS blocks or strict tracking filters load images from the app origin.
  */
-export function resolvePosterUrl(posterUrl: string | null): string | null {
+export function resolvePosterUrl(posterUrl: string | null, size?: PosterSize): string | null {
   if (!posterUrl) return null;
   try {
-    const parsed = new URL(posterUrl);
+    const parsed = new URL(size ? sizedPosterUrl(posterUrl, size) : posterUrl);
     if (parsed.protocol === "https:" && ALLOWED_POSTER_HOSTS.has(parsed.hostname)) {
       const cleanTarget = `${parsed.origin}${parsed.pathname}`;
       return `/api/poster?url=${encodeURIComponent(cleanTarget)}`;
