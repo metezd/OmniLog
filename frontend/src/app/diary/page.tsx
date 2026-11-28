@@ -50,6 +50,23 @@ const ACTION_LABELS: Record<string, { label: string; badgeClass: string }> = {
     label: "Added to List",
     badgeClass: "border-indigo-400/40 bg-indigo-400/15 text-indigo-200",
   },
+  // A user took back something they logged (#427)
+  REVIEW_REMOVED: {
+    label: "Review Removed",
+    badgeClass: "border-rose-400/40 bg-rose-400/15 text-rose-200",
+  },
+  CHAPTER_RATING_REMOVED: {
+    label: "Rating Removed",
+    badgeClass: "border-rose-400/40 bg-rose-400/15 text-rose-200",
+  },
+  PLAYTIME_REMOVED: {
+    label: "Playtime Removed",
+    badgeClass: "border-rose-400/40 bg-rose-400/15 text-rose-200",
+  },
+  DECISION_REMOVED: {
+    label: "Choice Removed",
+    badgeClass: "border-rose-400/40 bg-rose-400/15 text-rose-200",
+  },
   LIBRARY_REMOVED: {
     label: "Removed from Library",
     badgeClass: "border-rose-400/40 bg-rose-400/15 text-rose-200",

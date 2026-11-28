@@ -3,15 +3,17 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import ReviewSection from "@/components/title/ReviewSection";
-import { submitReviewAction, type ReviewActionState } from "@/lib/actions/library";
+import { deleteReviewAction, submitReviewAction, type ReviewActionState } from "@/lib/actions/library";
 import type { Review } from "@/types/api";
 
 vi.mock("@/lib/actions/library", () => ({
   submitReviewAction: vi.fn(),
+  deleteReviewAction: vi.fn(),
 }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
 const mockedSubmit = vi.mocked(submitReviewAction);
+const mockedDelete = vi.mocked(deleteReviewAction);
 
 function makeReview(overrides: Partial<Review> = {}): Review {
   return {
@@ -280,3 +282,32 @@ describe("ReviewSection", () => {
     });
   });
 });
+
+describe("ReviewSection: delete the review (#427)", () => {
+  it("asks for a confirmation, deletes the review and shows the empty form again", async () => {
+    mockedDelete.mockResolvedValueOnce({ status: "idle", review: null });
+    const user = userEvent.setup();
+    render(<ReviewSection entryId={10} mediaItemId={42} initialReview={makeReview()} />);
+
+    await user.click(screen.getByRole("button", { name: "Delete Review" }));
+    await user.click(screen.getByRole("button", { name: "Confirm delete" }));
+
+    await waitFor(() => expect(mockedDelete).toHaveBeenCalledTimes(1));
+    const [, formData] = mockedDelete.mock.calls[0];
+    expect(Object.fromEntries(formData as FormData)).toEqual({ entryId: "10", mediaItemId: "42", intent: "delete" });
+    expect(await screen.findByLabelText("Review text")).toHaveValue("");
+    expect(screen.queryByText("Memorable narrative and atmosphere.")).not.toBeInTheDocument();
+  });
+
+  it("keeps the review when the user does not confirm", async () => {
+    const user = userEvent.setup();
+    render(<ReviewSection entryId={10} mediaItemId={42} initialReview={makeReview()} />);
+
+    await user.click(screen.getByRole("button", { name: "Delete Review" }));
+    await user.click(screen.getByRole("button", { name: "Keep it" }));
+
+    expect(mockedDelete).not.toHaveBeenCalled();
+    expect(screen.getByText("Memorable narrative and atmosphere.")).toBeInTheDocument();
+  });
+});
+

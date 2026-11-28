@@ -198,3 +198,28 @@ def get_review(db: Session, current_user: User, entry_id: int) -> Review | None:
         raise LibraryEntryNotFoundError("Library entry not found")
 
     return db.query(Review).filter(Review.library_entry_id == entry.id).first()
+
+
+class ReviewNotFoundError(Exception):
+    """The library entry has no review (#427)."""
+
+
+def delete_review(db: Session, current_user: User, entry_id: int) -> None:
+    """Remove the review of a library entry (#427). The diary keeps its REVIEW_POSTED events and
+    gets a REVIEW_REMOVED event. Raises LibraryEntryNotFoundError or ReviewNotFoundError."""
+    review = get_review(db, current_user, entry_id)
+    if review is None:
+        raise ReviewNotFoundError("Review not found")
+    media_item_id = (
+        db.query(UserLibrary.media_item_id).filter(UserLibrary.id == review.library_entry_id).scalar()
+    )
+    db.delete(review)
+    record_event(
+        db,
+        user_id=current_user.id,
+        action=DiaryAction.REVIEW_REMOVED,
+        media_item_id=media_item_id,
+        details="Review removed",
+    )
+    db.commit()
+

@@ -73,3 +73,12 @@ export function logTitlePlaytime(entryId: number, minutes: number): Promise<Titl
     body: { minutes },
   });
 }
+
+/**
+ * Removes the newest playtime entry of a whole game or movie (#427), for example a typing mistake.
+ * Answers the library entry with the new total. 404 when the title has no such entry.
+ */
+export function removeLastTitlePlaytime(entryId: number): Promise<LibraryEntry> {
+  return authedFetch<LibraryEntry>(`/library/${entryId}/playtime/last`, { method: "DELETE" });
+}
+

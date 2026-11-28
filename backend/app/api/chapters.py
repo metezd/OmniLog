@@ -1,6 +1,8 @@
 """Episodic logging endpoints: rate a chapter or episode (US-10), log playtime (US-11), record a
 branching decision (US-12) and read what was recorded for a chapter."""
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import WRITE_LIMIT, get_current_user
@@ -21,6 +23,7 @@ from app.services.chapter_service import (
     ChapterNotFoundError,
     DecisionNotAllowedError,
     DecisionPointNotFoundError,
+    NothingToRemoveError,
     PlaytimeLimitError,
 )
 from app.services.library_service import LibraryEntryNotFoundError
@@ -180,3 +183,66 @@ def get_chapter_progress(
     except (LibraryEntryNotFoundError, ChapterNotFoundError) as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
     return _progress_response(view)
+
+
+# ---------------------------------------------------------------- remove what was logged (#427)
+@router.delete("/{chapter_id}/rating", status_code=status.HTTP_204_NO_CONTENT, dependencies=[WRITE_LIMIT])
+def remove_chapter_rating(
+    entry_id: int,
+    chapter_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Remove the rating of a chapter or episode. The playtime and the choices stay. 404 when the
+    chapter has no rating. Recorded in the diary as CHAPTER_RATING_REMOVED."""
+    _check_ids(entry_id, chapter_id)
+    try:
+        chapter_service.remove_rating(db, current_user, entry_id, chapter_id)
+    except (LibraryEntryNotFoundError, ChapterNotFoundError, NothingToRemoveError) as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.delete(
+    "/{chapter_id}/playtime/last", response_model=ChapterProgressResponse, dependencies=[WRITE_LIMIT]
+)
+def remove_last_playtime(
+    entry_id: int,
+    chapter_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Remove the newest playtime entry of a chapter or episode, for example a typing mistake. The
+    total of the chapter goes down by the same minutes, and the answer is the new progress. 404
+    when the chapter has no entry. Recorded in the diary as PLAYTIME_REMOVED."""
+    _check_ids(entry_id, chapter_id)
+    try:
+        chapter_service.remove_last_playtime(db, current_user, entry_id, chapter_id)
+    except (LibraryEntryNotFoundError, ChapterNotFoundError, NothingToRemoveError) as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    # The same answer as GET /library/{entry_id}/chapters/{chapter_id}
+    return get_chapter_progress(entry_id, chapter_id, db, current_user)
+
+
+@router.delete("/{chapter_id}/decision", status_code=status.HTTP_204_NO_CONTENT, dependencies=[WRITE_LIMIT])
+def remove_decision(
+    entry_id: int,
+    chapter_id: int,
+    decision_point_id: Annotated[int | None, Query(ge=1, le=MAX_ID)] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Remove the choice at a decision point. A chapter with several decision points needs
+    `decision_point_id` (422 without it). 404 when nothing was chosen there. Recorded in the diary
+    as DECISION_REMOVED."""
+    _check_ids(entry_id, chapter_id)
+    try:
+        chapter_service.remove_decision(db, current_user, entry_id, chapter_id, decision_point_id)
+    except (
+        LibraryEntryNotFoundError, ChapterNotFoundError, DecisionPointNotFoundError, NothingToRemoveError
+    ) as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    except DecisionNotAllowedError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc))
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+

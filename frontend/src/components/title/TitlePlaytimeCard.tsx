@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 
-import { type ActionState, logTitlePlaytimeAction } from "@/lib/actions/library";
+import { type ActionState, logTitlePlaytimeAction, removeLastTitlePlaytimeAction } from "@/lib/actions/library";
 import { formatPlaytime } from "@/lib/media";
 import type { LibraryEntry } from "@/types/api";
 
@@ -23,6 +23,7 @@ export default function TitlePlaytimeCard({
   label = "Playtime",
 }: TitlePlaytimeCardProps) {
   const [state, formAction, pending] = useActionState(logTitlePlaytimeAction, INITIAL_STATE);
+  const [undoState, undoFormAction, undoPending] = useActionState(removeLastTitlePlaytimeAction, INITIAL_STATE);
   const totalMinutes = entry.playtime_minutes + chapterMinutes;
 
   return (
@@ -97,6 +98,23 @@ export default function TitlePlaytimeCard({
           <p className="text-[11px] text-rose-300">{state.message}</p>
         )}
       </form>
+
+      {entry.playtime_minutes > 0 && (
+        // Takes back the newest session of the whole title, for example a typing mistake (#427)
+        <form action={undoFormAction} className="flex flex-wrap items-center gap-2">
+          <input type="hidden" name="entryId" value={entry.id} />
+          <input type="hidden" name="mediaItemId" value={entry.media_item_id} />
+          <button
+            type="submit"
+            disabled={undoPending}
+            className="rounded-lg border border-rose-400/30 bg-rose-400/10 px-2.5 py-1 text-[11px] font-medium text-rose-200 hover:bg-rose-400/20 disabled:opacity-50"
+          >
+            {undoPending ? "Removing…" : "Undo last session"}
+          </button>
+          {undoState.status === "saved" && <p className="text-[11px] text-emerald-300">{undoState.message}</p>}
+          {undoState.status === "error" && <p className="text-[11px] text-rose-300">{undoState.message}</p>}
+        </form>
+      )}
     </div>
   );
 }
