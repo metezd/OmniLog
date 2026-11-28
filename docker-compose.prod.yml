@@ -121,9 +121,6 @@ services:
   frontend:
     build:
       context: ./frontend
-      args:
-        # Written into the JavaScript at build time. It is the address that the browser calls.
-        NEXT_PUBLIC_API_URL: ${API_URL:?Set API_URL in .env.prod}
     image: omnilog-frontend:${TAG:-latest}
     restart: unless-stopped
     environment:

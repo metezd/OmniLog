@@ -233,7 +233,7 @@ npm install
 npm run dev
 ```
 
-The app runs at `http://localhost:3000`. The server code of Next.js (Server Components and Server Actions) calls the backend, and the JWT is kept in a cookie that the browser cannot read. The login and register pages wake a sleeping backend with one `GET /health` from the server, at most once a minute (#250). The search boxes send nothing while you type, only when the form is sent. The address of the backend is `BACKEND_URL` (default `http://localhost:8000` in development, required in production, see `frontend/.env.example`). No code reads `NEXT_PUBLIC_API_URL` any more, because the Axios client `src/lib/api.ts` was removed in `f7cf8fd`. The production Docker build still requires it (`frontend/Dockerfile`).
+The app runs at `http://localhost:3000`. The server code of Next.js (Server Components and Server Actions) calls the backend, and the JWT is kept in a cookie that the browser cannot read. The login and register pages wake a sleeping backend with one `GET /health` from the server, at most once a minute (#250). The search boxes send nothing while you type, only when the form is sent. The address of the backend is `BACKEND_URL` (default `http://localhost:8000` in development, required in production, see `frontend/.env.example`).
 
 ### Tests
 

@@ -87,7 +87,6 @@ All settings are in `.env.prod`. The file holds secrets and is ignored by Git. C
 | `SECRET_KEY` | yes | Signs the login tokens. At least 32 characters. The backend does not start with a shorter key |
 | `APP_DOMAIN` | yes | Name of the frontend, for example `app.example.com` |
 | `API_DOMAIN` | yes | Name of the backend, for example `api.example.com` |
-| `API_URL` | yes | The public address of the backend, for example `https://api.example.com`. Built into the frontend image as `NEXT_PUBLIC_API_URL`. No code reads it since the Axios client `src/lib/api.ts` was removed, but the build still stops when it is empty |
 | `CORS_ORIGINS` | yes | The address of the frontend, for example `https://app.example.com`. The backend accepts browser calls only from here |
 | `FORWARDED_TRUSTED_HOPS` | no | How many proxies add an address to `X-Forwarded-For` in front of the backend. The login and register limits then count the address that many places from the right end of the header. Default `0` (use the address that uvicorn gives, right for this Docker setup). `render.yaml` sets `1` (section 9.1) |
 | `FRONTEND_PROXY_SECRET` | no | A key that the backend and the frontend share, at least 32 characters. With it the frontend sends the browser address in `X-Client-IP`, and the backend uses that address only when `X-Frontend-Key` matches. Empty turns it off. `render.yaml` generates it for the backend and copies it to the frontend (section 9.1). Leave it empty for `docker-compose.prod.yml`: `FORWARDED_ALLOW_IPS` is enough there (see below) |
@@ -116,7 +115,7 @@ All settings are in `.env.prod`. The file holds secrets and is ignored by Git. C
 
 Use passwords that have only letters and digits (`openssl rand -hex 32`). The passwords are part of the database and Redis addresses, so characters such as `/` or `@` would break them.
 
-`API_URL` is written into the JavaScript of the frontend when the image is built (Next.js does this for every variable that starts with `NEXT_PUBLIC_`). After you change it, build again with `--build`.
+The frontend needs no public address of the API: the browser never calls the backend, and the server code of the frontend calls it at `BACKEND_URL` (`http://backend:8000` in the compose file). `API_URL` and `NEXT_PUBLIC_API_URL` were removed in #430, because no code read them.
 
 `OPENAI_*`, `SPOILER_*` and `EMBEDDING_*` are passed from `.env.prod` to the backend by `docker-compose.prod.yml`. The values in the table are the defaults, so an empty or missing line keeps them.
 
@@ -281,7 +280,6 @@ No real domain is needed. The proxy makes a certificate from its own local autho
 ```
 APP_DOMAIN=localhost
 API_DOMAIN=api.localhost
-API_URL=https://api.localhost
 CORS_ORIGINS=https://localhost
 ```
 
@@ -380,7 +378,6 @@ What is still possible: someone with many addresses (a botnet, many cloud machin
 | `required variable ... is missing a value` | A value is empty in `.env.prod`. Fill it in |
 | The browser shows a certificate error on a real domain | The DNS record does not point to the server yet, or port 80 is blocked. See `docker compose ... logs proxy` |
 | The login page shows an error or the frontend log says `BACKEND_URL is not set` | The frontend has no `BACKEND_URL`. The compose file sets it, so check that you use `docker-compose.prod.yml`. On Render, set it by hand. Check also `docker compose ... logs backend` |
-| `src/lib/api.ts` calls go to the wrong address | `API_URL` is wrong or was changed without `--build` |
 | The API answers 4xx in the browser console with a CORS message | `CORS_ORIGINS` does not match the address of the frontend exactly. It has no trailing slash |
 | `next build` fails with a font error | The build machine cannot reach `fonts.googleapis.com` |
 | `Pool overlaps with other one on this host` when the stack starts | Another Docker network or the host already uses `172.30.42.0/24`. Change the subnet, the two fixed addresses and `FORWARDED_ALLOW_IPS` in `docker-compose.prod.yml` together |

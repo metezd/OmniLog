@@ -53,6 +53,7 @@ All notable changes to this project are written in this file. The format follows
 
 ### Removed
 
+- `API_URL` (`.env.prod`, the compose file) and `NEXT_PUBLIC_API_URL` (`frontend/Dockerfile`, `render.yaml`, `frontend/.env.example`). No code read them since the Axios client `src/lib/api.ts` was removed, but the build of the frontend image required them (#430).
 - The unused frontend packages `axios`, `react-hook-form` and `recharts`, and the unused image `frontend/public/kagan.jpg` (#295).
 
 ### Security
