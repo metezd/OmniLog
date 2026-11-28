@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getTitleDetails, searchCatalog } from "@/lib/server/catalog";
 import {
+  getAllChapterProgress,
   getChapterProgress,
   logPlaytime,
   rateChapter,
@@ -199,6 +200,12 @@ describe("chapters", () => {
       ["DELETE", "/library/3/playtime/last"],
       ["DELETE", "/library/3/review"],
     ]);
+  });
+
+  it("reads the progress of all chapters of an entry in one call (#419)", async () => {
+    const { seen } = fakeBackend([]);
+    await getAllChapterProgress(3);
+    expect(seen.map((s) => [s.method, s.path])).toEqual([["GET", "/library/3/chapters"]]);
   });
 
   it("records a decision, and sends the decision point only when it is given", async () => {

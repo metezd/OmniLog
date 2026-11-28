@@ -16,11 +16,11 @@ import {
   releaseYear,
 } from "@/lib/media";
 import { getTitleDetails } from "@/lib/server/catalog";
-import { getChapterProgress } from "@/lib/server/chapters";
+import { getAllChapterProgress } from "@/lib/server/chapters";
 import { toErrorState } from "@/lib/server/error-state";
 import { getLibraryEntry } from "@/lib/server/library";
 import { getReview } from "@/lib/server/reviews";
-import type { Chapter, ChapterProgress, LibraryEntry, MediaDetail, Review } from "@/types/api";
+import type { ChapterProgress, LibraryEntry, MediaDetail, Review } from "@/types/api";
 
 export const metadata: Metadata = {
   title: "Title Details | OmniLog",
@@ -28,13 +28,6 @@ export const metadata: Metadata = {
 
 interface TitlePageProps {
   params: Promise<{ id: string }>;
-}
-
-function collectChapters(detail: MediaDetail): Chapter[] {
-  if (detail.seasons.length > 0) {
-    return detail.seasons.flatMap((season) => season.episodes);
-  }
-  return detail.chapters;
 }
 
 export default async function TitleDetailPage({ params }: TitlePageProps) {
@@ -65,17 +58,13 @@ export default async function TitleDetailPage({ params }: TitlePageProps) {
     libraryEntry = fetchedEntry ?? undefined;
 
     if (libraryEntry) {
-      const allChapters = collectChapters(detail);
-      const [fetchedReview, ...progressList] = await Promise.all([
+      // One request for the progress of all chapters (#419), not one per chapter
+      const [fetchedReview, progressList] = await Promise.all([
         getReview(libraryEntry.id),
-        ...allChapters.map((ch) =>
-          getChapterProgress(libraryEntry!.id, ch.id).catch(() => null),
-        ),
+        getAllChapterProgress(libraryEntry.id).catch(() => [] as ChapterProgress[]),
       ]);
       review = fetchedReview;
-      progressList.forEach((prog) => {
-        if (prog) progressMap.set(prog.chapter_id, prog);
-      });
+      progressList.forEach((prog) => progressMap.set(prog.chapter_id, prog));
     }
   } catch (error) {
     const digest = (error as { digest?: unknown } | null)?.digest;

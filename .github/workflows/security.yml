@@ -40,7 +40,7 @@ jobs:
           GITLEAKS_VERSION: "8.30.1"
           GITLEAKS_SHA256: "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
         run: |
-          curl -sSfL -o gitleaks.tar.gz \
+          curl -sSfL --proto "=https" --tlsv1.2 -o gitleaks.tar.gz \
             "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
           echo "${GITLEAKS_SHA256}  gitleaks.tar.gz" | sha256sum --check --strict
           tar -xzf gitleaks.tar.gz gitleaks
@@ -96,7 +96,7 @@ jobs:
 
       # The version is pinned in .github/requirements-zizmor.txt, which Dependabot keeps up to date
       - name: Install zizmor
-        run: python -m pip install -r .github/requirements-zizmor.txt
+        run: "python -m pip install --only-binary :all: -r .github/requirements-zizmor.txt"
 
       # Audits the workflows and dependabot.yml: unpinned actions, script injection, excessive
       # permissions, spoofable bot checks. --strict-collection fails when a file cannot be parsed,
@@ -129,7 +129,7 @@ jobs:
 
       # The version is pinned in .github/requirements-semgrep.txt, which Dependabot keeps up to date
       - name: Install Semgrep
-        run: python -m pip install -r .github/requirements-semgrep.txt
+        run: "python -m pip install --only-binary :all: -r .github/requirements-semgrep.txt"
 
       # One scan per pack, so that a wrong pack name does not stop the others. Secrets (Gitleaks)
       # and GitHub Actions (zizmor) have their own jobs, so their packs are not used here.

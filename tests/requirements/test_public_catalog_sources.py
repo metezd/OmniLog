@@ -416,3 +416,32 @@ def test_us09_public_game_details_without_genres(public_keys, monkeypatch):
 
     assert details.description is None
     assert details.genres == ()
+
+
+# ---------------------------------------------------------------- the genre name of Wikidata (#423)
+@pytest.mark.parametrize(
+    ("label", "expected"),
+    [
+        ("science fiction film", "Science Fiction"),
+        ("drama FILM", "Drama"),
+        ("  thriller   film  ", "Thriller"),
+        ("film", "Film"),
+        ("film noir", "Film Noir"),
+        ("documentary", "Documentary"),
+    ],
+)
+def test_the_genre_name_drops_a_last_word_film(label, expected):
+    from app.integrations.tmdb import _genre_name
+
+    assert _genre_name(label) == expected
+
+
+def test_the_genre_name_is_fast_for_a_long_run_of_spaces():
+    """The old regular expression could backtrack here (SonarCloud S8786)."""
+    import time
+
+    from app.integrations.tmdb import _genre_name
+
+    started = time.monotonic()
+    assert _genre_name("a" + " " * 50_000 + "x") == "A X"
+    assert time.monotonic() - started < 1

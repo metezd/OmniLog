@@ -440,9 +440,15 @@ def _search_public_movies(query: str, limit: int) -> list[ExternalTitle]:
 
 
 def _genre_name(label: str) -> str:
-    """'science fiction film' -> 'Science Fiction', the form of the other sources."""
-    name = re.sub(r"\s+film$", "", label.strip(), flags=re.IGNORECASE)
-    return name.title()
+    """'science fiction film' -> 'Science Fiction', the form of the other sources.
+
+    The last word is cut without a regular expression: `\\s+film$` could backtrack on a long run
+    of spaces (SonarCloud S8786, #423).
+    """
+    words = label.split()
+    if len(words) > 1 and words[-1].casefold() == "film":
+        words = words[:-1]
+    return " ".join(words).title()
 
 
 def _fetch_public_movie_details(external_id: int) -> Optional[ExternalDetails]:

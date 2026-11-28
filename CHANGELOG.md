@@ -7,6 +7,7 @@ All notable changes to this project are written in this file. The format follows
 ### Added
 
 - A user can take back what they logged: remove the review, the rating of a chapter, the newest playtime entry of a chapter or of a whole title, and a choice, with a button on the title page for each. Before, the only way was to remove the whole title from the library (#427).
+- `GET /library/{entry_id}/chapters` returns the progress of every chapter of a library entry (rating, playtime, choices) in one answer, and the title page uses it. Before, the page sent one request per chapter: 300 requests and 1800 queries for a series with 300 episodes (#419).
 - The setting `SPOILER_PROVIDER` (`openai` by default, or `local`): `local` checks reviews with the local patterns and keeps their text inside the system, also when `OPENAI_API_KEY` is set for the embeddings. `docs/deployment.md` has a new section 4.1 that lists what is sent to IGDB, TMDB and OpenAI, and the README says that an empty `OPENAI_API_KEY` keeps all review text inside the system (#397).
 - `Strict-Transport-Security: max-age=31536000` from the API itself when the request came over HTTPS (`X-Forwarded-Proto: https`), for the Render setup. Behind Caddy the API proxy drops it and sends its own, so the header is not sent twice (#394).
 - `scripts/import_lists.py`, which imports a movie list from a CSV file or a Letterboxd export through the API, and the coverage of `scripts/` in CI and SonarQube (#336).
@@ -39,6 +40,7 @@ All notable changes to this project are written in this file. The format follows
 
 ### Fixed
 
+- The animated background follows the operating system setting "reduce motion": it draws one still frame instead of a constant animation, and it follows a change of the setting. Its debug line (`omnilog.ascii | ... | chars N`) is shown only in development (#429).
 - The frontend no longer stops at the first page: the library and the lists are read page by page, the title page asks only for its own library entry (new filter `GET /library?media_item_id=`), and the diary has links to older and newer events. Before, a user with more than 200 titles saw only 200, and a later title offered "Add to library" again, which answered 409 (#418).
 - A full connection pool answers 503 with `Retry-After` after `DB_POOL_TIMEOUT` (default 10 seconds) instead of 500 after 30 seconds. The pool (`DB_POOL_SIZE`, `DB_MAX_OVERFLOW`) and a `statement_timeout` for the API (`DB_STATEMENT_TIMEOUT_MS`, default 15 seconds) are settings, and the migrations run without the timeout (#432).
 - An `offset` above 2147483647 on `GET /diary`, `/library` and `/lists` answers 422 instead of 500. PostgreSQL could not take a value above 2^63 (#420).
@@ -62,6 +64,7 @@ All notable changes to this project are written in this file. The format follows
 
 ### Security
 
+- SonarCloud findings on `main` are fixed: no regular expression that can backtrack in the Wikidata genre names, `npm ci --ignore-scripts` and the local `tsc` in CI and the frontend image, `--only-binary :all:` for the CI tools, HTTPS only for the Gitleaks download, `[[` in the bash scripts, and generated reports out of the analysis. The findings that are safe are listed with their reason in `docs/tests/sonarqube.md` (#423).
 - The frontend sends `Strict-Transport-Security: max-age=31536000` in production, so on Render the login form is not served over plain HTTP after the first visit. Caddy uses the same year instead of one day and drops the header of the frontend, so the browser gets one (#425).
 - A user can change the password (`PUT /auth/password`), log out on all devices (`POST /auth/logout-all`) and delete the account (`DELETE /auth/me`) on the new account page. A new password and "log out everywhere" end every token of the user through `users.token_version` (claim `ver`, migration 0016) (#426).
 - The writes of one user to the library, the chapters and the lists share one rate limit, `RATE_LIMIT_WRITES` (default `120/minute`). Before, one account could send 800 writes in 5 seconds, each with a diary row (#431).
