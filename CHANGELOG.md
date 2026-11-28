@@ -35,6 +35,7 @@ All notable changes to this project are written in this file. The format follows
 
 ### Fixed
 
+- A full connection pool answers 503 with `Retry-After` after `DB_POOL_TIMEOUT` (default 10 seconds) instead of 500 after 30 seconds. The pool (`DB_POOL_SIZE`, `DB_MAX_OVERFLOW`) and a `statement_timeout` for the API (`DB_STATEMENT_TIMEOUT_MS`, default 15 seconds) are settings, and the migrations run without the timeout (#432).
 - An `offset` above 2147483647 on `GET /diary`, `/library` and `/lists` answers 422 instead of 500. PostgreSQL could not take a value above 2^63 (#420).
 - `omnilog-api` on Render uses the Supabase database. `render.yaml` no longer has the Render database `omnilog-db`, which is not used any more, and `DATABASE_URL` is set in the dashboard (`sync: false`), so a Blueprint sync does not point it back to `omnilog-db`. Its name could not be resolved any more, so every start of the API failed (#402).
 - `alembic upgrade head` tries the database again for about 30 seconds (10 tries, 3 seconds apart) when it cannot be reached. On Render the name of the database could not be resolved for a few seconds after a new instance started, so the start command stopped and the deploy of `omnilog-api` was marked as failed, although a second try worked (#402).
