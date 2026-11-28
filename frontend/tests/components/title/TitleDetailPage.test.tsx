@@ -13,21 +13,8 @@ vi.mock("@/lib/server/catalog", () => ({ getTitleDetails: vi.fn() }));
 vi.mock("@/lib/server/library", () => ({ getLibraryEntry: vi.fn() }));
 vi.mock("@/lib/server/chapters", () => ({ getAllChapterProgress: vi.fn() }));
 vi.mock("@/lib/server/reviews", () => ({ getReview: vi.fn() }));
-vi.mock("@/lib/actions/library", () => ({
-  addToLibraryAction: vi.fn(),
-  updateLibraryEntryAction: vi.fn(),
-  removeLibraryEntryAction: vi.fn(),
-  logTitlePlaytimeAction: vi.fn(),
-  submitReviewAction: vi.fn(),
-  removeLastTitlePlaytimeAction: vi.fn(),
-  deleteReviewAction: vi.fn(),
-}));
-vi.mock("@/lib/actions/chapters", () => ({
-  rateChapterAction: vi.fn(),
-  logPlaytimeAction: vi.fn(),
-  recordDecisionAction: vi.fn(),
-  removeChapterDataAction: vi.fn(),
-}));
+vi.mock("@/lib/actions/library", async () => (await import("../../mocks/server-actions")).libraryActions);
+vi.mock("@/lib/actions/chapters", async () => (await import("../../mocks/server-actions")).chapterActions);
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
 const catalogMock = vi.mocked(getTitleDetails);

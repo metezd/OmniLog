@@ -3,13 +3,13 @@ import { describe, expect, it, vi } from "vitest";
 
 import LibraryPage from "@/app/library/page";
 import { BackendError } from "@/lib/server/backend";
-import { getLibrary } from "@/lib/server/library";
+import { getFullLibrary } from "@/lib/server/library";
 import type { LibraryEntry } from "@/types/api";
 
-vi.mock("@/lib/server/library", () => ({ getLibrary: vi.fn() }));
+vi.mock("@/lib/server/library", () => ({ getFullLibrary: vi.fn(), MAX_PAGES: 20, PAGE_SIZE: 500 }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
-const library = vi.mocked(getLibrary);
+const library = vi.mocked(getFullLibrary);
 
 function entry(id: number, title: string): LibraryEntry {
   return {
@@ -31,7 +31,7 @@ async function renderPage() {
 
 describe("Library page", () => {
   it("shows one card for each title", async () => {
-    library.mockResolvedValue([entry(1, "Severance"), entry(2, "Arcane")]);
+    library.mockResolvedValue({ entries: [entry(1, "Severance"), entry(2, "Arcane")], truncated: false });
 
     await renderPage();
 
@@ -40,8 +40,25 @@ describe("Library page", () => {
     expect(screen.getByRole("heading", { name: "Arcane" })).toBeInTheDocument();
   });
 
+  it("says that not every title is shown when the library is larger than the safe maximum (#448)", async () => {
+    library.mockResolvedValue({ entries: [entry(1, "Severance")], truncated: true });
+
+    await renderPage();
+
+    expect(screen.getByRole("note")).toHaveTextContent("Your library has more than 10,000 titles");
+    expect(screen.getByRole("heading", { name: "Severance" })).toBeInTheDocument();
+  });
+
+  it("shows no note when every title is shown", async () => {
+    library.mockResolvedValue({ entries: [entry(1, "Severance")], truncated: false });
+
+    await renderPage();
+
+    expect(screen.queryByRole("note")).not.toBeInTheDocument();
+  });
+
   it("shows the empty state for a new user", async () => {
-    library.mockResolvedValue([]);
+    library.mockResolvedValue({ entries: [], truncated: false });
 
     await renderPage();
 
