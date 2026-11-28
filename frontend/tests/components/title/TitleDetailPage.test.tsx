@@ -19,11 +19,14 @@ vi.mock("@/lib/actions/library", () => ({
   removeLibraryEntryAction: vi.fn(),
   logTitlePlaytimeAction: vi.fn(),
   submitReviewAction: vi.fn(),
+  removeLastTitlePlaytimeAction: vi.fn(),
+  deleteReviewAction: vi.fn(),
 }));
 vi.mock("@/lib/actions/chapters", () => ({
   rateChapterAction: vi.fn(),
   logPlaytimeAction: vi.fn(),
   recordDecisionAction: vi.fn(),
+  removeChapterDataAction: vi.fn(),
 }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 

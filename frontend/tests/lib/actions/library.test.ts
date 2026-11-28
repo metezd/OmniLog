@@ -3,7 +3,9 @@ import { http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  deleteReviewAction,
   logTitlePlaytimeAction,
+  removeLastTitlePlaytimeAction,
   submitReviewAction,
   type ReviewActionState,
 } from "@/lib/actions/library";
@@ -254,3 +256,82 @@ describe("logTitlePlaytimeAction", () => {
     expect(revalidatePathMock).not.toHaveBeenCalled();
   });
 });
+
+// ---------------------------------------------------------------- take back what was logged (#427)
+describe("removeLastTitlePlaytimeAction", () => {
+  it("sends DELETE /library/{id}/playtime/last and refreshes the pages", async () => {
+    let method = "";
+    server.use(
+      http.delete(`${BASE}/library/7/playtime/last`, ({ request }) => {
+        method = request.method;
+        return HttpResponse.json({ id: 7, playtime_minutes: 60 });
+      }),
+    );
+
+    const state = await removeLastTitlePlaytimeAction({ status: "idle" }, form({ entryId: "7", mediaItemId: "42" }));
+
+    expect(method).toBe("DELETE");
+    expect(state).toEqual({ status: "saved", message: "Last entry removed" });
+    expect(revalidatePathMock).toHaveBeenCalledWith("/title/42");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/stats");
+  });
+
+  it("shows the message of a failed call", async () => {
+    server.use(http.delete(`${BASE}/library/7/playtime/last`, () => HttpResponse.json({ detail: "No entry" }, { status: 404 })));
+
+    const state = await removeLastTitlePlaytimeAction({ status: "idle" }, form({ entryId: "7", mediaItemId: "42" }));
+
+    expect(state.status).toBe("error");
+    expect(revalidatePathMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses an entry id that is not a number", async () => {
+    const state = await removeLastTitlePlaytimeAction({ status: "idle" }, form({ entryId: "abc" }));
+
+    expect(state).toEqual({ status: "error", message: "Invalid library entry." });
+  });
+});
+
+describe("deleteReviewAction", () => {
+  const previous: ReviewActionState = { status: "idle", review: makeReview() };
+
+  it("deletes the review and gives back a state without a review", async () => {
+    let called = false;
+    server.use(
+      http.delete(`${BASE}/library/10/review`, () => {
+        called = true;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+
+    const state = await deleteReviewAction(previous, form({ entryId: "10", mediaItemId: "42" }));
+
+    expect(called).toBe(true);
+    expect(state).toEqual({ status: "idle", review: null });
+    expect(revalidatePathMock).toHaveBeenCalledWith("/title/42");
+  });
+
+  it("treats a review that is already gone as deleted", async () => {
+    server.use(http.delete(`${BASE}/library/10/review`, () => HttpResponse.json({ detail: "Review not found" }, { status: 404 })));
+
+    expect(await deleteReviewAction(previous, form({ entryId: "10", mediaItemId: "42" }))).toEqual({
+      status: "idle",
+      review: null,
+    });
+  });
+
+  it("keeps the review when the server fails", async () => {
+    server.use(http.delete(`${BASE}/library/10/review`, () => HttpResponse.json({ detail: "boom" }, { status: 500 })));
+
+    const state = await deleteReviewAction(previous, form({ entryId: "10", mediaItemId: "42" }));
+
+    expect(state).toMatchObject({ status: "error", review: previous.review });
+  });
+
+  it("refuses an entry id that is not a number", async () => {
+    const state = await deleteReviewAction(previous, form({ entryId: "x" }));
+
+    expect(state).toMatchObject({ status: "error", code: "not_found" });
+  });
+});
+

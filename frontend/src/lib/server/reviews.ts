@@ -25,3 +25,9 @@ export function submitReview(entryId: number, text: string): Promise<Review> {
     body: { text },
   });
 }
+
+/** Removes the review of a library entry (#427). 404 when there is no review. */
+export function deleteReview(entryId: number): Promise<void> {
+  return authedFetch<void>(`/library/${entryId}/review`, { method: "DELETE" });
+}
+

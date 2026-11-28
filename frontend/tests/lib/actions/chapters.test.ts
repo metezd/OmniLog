@@ -2,7 +2,7 @@
 import { http, HttpResponse } from "msw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { logPlaytimeAction, type ChapterActionState } from "@/lib/actions/chapters";
+import { logPlaytimeAction, removeChapterDataAction, type ChapterActionState } from "@/lib/actions/chapters";
 import { CHAPTER_WRITE_TIMEOUT_MS } from "@/lib/server/chapters";
 import { cookieStore } from "../../mocks/cookie-store";
 import { server } from "../../mocks/server";
@@ -113,3 +113,58 @@ describe("logPlaytimeAction (#411)", () => {
     });
   });
 });
+
+// ---------------------------------------------------------------- take back what was logged (#427)
+/** A form with any fields. form() above makes only the playtime form. */
+function formOf(values: Record<string, string>): FormData {
+  const data = new FormData();
+  for (const [name, value] of Object.entries(values)) data.set(name, value);
+  return data;
+}
+
+describe("removeChapterDataAction", () => {
+  const idle: ChapterActionState = { status: "idle" };
+  const base = { entryId: "3", chapterId: "8", mediaItemId: "42" };
+
+  it.each([
+    ["rating", {}, "/library/3/chapters/8/rating", "Rating removed"],
+    ["playtime", {}, "/library/3/chapters/8/playtime/last", "Last entry removed"],
+    ["decision", {}, "/library/3/chapters/8/decision", "Choice removed"],
+    ["decision", { decisionPointId: "21" }, "/library/3/chapters/8/decision?decision_point_id=21", "Choice removed"],
+  ])("removes the %s with one DELETE", async (what, extra, path, message) => {
+    const seen: string[] = [];
+    server.use(
+      http.delete(`${BASE}/library/3/chapters/8/*`, ({ request }) => {
+        const url = new URL(request.url);
+        seen.push(url.pathname + url.search);
+        return url.pathname.endsWith("/playtime/last")
+          ? HttpResponse.json({ chapter_id: 8, playtime_minutes: 0 })
+          : new HttpResponse(null, { status: 204 });
+      }),
+    );
+
+    const state = await removeChapterDataAction(idle, formOf({ ...base, what, ...extra }));
+
+    expect(seen).toEqual([path]);
+    expect(state).toEqual({ status: "saved", message });
+  });
+
+  it("refuses an unknown kind of data without a call", async () => {
+    const state = await removeChapterDataAction(idle, formOf({ ...base, what: "review" }));
+
+    expect(state).toEqual({ status: "error", message: "Nothing to remove." });
+  });
+
+  it("shows the message of the backend when there is nothing to remove", async () => {
+    server.use(
+      http.delete(`${BASE}/library/3/chapters/8/rating`, () =>
+        HttpResponse.json({ detail: "This chapter has no rating" }, { status: 404 }),
+      ),
+    );
+
+    const state = await removeChapterDataAction(idle, formOf({ ...base, what: "rating" }));
+
+    expect(state.status).toBe("error");
+  });
+});
+

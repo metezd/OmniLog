@@ -6,6 +6,7 @@ All notable changes to this project are written in this file. The format follows
 
 ### Added
 
+- A user can take back what they logged: remove the review, the rating of a chapter, the newest playtime entry of a chapter or of a whole title, and a choice, with a button on the title page for each. Before, the only way was to remove the whole title from the library (#427).
 - `GET /library/{entry_id}/chapters` returns the progress of every chapter of a library entry (rating, playtime, choices) in one answer, and the title page uses it. Before, the page sent one request per chapter: 300 requests and 1800 queries for a series with 300 episodes (#419).
 - The setting `SPOILER_PROVIDER` (`openai` by default, or `local`): `local` checks reviews with the local patterns and keeps their text inside the system, also when `OPENAI_API_KEY` is set for the embeddings. `docs/deployment.md` has a new section 4.1 that lists what is sent to IGDB, TMDB and OpenAI, and the README says that an empty `OPENAI_API_KEY` keeps all review text inside the system (#397).
 - `Strict-Transport-Security: max-age=31536000` from the API itself when the request came over HTTPS (`X-Forwarded-Proto: https`), for the Render setup. Behind Caddy the API proxy drops it and sends its own, so the header is not sent twice (#394).

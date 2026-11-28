@@ -433,6 +433,10 @@ def test_a_write_without_a_token_is_401_and_not_counted(limits_on, monkeypatch):
         ("POST", "/library/{id}/chapters/{id}/playtime"), ("PUT", "/library/{id}/chapters/{id}/decision"),
         ("POST", "/lists"), ("POST", "/lists/{id}/items"), ("DELETE", "/lists/{id}/items/{id}"),
         ("DELETE", "/lists/{id}"),
+        # The removals of #427 are writes too
+        ("DELETE", "/library/{id}/review"), ("DELETE", "/library/{id}/playtime/last"),
+        ("DELETE", "/library/{id}/chapters/{id}/rating"), ("DELETE", "/library/{id}/chapters/{id}/playtime/last"),
+        ("DELETE", "/library/{id}/chapters/{id}/decision"),
     ],
 )
 def test_every_write_route_has_the_write_limit(method, path):
