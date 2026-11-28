@@ -162,7 +162,7 @@ def get_chapter_progress(
 
 
 # ---------------------------------------------------------------- remove what was logged (#427)
-@router.delete("/{chapter_id}/rating", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{chapter_id}/rating", status_code=status.HTTP_204_NO_CONTENT, dependencies=[WRITE_LIMIT])
 def remove_chapter_rating(
     entry_id: int,
     chapter_id: int,
@@ -179,7 +179,9 @@ def remove_chapter_rating(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.delete("/{chapter_id}/playtime/last", response_model=ChapterProgressResponse)
+@router.delete(
+    "/{chapter_id}/playtime/last", response_model=ChapterProgressResponse, dependencies=[WRITE_LIMIT]
+)
 def remove_last_playtime(
     entry_id: int,
     chapter_id: int,
@@ -198,7 +200,7 @@ def remove_last_playtime(
     return get_chapter_progress(entry_id, chapter_id, db, current_user)
 
 
-@router.delete("/{chapter_id}/decision", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{chapter_id}/decision", status_code=status.HTTP_204_NO_CONTENT, dependencies=[WRITE_LIMIT])
 def remove_decision(
     entry_id: int,
     chapter_id: int,

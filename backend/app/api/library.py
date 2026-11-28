@@ -129,7 +129,7 @@ def submit_review(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
 
 
-@router.delete("/{entry_id}/review", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{entry_id}/review", status_code=status.HTTP_204_NO_CONTENT, dependencies=[WRITE_LIMIT])
 def delete_review(
     entry_id: int,
     db: Session = Depends(get_db),
@@ -197,7 +197,7 @@ def log_title_playtime(
     )
 
 
-@router.delete("/{entry_id}/playtime/last", response_model=UserLibraryResponse)
+@router.delete("/{entry_id}/playtime/last", response_model=UserLibraryResponse, dependencies=[WRITE_LIMIT])
 def remove_last_title_playtime(
     entry_id: int,
     db: Session = Depends(get_db),
