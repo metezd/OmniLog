@@ -89,3 +89,26 @@ class UserResponse(BaseModel):
     email: EmailStr = Field(max_length=100)
     username: str
     created_at: UtcDateTime
+
+
+class PasswordChange(BaseModel):
+    """A new password (#426). The new one follows the rules of registration (BR-20)."""
+
+    # Like the login: a value that can never match gets 403 from the service, not 422
+    current_password: str = Field(min_length=1, max_length=128)
+    new_password: str = Field(min_length=8)
+
+    @field_validator("new_password")
+    @classmethod
+    def new_password_is_valid(cls, value: str) -> str:
+        _reject_nul(value)
+        if len(value.encode("utf-8")) > BCRYPT_MAX_BYTES:
+            raise ValueError(f"password must be at most {BCRYPT_MAX_BYTES} bytes long")
+        return value
+
+
+class AccountDelete(BaseModel):
+    """The password, to confirm that the account is deleted (#426)."""
+
+    password: str = Field(min_length=1, max_length=128)
+

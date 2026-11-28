@@ -91,6 +91,8 @@ All settings are in `.env.prod`. The file holds secrets and is ignored by Git. C
 | `CORS_ORIGINS` | yes | The address of the frontend, for example `https://app.example.com`. The backend accepts browser calls only from here |
 | `FORWARDED_TRUSTED_HOPS` | no | How many proxies add an address to `X-Forwarded-For` in front of the backend. The login and register limits then count the address that many places from the right end of the header. Default `0` (use the address that uvicorn gives, right for this Docker setup). `render.yaml` sets `1` (section 9.1) |
 | `FRONTEND_PROXY_SECRET` | no | A key that the backend and the frontend share, at least 32 characters. With it the frontend sends the browser address in `X-Client-IP`, and the backend uses that address only when `X-Frontend-Key` matches. Empty turns it off. `render.yaml` generates it for the backend and copies it to the frontend (section 9.1). Leave it empty for `docker-compose.prod.yml`: `FORWARDED_ALLOW_IPS` is enough there (see below) |
+| `DB_POOL_SIZE`, `DB_MAX_OVERFLOW`, `DB_POOL_TIMEOUT` | no | The connection pool of the API (#432): `5` connections, `10` more under load, and a wait of `10` seconds for a free one. A request that finds none in time gets 503 with `Retry-After: 5`, not 500. The endpoints run in a thread pool of 40 threads, so with 15 connections some requests wait. Keep `DB_POOL_SIZE + DB_MAX_OVERFLOW` under the connection limit of the database plan (on Supabase, the limit of the Session pooler) |
+| `DB_STATEMENT_TIMEOUT_MS` | no | The longest time of one SQL statement of the API (default `15000`, `0` turns it off). It is set with `SET statement_timeout` after a connection opens, so it also works behind the pooler of Supabase. The migrations use their own engine without it. For a long command (`python -m app.sync`), set `0` in its environment |
 | `ENABLE_DOCS` | no | Shows the API documentation at `/docs`, `/redoc` and `/openapi.json`. Default is `false`, also when the backend starts without it (#394). `docker-compose.prod.yml` and `render.yaml` set `false` too. For development, set `ENABLE_DOCS=true` in `backend/.env` |
 | `ALLOW_MEDIA_CREATE` | no | Turns on `POST /media`, which adds a title to the shared catalog. Default is `false`, so the route answers 404. Leave it off in production: titles come from the catalog search. Only the tests turn it on |
 | `IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET`, `TMDB_API_KEY` | no | Keys of the catalog services. Without them the catalog search cannot reach the outside services |
@@ -108,7 +110,7 @@ All settings are in `.env.prod`. The file holds secrets and is ignored by Git. C
 | `RATE_LIMIT_ENABLED` | no | `false` turns all rate limits off. Default `true`. See section 9.1 |
 | `RATE_LIMIT_LOGIN_ACCOUNT` | no | Failed logins of one account from any address, as `<count>/<period>`. Default `20/hour` (section 9.1) |
 | `RATE_LIMIT_REGISTER_DAY` | no | Registrations of one browser address in a day, besides `RATE_LIMIT_REGISTER`, as `<count>/<period>`. Default `20/day` (section 9.2) |
-| `RATE_LIMIT_LOGIN`, `RATE_LIMIT_REGISTER`, `RATE_LIMIT_SEARCH`, `RATE_LIMIT_REVIEW`, `RATE_LIMIT_DETAILS`, `RATE_LIMIT_RECOMMENDATIONS` | no | The rate limits as `<count>/<second\|minute\|hour\|day>`. Defaults `10/minute`, `5/hour`, `30/minute`, `20/minute`, `60/minute` and `30/minute`. `RATE_LIMIT_RECOMMENDATIONS` counts `GET /recommendations` per user (#396). The backend does not start with a value in another form |
+| `RATE_LIMIT_LOGIN`, `RATE_LIMIT_REGISTER`, `RATE_LIMIT_SEARCH`, `RATE_LIMIT_REVIEW`, `RATE_LIMIT_DETAILS`, `RATE_LIMIT_RECOMMENDATIONS`, `RATE_LIMIT_WRITES` | no | The rate limits as `<count>/<second\|minute\|hour\|day>`. Defaults `10/minute`, `5/hour`, `30/minute`, `20/minute`, `60/minute`, `30/minute` and `120/minute`. `RATE_LIMIT_RECOMMENDATIONS` counts `GET /recommendations` per user (#396). The backend does not start with a value in another form |
 | `POSTGRES_USER`, `POSTGRES_DB` | no | Defaults are `omnilog` |
 | `TAG` | no | Tag of the built images. Default is `latest` |
 
@@ -131,6 +133,7 @@ Use passwords that have only letters and digits (`openssl rand -hex 32`). The pa
 | `EXTERNAL_API_TIMEOUT_SECONDS` | `8` | Time limit of one call to IGDB or TMDB |
 | `EXTERNAL_API_MAX_RETRIES` | `3` | Retries after a timeout, a 429 or a 5xx answer |
 | `EXTERNAL_API_BACKOFF_SECONDS` | `0.5` | First wait between retries. It doubles after each retry |
+| `EXTERNAL_API_COOLDOWN_SECONDS` | `60` | When every try of a call got no answer (timeouts, no connection), that host is not called again for this many seconds, and the saved data is used (#428). An answer such as 503 is still tried again as before. `0` turns the pause off |
 | `IGDB_MAX_REQUESTS_PER_SECOND` | `3` | The most requests per second that one backend process sends to IGDB (IGDB allows 4). A call that would wait more than 5 seconds fails at once, and the saved copy is used. `0` turns it off. The limit counts per process: the default setup runs one, so give each process its share when you start more |
 
 The backend finds the database and Redis through `DATABASE_URL` and `REDIS_URL`, which the compose file builds from the passwords.
@@ -316,6 +319,7 @@ Open `https://localhost` in the browser and accept the certificate warning, beca
 | `POST /library/{entry_id}/review` | User | `20/minute` | A review can call OpenAI, which costs money |
 | `GET /catalog/{media_id}` | User | `60/minute` | A title that was not loaded yet calls IGDB or TMDB, and OpenAI for its embedding (#390) |
 | `GET /recommendations` | User (`RATE_LIMIT_RECOMMENDATIONS`) | `30/minute` | Each call averages the embeddings of the liked titles in PostgreSQL and runs a vector search (#396) |
+| Writes: `POST`, `PATCH`, `PUT` and `DELETE` of `/library`, its chapters and `/lists` | User (`RATE_LIMIT_WRITES`), one count for all of them | `120/minute` | Most writes add a diary row, so without a limit one account could fill the database (#431). The review has its own limit |
 
 **Failed logins of one account (#391).** The limit per address does not stop someone who guesses the password of one account from many addresses. So the failed logins of each account are counted too, whatever the address. The key is a SHA-256 hash of the normalized username or email, so no name or email address is written to Redis. A username and the email of the same account are two keys. Unknown accounts are counted the same way, so the answer does not show which accounts exist. A correct login is not counted.
 
@@ -361,7 +365,7 @@ What is still possible: someone with many addresses (a botnet, many cloud machin
 - There are no automatic backups, no monitoring and no alerts.
 - The stack runs one copy of each service. Running more copies of the backend is not set up and not tested.
 - Rate limits on Render: the counted address depends on how the proxy of Render fills `X-Forwarded-For` (section 9.1). This was not checked on the deployed service. `RATE_LIMIT_ENABLED=false` turns the limits off.
-- Only login, register, search, title details, review and recommendations have a rate limit.
+- `GET /library`, `/lists`, `/diary`, `/stats` and the other reads have no rate limit.
 - The friends page of the frontend shows sample data. The login, register, library, search, title, lists, diary, statistics and recommendations screens call the backend through the server code of Next.js (`BACKEND_URL`).
 - Embeddings are not built. There is no `media_embeddings` table and no embeddings command. The recommendations (US-13) rank the catalog by the genres of the library, so they work without any key.
 - The spoiler check (US-14) uses OpenAI only when `OPENAI_API_KEY` is set and `SPOILER_PROVIDER` is `openai` (section 4.1). Without the key or with `SPOILER_PROVIDER=local`, the review is checked with local patterns. When the key is set and OpenAI does not answer, the review is saved and not checked (the spoiler fields stay NULL). The check runs after the review is committed, so no database connection is held during the OpenAI call.
