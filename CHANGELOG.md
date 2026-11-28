@@ -35,6 +35,7 @@ All notable changes to this project are written in this file. The format follows
 
 ### Fixed
 
+- The frontend no longer stops at the first page: the library and the lists are read page by page, the title page asks only for its own library entry (new filter `GET /library?media_item_id=`), and the diary has links to older and newer events. Before, a user with more than 200 titles saw only 200, and a later title offered "Add to library" again, which answered 409 (#418).
 - A full connection pool answers 503 with `Retry-After` after `DB_POOL_TIMEOUT` (default 10 seconds) instead of 500 after 30 seconds. The pool (`DB_POOL_SIZE`, `DB_MAX_OVERFLOW`) and a `statement_timeout` for the API (`DB_STATEMENT_TIMEOUT_MS`, default 15 seconds) are settings, and the migrations run without the timeout (#432).
 - An `offset` above 2147483647 on `GET /diary`, `/library` and `/lists` answers 422 instead of 500. PostgreSQL could not take a value above 2^63 (#420).
 - `omnilog-api` on Render uses the Supabase database. `render.yaml` no longer has the Render database `omnilog-db`, which is not used any more, and `DATABASE_URL` is set in the dashboard (`sync: false`), so a Blueprint sync does not point it back to `omnilog-db`. Its name could not be resolved any more, so every start of the API failed (#402).
