@@ -3,7 +3,8 @@
 
 # Browser headers for both sites (#304). HSTS is one year, the same as the API (#394) and the
 # frontend (#425); it started with one day on 2026-11-25. The Content-Security-Policy of the app
-# comes from the frontend itself (src/proxy.ts, #303), and the API sets its own.
+# comes from the frontend itself (src/proxy.ts, #303), and the API sets its own. No
+# includeSubDomains and no preload, the same as the frontend and the API (#449).
 (security_headers) {
 	header {
 		Strict-Transport-Security "max-age=31536000"

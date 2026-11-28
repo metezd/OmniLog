@@ -1,4 +1,7 @@
 // @vitest-environment node
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
 import { describe, expect, it } from "vitest";
 
 import nextConfig, { HSTS_HEADER, securityHeaders } from "../next.config";
@@ -35,3 +38,22 @@ describe("HSTS of the frontend (#425)", () => {
   });
 });
 
+
+// Render has no Caddy in front, so the frontend sends HSTS itself. In the compose setup Caddy sends
+// it for the app name and must drop the one of the frontend, so the browser gets one header (#449).
+describe("HSTS of the frontend and of Caddy (#449)", () => {
+  const caddyfile = readFileSync(fileURLToPath(new URL("../../docker/Caddyfile", import.meta.url)), "utf8");
+
+  it("has no includeSubDomains and no preload", () => {
+    expect(HSTS_HEADER.value).not.toMatch(/includeSubDomains|preload/i);
+  });
+
+  it("uses the same value in Caddy", () => {
+    expect(caddyfile).toContain(`Strict-Transport-Security "${HSTS_HEADER.value}"`);
+  });
+
+  it("drops the header of the frontend in Caddy", () => {
+    const appSite = caddyfile.split("{$APP_DOMAIN} {")[1]?.split("{$API_DOMAIN} {")[0] ?? "";
+    expect(appSite).toMatch(/reverse_proxy frontend:3000 \{[^}]*header_down -Strict-Transport-Security/);
+  });
+});
