@@ -12,10 +12,13 @@ export const libraryActions = {
   removeLibraryEntryAction: vi.fn(),
   logTitlePlaytimeAction: vi.fn(),
   submitReviewAction: vi.fn(),
+  removeLastTitlePlaytimeAction: vi.fn(),
+  deleteReviewAction: vi.fn(),
 };
 
 export const chapterActions = {
   rateChapterAction: vi.fn(),
   logPlaytimeAction: vi.fn(),
   recordDecisionAction: vi.fn(),
+  removeChapterDataAction: vi.fn(),
 };

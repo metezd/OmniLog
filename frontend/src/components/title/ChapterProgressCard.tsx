@@ -7,6 +7,7 @@ import {
   logPlaytimeAction,
   rateChapterAction,
   recordDecisionAction,
+  removeChapterDataAction,
 } from "@/lib/actions/chapters";
 import type { Chapter, ChapterProgress } from "@/types/api";
 
@@ -19,6 +20,8 @@ interface ChapterProgressCardProps {
 
 const INITIAL_STATE: ChapterActionState = { status: "idle" };
 const STAR_OPTIONS = [1, 2, 3, 4, 5];
+const REMOVE_BUTTON_CLASS =
+  "rounded-lg border border-rose-400/30 bg-rose-400/10 px-2.5 py-1 text-[11px] font-medium text-rose-200 hover:bg-rose-400/20 disabled:opacity-50";
 
 function ChapterHiddenFields({
   entryId,
@@ -57,6 +60,8 @@ export default function ChapterProgressCard({
   const [rateState, rateFormAction, ratePending] = useActionState(rateChapterAction, INITIAL_STATE);
   const [playState, playFormAction, playPending] = useActionState(logPlaytimeAction, INITIAL_STATE);
   const [doneState, doneFormAction, donePending] = useActionState(logPlaytimeAction, INITIAL_STATE);
+  // Takes back the rating, the newest playtime entry or a choice (#427)
+  const [removeState, removeFormAction, removePending] = useActionState(removeChapterDataAction, INITIAL_STATE);
   const [decState, decFormAction, decPending] = useActionState(
     recordDecisionAction,
     INITIAL_STATE,
@@ -191,6 +196,23 @@ export default function ChapterProgressCard({
               <ActionFeedback state={doneState} />
             </form>
           </div>
+
+          {(currentRating || totalMinutes > 0) && (
+            <form action={removeFormAction} className="flex flex-wrap items-center gap-2 md:col-span-2">
+              <ChapterHiddenFields entryId={entryId} chapterId={chapter.id} mediaItemId={mediaItemId} />
+              {currentRating ? (
+                <button type="submit" name="what" value="rating" disabled={removePending} className={REMOVE_BUTTON_CLASS}>
+                  Remove rating
+                </button>
+              ) : null}
+              {totalMinutes > 0 && (
+                <button type="submit" name="what" value="playtime" disabled={removePending} className={REMOVE_BUTTON_CLASS}>
+                  Undo last time entry
+                </button>
+              )}
+              <ActionFeedback state={removeState} />
+            </form>
+          )}
         </div>
       ) : (
         <p className="border-t border-white/10 pt-3 text-xs text-slate-400">
@@ -213,6 +235,7 @@ export default function ChapterProgressCard({
               >
                 <p className="text-xs font-medium text-slate-100">{dp.prompt}</p>
                 {entryId ? (
+                  <>
                   <form action={decFormAction} className="mt-2.5 flex flex-wrap gap-2">
                     <ChapterHiddenFields entryId={entryId} chapterId={chapter.id} mediaItemId={mediaItemId} />
                     <input type="hidden" name="decisionPointId" value={dp.id} />
@@ -234,6 +257,23 @@ export default function ChapterProgressCard({
                       </button>
                     ))}
                   </form>
+                  {chosen && (
+                    <form action={removeFormAction} className="mt-2">
+                      <ChapterHiddenFields entryId={entryId} chapterId={chapter.id} mediaItemId={mediaItemId} />
+                      <input type="hidden" name="decisionPointId" value={dp.id} />
+                      <button
+                        type="submit"
+                        name="what"
+                        value="decision"
+                        disabled={removePending}
+                        aria-label={`Clear choice: ${dp.prompt}`}
+                        className={REMOVE_BUTTON_CLASS}
+                      >
+                        Clear choice
+                      </button>
+                    </form>
+                  )}
+                  </>
                 ) : (
                   <div className="mt-2 flex flex-wrap gap-2">
                     {dp.options.map((option) => (
@@ -250,6 +290,7 @@ export default function ChapterProgressCard({
             );
           })}
           <ActionFeedback state={decState} />
+          {!(currentRating || totalMinutes > 0) && <ActionFeedback state={removeState} />}
         </div>
       )}
     </div>
