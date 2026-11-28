@@ -19,6 +19,27 @@ def _require(name: str) -> str:
 # postgresql+psycopg2://omnilog:omnilog@localhost:5432/omnilog
 DATABASE_URL = _require("DATABASE_URL")
 
+def _whole_number(name: str, default: int, minimum: int) -> int:
+    """A whole number setting of at least `minimum`. A wrong value stops the start with its name."""
+    text = os.getenv(name, str(default)).strip()
+    try:
+        value = int(text)
+    except ValueError:
+        raise RuntimeError(f"{name} must be a whole number, got {text!r}") from None
+    if value < minimum:
+        raise RuntimeError(f"{name} must be {minimum} or more, got {value}")
+    return value
+
+
+# The connection pool of the API (#432). The endpoints run in a thread pool of 40 threads, so more
+# requests than connections can wait here. A request that finds no free connection within
+# DB_POOL_TIMEOUT seconds gets 503. DB_STATEMENT_TIMEOUT_MS stops one SQL statement of the API that
+# runs longer (0 turns it off); the migrations have no such limit.
+DB_POOL_SIZE = _whole_number("DB_POOL_SIZE", 5, 1)
+DB_MAX_OVERFLOW = _whole_number("DB_MAX_OVERFLOW", 10, 0)
+DB_POOL_TIMEOUT = _whole_number("DB_POOL_TIMEOUT", 10, 1)
+DB_STATEMENT_TIMEOUT_MS = _whole_number("DB_STATEMENT_TIMEOUT_MS", 15000, 0)
+
 # Secret used to sign JWT tokens. It has no default on purpose: a public
 # default value would let anyone forge tokens. Generate one with:
 #   python -c "import secrets; print(secrets.token_urlsafe(32))"
@@ -113,6 +134,10 @@ DETAILS_CACHE_TTL_SECONDS = int(os.getenv("DETAILS_CACHE_TTL_SECONDS", "86400"))
 EXTERNAL_API_TIMEOUT_SECONDS = float(os.getenv("EXTERNAL_API_TIMEOUT_SECONDS", "8"))
 EXTERNAL_API_MAX_RETRIES = int(os.getenv("EXTERNAL_API_MAX_RETRIES", "3"))
 EXTERNAL_API_BACKOFF_SECONDS = float(os.getenv("EXTERNAL_API_BACKOFF_SECONDS", "0.5"))
+# When all tries of a call to IGDB, TMDB or a keyless source got no answer (timeouts, no
+# connection), that host is not called again for this many seconds, and the saved data is used
+# (#428). 0 turns the pause off.
+EXTERNAL_API_COOLDOWN_SECONDS = max(float(os.getenv("EXTERNAL_API_COOLDOWN_SECONDS", "60")), 0.0)
 
 # Outgoing limit for IGDB: the most requests per second that this backend process sends to it.
 # IGDB allows 4 per second for one Twitch application and answers 429 above that. A call that
@@ -155,6 +180,9 @@ RATE_LIMIT_REVIEW = _rate_limit("RATE_LIMIT_REVIEW", "20/minute")
 RATE_LIMIT_DETAILS = _rate_limit("RATE_LIMIT_DETAILS", "60/minute")
 # Each recommendation call averages the liked embeddings and runs a vector search (#396)
 RATE_LIMIT_RECOMMENDATIONS = _rate_limit("RATE_LIMIT_RECOMMENDATIONS", "30/minute")
+# All writes of one user that have no limit of their own: the library, the chapters and the lists
+# (#431). Most of them also add a diary row, so without a limit one account could fill the database.
+RATE_LIMIT_WRITES = _rate_limit("RATE_LIMIT_WRITES", "120/minute")
 
 # OpenAI integration (AI-powered embeddings and spoiler detection).
 # Leave OPENAI_API_KEY empty to disable OpenAI-backed features.

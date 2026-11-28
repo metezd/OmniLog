@@ -4,12 +4,14 @@ The three endpoints take `limit` and `offset`. The answer stays a plain list, an
 endpoint does not change. Rows are inserted directly in the database, because the defaults (100 and
 200) are too high to reach through the public API in a fast test.
 """
+import uuid
 from datetime import datetime, timedelta
 
 import pytest
 from sqlalchemy import inspect
 
-from helpers import new_credentials, register_and_login, unique
+from app.models.entities import MediaItem, MediaType, UserLibrary, WatchStatus
+from helpers import add_to_library, create_media, new_credentials, register_and_login, unique
 
 _BASE_TIME = datetime(2026, 1, 1, 12, 0, 0)
 
@@ -244,6 +246,62 @@ def test_diary_entries_have_the_two_indexes(db):
     assert indexes["ix_diary_entries_media_item_id"]["column_names"] == ["media_item_id"]
 
 
+# ---------------------------------------------------------------- the entry of one title (#418)
+def test_library_filtered_by_title_returns_only_that_entry(client, auth_headers):
+    """A title page asks for its own entry instead of reading the whole library."""
+    first = create_media(client, auth_headers)
+    second = create_media(client, auth_headers)
+    add_to_library(client, auth_headers, first["id"])
+    entry = add_to_library(client, auth_headers, second["id"])
+
+    response = client.get("/library", params={"media_item_id": second["id"]}, headers=auth_headers)
+
+    assert response.status_code == 200
+    assert [row["id"] for row in response.json()] == [entry["id"]]
+    assert response.json()[0]["media_item"]["id"] == second["id"]
+
+
+def test_library_filtered_by_a_title_outside_the_library_is_empty(client, auth_headers):
+    other = create_media(client, auth_headers)
+
+    response = client.get("/library", params={"media_item_id": other["id"]}, headers=auth_headers)
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+def test_library_filter_finds_the_entry_after_the_first_page(client, db, credentials, auth_headers):
+    """The case of the issue: the 205th title is not in the first 200 entries."""
+    user_id = client.get("/auth/me", headers=auth_headers).json()["id"]
+    last = None
+    for index in range(205):
+        item = MediaItem(title=f"filter page {index} {uuid.uuid4().hex[:6]}", media_type=MediaType.GAME)
+        db.add(item)
+        db.flush()
+        db.add(UserLibrary(user_id=user_id, media_item_id=item.id, status=WatchStatus.PLAN_TO_WATCH))
+        last = item.id
+    db.commit()
+
+    first_page = client.get("/library", headers=auth_headers).json()
+    filtered = client.get("/library", params={"media_item_id": last}, headers=auth_headers).json()
+
+    assert last not in [row["media_item_id"] for row in first_page]
+    assert [row["media_item_id"] for row in filtered] == [last]
+
+
+def test_library_filter_never_shows_the_entry_of_another_user(client, auth_headers):
+    other_headers = register_and_login(client, new_credentials())
+    media = create_media(client, auth_headers)
+    add_to_library(client, other_headers, media["id"])
+
+    response = client.get("/library", params={"media_item_id": media["id"]}, headers=auth_headers)
+
+    assert response.json() == []
+
+
+@pytest.mark.parametrize("value", [0, -1, 2**31, "abc"])
+def test_library_filter_with_a_wrong_id_returns_422(client, auth_headers, value):
+    assert client.get("/library", params={"media_item_id": value}, headers=auth_headers).status_code == 422
 # ---------------------------------------------------------------- an offset that is too large (#420)
 @pytest.mark.parametrize("path", ["/diary", "/library", "/lists"])
 @pytest.mark.parametrize("offset", [2**31, 2**63])

@@ -275,7 +275,8 @@ jobs:
         if: steps.sonar.outputs.available == 'true'
         run: |
           if [ -f frontend/coverage/lcov.info ]; then
-            sed 's#^SF:src/#SF:frontend/src/#' frontend/coverage/lcov.info > frontend/coverage/lcov-root.info
+            # Every path is relative to frontend/ (src/... and next.config.ts)
+            sed 's#^SF:#SF:frontend/#' frontend/coverage/lcov.info > frontend/coverage/lcov-root.info
           fi
 
       # Fails the job when the quality gate fails
@@ -430,3 +431,46 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  # Migrates the production database on Supabase after a push to main (#421). It runs only when
+  # every check of the same commit passed (security lint, backend tests, Docker Compose smoke test,
+  # frontend checks), so a migration never reaches the database with code whose tests failed. Render
+  # deploys only after the checks pass, so it starts after this job too.
+  #
+  # The migrations run inside the backend image, with the Python, the locked packages and the
+  # alembic.ini of the API. They must stay backward compatible for one release (add first, remove
+  # later): the running API is the old code until Render has deployed the new one.
+  migrate-supabase:
+    name: Migrate the Supabase database
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [security-lint, backend, docker-compose, frontend]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    environment:
+      name: supabase-production
+      url: https://supabase.com/dashboard/project/wziszajksrinkubgswof/editor
+    # Two runs never migrate the database at the same time, and a running one is never stopped
+    concurrency:
+      group: db-migrate-supabase
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Build the backend image
+        run: docker build --tag omnilog-backend-migrate backend
+
+      # The settings need a SECRET_KEY at import. The migrations sign no token, so a random key is
+      # made for this run only.
+      - name: Run Alembic migrations
+        env:
+          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          SECRET_KEY="$(openssl rand -hex 32)"
+          export SECRET_KEY
+          docker run --rm --env DATABASE_URL --env SECRET_KEY omnilog-backend-migrate alembic upgrade head

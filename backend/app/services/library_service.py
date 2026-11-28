@@ -90,14 +90,24 @@ def _load_with_media(db: Session, entry_id: int) -> UserLibrary:
 
 
 def list_entries(
-    db: Session, user: User, limit: int | None = None, offset: int = 0
+    db: Session,
+    user: User,
+    limit: int | None = None,
+    offset: int = 0,
+    media_item_id: int | None = None,
 ) -> List[UserLibrary]:
-    """The user's entries, oldest first. `limit=None` returns all of them."""
+    """The user's entries, oldest first. `limit=None` returns all of them. With `media_item_id`,
+    only the entry of that title (at most one, the pair is unique)."""
     # Load the media item in the same query. Without this, the response runs one query per entry.
-    return (
+    query = (
         db.query(UserLibrary)
         .options(joinedload(UserLibrary.media_item).selectinload(MediaItem.genres))
         .filter(UserLibrary.user_id == user.id)
+    )
+    if media_item_id is not None:
+        query = query.filter(UserLibrary.media_item_id == media_item_id)
+    return (
+        query
         .order_by(UserLibrary.id)
         .limit(limit)
         .offset(offset)
