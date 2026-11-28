@@ -23,6 +23,7 @@ All notable changes to this project are written in this file. The format follows
 
 ### Changed
 
+- The deployment guide, `docs/tests/sonarqube.md` and the Software Testing Report no longer say that embeddings are not built, that a friends page shows sample data, or that the SonarQube job waits for a token. The report gives the current SonarCloud state of `main` (#424).
 - `/health/ready` reports `"cache": "not_configured"` when `REDIS_URL` is empty, and `"down"` only when Redis is set but does not answer. The start of the API logs which one it is (host and port, never the password), so the reason of `cache: down` on Render can be seen (#422).
 - The Supabase database is migrated by the last job of `ci.yml`, only on `main` and only after the security lint, the backend tests, the Docker Compose smoke test and the frontend checks passed. The separate workflow `db-migrate.yml` started at the same moment as CI, so a migration could reach production with code whose tests failed (#421).
 - `GET /recommendations` computes the taste vector with `avg()` on the `vector` column in PostgreSQL (pgvector 0.5 or newer) instead of reading every liked embedding into Python, and has a per-user limit, `RATE_LIMIT_RECOMMENDATIONS` (default `30/minute`) (#396).

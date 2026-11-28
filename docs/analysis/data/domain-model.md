@@ -17,7 +17,7 @@ The model supports these functions:
 - custom lists and an activity diary (Epic 2)
 - a shared catalog filled from IGDB and TMDB, with seasons and chapters (Epic 3)
 - chapter ratings, playtime and branching decisions (Epic 4)
-- recommendations and review spoiler detection (Epic 5). The recommendations use the genres of the library. Embeddings are not built
+- recommendations and review spoiler detection (Epic 5). The recommendations rank by the embeddings of the liked titles (`media_embeddings`, migration 0012) and fall back to popularity
 - personal statistics (Epic 6)
 
 Statistics (Epic 6) need no tables of their own. They are computed from the other entities.
@@ -42,7 +42,7 @@ Statistics (Epic 6) need no tables of their own. They are computed from the othe
 | 14 | DecisionPoint and DecisionOption | `decision_points`, `decision_options` | 4 | Implemented (US-12, migration 0008) |
 | 15 | UserDecision | `user_decisions` | 4 | Implemented (US-12, migration 0008) |
 | 16 | Review | `reviews` | 5 | Implemented (US-14, migration 0011) |
-| 17 | MediaEmbedding | `media_embeddings` | 5 | Not built |
+| 17 | MediaEmbedding | `media_embeddings` | 5 | Implemented (migration 0012). Made after the answer of the title details (#382) and by `python -m app.embeddings` |
 | 18 | UserTasteVector | `user_taste_vectors` | 5 | Not built (optional) |
 | 19 | CacheEntry | Redis keys, no table | 3 and 6 | Implemented for search, title details and statistics. The recommendation key is not built |
 
@@ -106,8 +106,8 @@ The written review of a user for a library entry.
 - Key fields: `text`, `contains_spoiler`, `spoiler_score`, `spoiler_model_version`.
 - Rules: `contains_spoiler` is set by the spoiler classifier. The column allows NULL: NULL means "not checked" (OpenAI failed). A library entry has one review, and posting again replaces it (`updated_at` is then set). The classifier is OpenAI (model `SPOILER_MODEL`) when `OPENAI_API_KEY` is set. Without a key, a list of local patterns is used. When OpenAI does not answer, the review is still saved and the three spoiler fields stay NULL.
 
-### 3.12 MediaEmbedding and UserTasteVector (not built)
-These two entities are in the design only. There are no tables, no models and no migrations. The OpenAI client has a function that asks for embeddings, but nothing calls it. The recommendations (US-13) rank the titles that the user does not own by the genres of the library, weighted by the ratings. The text below is the design.
+### 3.12 MediaEmbedding (implemented) and UserTasteVector (not built)
+`MediaEmbedding` is implemented: the table `media_embeddings` (migration 0012), filled after the answer of the title details (#382) and by `python -m app.embeddings`. The recommendations (US-13) average the vectors of the liked titles in PostgreSQL (#396) and rank the titles that the user does not own by their distance, with popularity as the fallback. `UserTasteVector` is not built: the average is computed on each request. The text below is the design.
 
 `MediaEmbedding` stores one vector for each media item and embedding model. The vector is built from the title, genres and description. All media types share the same vector space. This is what makes cross-media recommendations possible.
 
@@ -145,7 +145,7 @@ Cached responses with a time to live. It is not a table in the relational databa
 | UserLibrary | UserDecision | 1 to N | A library entry has many decisions |
 | DecisionPoint | UserDecision | 1 to N | A decision point has many user choices |
 | UserLibrary | Review | 1 to 1 | One review for each library entry |
-| MediaItem | MediaEmbedding | 1 to N | Not built. One vector for each embedding model |
+| MediaItem | MediaEmbedding | 1 to N | Implemented. One vector for each embedding model |
 | User | UserTasteVector | 1 to 1 | Not built. One cached profile vector |
 
 ## 5. Business rules
@@ -171,7 +171,7 @@ Cached responses with a time to live. It is not a table in the relational databa
 | BR-17 | Deleting a user deletes their library, lists, diary, progress and reviews. The database does this with cascading foreign keys. A user deletes their own account with `DELETE /auth/me` and the password (#426); no other endpoint deletes a user. | NFR-03 |
 | BR-18 | A username never contains `@`, so a login value with `@` is an email. The database checks it (`chk_username_no_at`, migration 0009). | US-02, US-03 |
 | BR-20 | A new password is at least 8 characters and at most 72 bytes long. It is not a common password (also not with digits or symbols at the end), it does not contain the username or the part of the email before the @, it is not one character repeated, and it is not a simple sequence or keyboard row such as `12345678` or `qwertyui`. Only registration checks this, so existing accounts can still log in. The list is `backend/app/core/common_passwords.txt`. | US-02 |
-| BR-19 | Not built. Adding a title with an external ID to the library would load its details and genres if not already synced. | US-04, US-09, US-15 |
+| BR-19 | Adding a title with an external ID to the library loads its details and genres if they were not synced yet (`catalog_service.ensure_title_details`, #125). A failure of the outside service does not stop the addition. | US-04, US-09, US-15 |
 
 ## 6. Normalization notes
 
@@ -205,4 +205,4 @@ Each point was checked against the code on 19.11.2026.
 | 5 | Reviews per library entry | **Answered and built.** One review for each entry, and posting again replaces the old one. |
 | 6 | Admin role | **Not built.** There is no `is_admin` column, no Operator role and no admin endpoint. |
 | 7 | Genres and descriptions for unopened titles (#125) | **Answered and built.** Details load when the details of a title are opened (`GET /catalog/{id}`) and when a title is added to the library (`ensure_title_details` in `catalog_service.py`, called by `library_service`). A failure of the outside service is logged and never blocks the addition (NFR-04). The manual sync (`python -m app.sync`, UC-EP3-03) loads the details of titles that were never opened or added, using `sync_titles`. |
-| 8 | Embeddings and vector tables | **Not built.** `media_embeddings` and `user_taste_vectors` have no tables. The recommendations rank by genre. The model (`text-embedding-3-small`, 1536) is only a setting. |
+| 8 | Embeddings and vector tables | **Answered and built for titles:** `media_embeddings` (migration 0012) with `text-embedding-3-small` (1536 dimensions). `user_taste_vectors` is not built; the taste vector is computed on each request. |

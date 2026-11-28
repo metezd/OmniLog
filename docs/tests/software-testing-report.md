@@ -14,7 +14,7 @@ This report ties the test work of the project together. It links to the detailed
 | Coverage | Backend **96.04%** of `backend/app` and `scripts/` (CI gate 90%), frontend **36.51%** of lines (thresholds 25 to 40%) | 27.11.2026 | Section 5, [coverage](coverage.md) |
 | Performance | p95 under 500 ms up to **40 users** on one uvicorn process (20 users with one CPU), about 500 requests/s; the API **locks up at 80 users** (database pool) | 25.11.2026 | Section 6, [performance](performance.md) |
 | Penetration test | First run 7 findings (1 high). Retest: **31 of 31** checks passed locally and **31 of 31** through Caddy on the production stack, **7 of 7** pgvector checks, OWASP ZAP **0 failed** | 25./26.11.2026 | Section 7, [penetration](penetration/README.md) |
-| SonarQube | Quality gate passed. After the fixes **0 bugs, 0 vulnerabilities, 0 hotspots, 0 code smells**, ratings A/A/A (#349). The CI job is ready but waits for a token | 25.11.2026 | Section 8 |
+| SonarQube | Local scan of 25.11.2026: quality gate passed, after the fixes **0 bugs, 0 vulnerabilities, 0 hotspots, 0 code smells** (#349). Since 26.11.2026 SonarCloud scans every pull request and `main` in CI. On `main` (28.11.2026) the gate passes, with **27 open findings** from before the new code period (20 vulnerabilities, 2 bugs, 5 code smells), mostly in workflows, shell scripts and a generated ZAP report; their triage is #423 | 25.11. and 28.11.2026 | Section 8 |
 | TDD | 14 of 15 stories had their test first. **9 fix cycles** have a red `test:` commit and a green `fix:` commit | 25./26.11.2026 | Section 9, [TDD evidence](tdd-evidence.md) |
 
 ## 2. Strategy
@@ -171,7 +171,7 @@ Two kinds of evidence: the NFR-01 tests in process (section 4) and an HTTP load 
 
 ## 8. SonarQube
 
-The CI job "SonarQube" is ready (#322) but is skipped while the secret `SONAR_TOKEN` is not set: SonarCloud is free only for public repositories, and this one is private. So the analysis ran with SonarQube Community Build 26.11 in Docker on 25.11.2026 (#349):
+The first analysis ran with SonarQube Community Build 26.11 in Docker on 25.11.2026 (#349), because the CI job (#322) had no `SONAR_TOKEN` yet:
 
 | Measure | First scan | After #349 |
 |---|---|---|
@@ -183,6 +183,16 @@ The CI job "SonarQube" is ready (#322) but is skipped while the secret `SONAR_TO
 | Coverage of `frontend/src` (lines and conditions) | 41.6% | 41.6% |
 
 The Blocker was a development password in an example comment, the two bugs an unreachable `raise` and a test assertion with the same expression on both sides (a false positive, rewritten). The measures were read from the SonarQube API; there is no screenshot, because the local server needs a login and was removed after the scan. The steps to repeat the scan and to turn the CI job on are in `docs/tests/sonarqube.md` (#349).
+
+**SonarCloud in CI (since 26.11.2026).** The secret `SONAR_TOKEN` is set, and the job "SonarQube" of `ci.yml` scans every pull request and every push to `main` with the coverage of both test jobs. The pull requests of 27.11.2026 got a passed gate with 0 new issues. On `main` the gate passes as well, but SonarCloud lists 27 findings that are older than its new code period (28.11.2026):
+
+| Type | Count | Where |
+|---|---|---|
+| Vulnerability | 20 (4 Blocker) | `pip install` / `npm` options in `.github/workflows/*.yml` and the Dockerfiles, and the throwaway password of the CI database (Blocker) |
+| Bug | 2 | the generated report `docs/tests/penetration/raw/docker-stack/zap-report.html` |
+| Code smell | 5 | `[` instead of `[[` in two `run_stack.sh` scripts, one regular expression in `backend/app/integrations/tmdb.py` |
+
+Ratings on `main`: reliability D and security E (from these findings), maintainability A. The coverage that SonarCloud shows for the whole project is 73.9%, because it counts the backend and the frontend together. Each finding is fixed or marked with a reason in #423.
 
 ## 9. TDD evidence
 
@@ -217,7 +227,7 @@ Details in [TDD evidence](tdd-evidence.md) (#345, #350).
 
 1. **Database pool (P1).** The pool is a setting since #432, and a full pool answers 503 at once. With the default 5 + 10 connections, 80 users still fail the limits (p95 10 s, 2.8% quick 503 answers); with 20 + 20 they pass (p95 309 ms, no errors, 27.11.2026, [performance](performance.md)). Raise the pool only as far as the database plan allows, and consider 2 to 4 uvicorn workers on a plan with more cores.
 2. **Render not checked.** How the proxy of Render fills `X-Forwarded-For`, and which headers it adds, were not checked on the deployed service. One harmless request each, after the team agrees.
-3. **SonarQube in CI.** A repository admin must make the repository public or choose a paid plan or a reachable server, then set `SONAR_TOKEN`, `SONAR_PROJECT_KEY` and `SONAR_ORGANIZATION`.
+3. **SonarCloud findings.** The 27 old findings on `main` (section 8) are fixed or marked as safe with a reason (#423).
 4. **Frontend coverage** is 37%. Tests for the layout and the dashboard would raise it.
 5. **Small hardening:** `Cross-Origin-Resource-Policy` on the API, and HSTS raised from one day to one year after a week without problems.
 6. **Live API tests** need the keys and run only on a manual CI run.
