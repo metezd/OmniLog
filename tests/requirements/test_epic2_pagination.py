@@ -302,3 +302,20 @@ def test_library_filter_never_shows_the_entry_of_another_user(client, auth_heade
 @pytest.mark.parametrize("value", [0, -1, 2**31, "abc"])
 def test_library_filter_with_a_wrong_id_returns_422(client, auth_headers, value):
     assert client.get("/library", params={"media_item_id": value}, headers=auth_headers).status_code == 422
+# ---------------------------------------------------------------- an offset that is too large (#420)
+@pytest.mark.parametrize("path", ["/diary", "/library", "/lists"])
+@pytest.mark.parametrize("offset", [2**31, 2**63])
+def test_an_offset_above_the_maximum_returns_422(client, auth_headers, path, offset):
+    """PostgreSQL keeps OFFSET as a 64 bit number, and 2**63 gave 500 before."""
+    response = client.get(path, params={"offset": offset}, headers=auth_headers)
+
+    assert response.status_code == 422
+    assert response.json()["detail"][0]["loc"] == ["query", "offset"]
+
+
+@pytest.mark.parametrize("path", ["/diary", "/library", "/lists"])
+def test_the_largest_offset_is_allowed(client, auth_headers, path):
+    response = client.get(path, params={"offset": 2**31 - 1}, headers=auth_headers)
+
+    assert response.status_code == 200
+    assert response.json() == []
