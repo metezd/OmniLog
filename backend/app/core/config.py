@@ -19,6 +19,27 @@ def _require(name: str) -> str:
 # postgresql+psycopg2://omnilog:omnilog@localhost:5432/omnilog
 DATABASE_URL = _require("DATABASE_URL")
 
+def _whole_number(name: str, default: int, minimum: int) -> int:
+    """A whole number setting of at least `minimum`. A wrong value stops the start with its name."""
+    text = os.getenv(name, str(default)).strip()
+    try:
+        value = int(text)
+    except ValueError:
+        raise RuntimeError(f"{name} must be a whole number, got {text!r}") from None
+    if value < minimum:
+        raise RuntimeError(f"{name} must be {minimum} or more, got {value}")
+    return value
+
+
+# The connection pool of the API (#432). The endpoints run in a thread pool of 40 threads, so more
+# requests than connections can wait here. A request that finds no free connection within
+# DB_POOL_TIMEOUT seconds gets 503. DB_STATEMENT_TIMEOUT_MS stops one SQL statement of the API that
+# runs longer (0 turns it off); the migrations have no such limit.
+DB_POOL_SIZE = _whole_number("DB_POOL_SIZE", 5, 1)
+DB_MAX_OVERFLOW = _whole_number("DB_MAX_OVERFLOW", 10, 0)
+DB_POOL_TIMEOUT = _whole_number("DB_POOL_TIMEOUT", 10, 1)
+DB_STATEMENT_TIMEOUT_MS = _whole_number("DB_STATEMENT_TIMEOUT_MS", 15000, 0)
+
 # Secret used to sign JWT tokens. It has no default on purpose: a public
 # default value would let anyone forge tokens. Generate one with:
 #   python -c "import secrets; print(secrets.token_urlsafe(32))"
