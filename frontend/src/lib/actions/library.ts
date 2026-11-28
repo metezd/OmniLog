@@ -9,9 +9,10 @@ import {
   addToLibrary,
   logTitlePlaytime,
   removeFromLibrary,
+  removeLastTitlePlaytime,
   updateLibraryEntry,
 } from "@/lib/server/library";
-import { submitReview } from "@/lib/server/reviews";
+import { deleteReview, submitReview } from "@/lib/server/reviews";
 import type { Review, WatchStatus } from "@/types/api";
 
 export type AddToLibraryState =
@@ -275,3 +276,64 @@ export async function submitReviewAction(
   }
   return { status: "saved", review };
 }
+
+function revalidateTitle(mediaItemId: number): void {
+  revalidatePath("/diary");
+  revalidatePath("/stats");
+  revalidatePath("/library");
+  if (Number.isInteger(mediaItemId) && mediaItemId > 0) {
+    revalidatePath(`/title/${mediaItemId}`);
+  }
+}
+
+/** Removes the newest playtime entry of a whole game or movie (#427). */
+export async function removeLastTitlePlaytimeAction(
+  _previous: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const entryId = Number(formData.get("entryId"));
+  const mediaItemId = Number(formData.get("mediaItemId"));
+  if (!Number.isInteger(entryId) || entryId <= 0) {
+    return { status: "error", message: "Invalid library entry." };
+  }
+
+  try {
+    await removeLastTitlePlaytime(entryId);
+  } catch (error) {
+    rethrowIfRedirect(error);
+    return { status: "error", message: toErrorState(error).message };
+  }
+
+  revalidateTitle(mediaItemId);
+  return { status: "saved", message: "Last entry removed" };
+}
+
+/**
+ * Removes the review of a library entry (#427). On success the state has no review, so the
+ * section shows the empty form again.
+ */
+export async function deleteReviewAction(
+  previous: ReviewActionState,
+  formData: FormData,
+): Promise<ReviewActionState> {
+  const entryId = Number(formData.get("entryId"));
+  const mediaItemId = Number(formData.get("mediaItemId"));
+  const previousReview = previous.review ?? null;
+  if (!Number.isInteger(entryId) || entryId <= 0) {
+    return { status: "error", code: "not_found", message: "This review could not be found.", review: previousReview };
+  }
+
+  try {
+    await deleteReview(entryId);
+  } catch (error) {
+    rethrowIfRedirect(error);
+    if (error instanceof BackendError && error.status === 404) {
+      return { status: "idle", review: null };  // already gone
+    }
+    return { status: "error", code: "error", message: toErrorState(error).message, review: previousReview };
+  }
+
+  revalidateTitle(mediaItemId);
+  return { status: "idle", review: null };
+}
+
