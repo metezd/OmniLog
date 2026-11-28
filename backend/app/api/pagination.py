@@ -8,6 +8,9 @@ from dataclasses import dataclass
 from fastapi import Query
 
 MAX_LIMIT = 500
+# Rows have 32 bit ids, so no list can have more rows than this. A larger offset would only
+# reach PostgreSQL, which keeps OFFSET as a 64 bit number and fails above it with a 500 (#420).
+MAX_OFFSET = 2**31 - 1
 DIARY_DEFAULT_LIMIT = 100
 LIBRARY_DEFAULT_LIMIT = 200
 LISTS_DEFAULT_LIMIT = 200
@@ -28,7 +31,9 @@ def _limit_query(default: int):
     )
 
 
-_OFFSET_QUERY = Query(0, ge=0, description="Number of rows to skip (default 0).")
+_OFFSET_QUERY = Query(
+    0, ge=0, le=MAX_OFFSET, description=f"Number of rows to skip (0 to {MAX_OFFSET}, default 0)."
+)
 
 
 def diary_page(limit: int = _limit_query(DIARY_DEFAULT_LIMIT), offset: int = _OFFSET_QUERY) -> Page:
