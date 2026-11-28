@@ -14,7 +14,8 @@ Part of the review checklist in [#252] (section E). Issue: [#308]. This page exp
 | GitHub Copilot code review | - | - | An extra reviewer on 14 pull requests, from [#25] to [#228]. It does not count as an approval ([CONTRIBUTING.md](../../CONTRIBUTING.md#code-review)) | [`evidence.md`][evidence] ([#318]), section 2 |
 | Copilot Autofix | - | `metezd` | Fixes that answered Copilot review comments in [#41], [#66] and [#143] | `Co-authored-by: Copilot Autofix` in [`fa01da5`][fa01da5], [`e97895e`][e97895e] |
 | Claude (chat on claude.ai) | Claude Opus (version not recorded) | `musabalperenbasol` | Chat for [#6], [#78], [#84], [#240], [#254]. No repository access. The notes were drafted by a Cowork agent (Claude Opus 5.5) | [`musab-alperen-basol.md`](musab-alperen-basol.md) ([#316]) |
-| Other use by `metezd`, `KaganKonuk` | | | **pending** | [#312], [#314] |
+| Gemini (chat / assistant) | Gemini | `KaganKonuk` | Interactive chat for refactoring, test verification, debugging, and docs ([#305], [#216], [#156], [#314]) | [`kagan-konuk.md`](kagan-konuk.md) ([#314]) |
+| Other use by `metezd` | | | **pending** | [#312] |
 
 ## 2. The pipeline
 
@@ -95,7 +96,8 @@ Did not work:
 | Notes of Sidar Ürey ([#315]) | [`sidar-urey.md`][sidar] (in [#319]) |
 | Notes of Musab Alperen Başol ([#316]) | [`musab-alperen-basol.md`](musab-alperen-basol.md) |
 | Notes of Kerem Kenet ([#313]) | [`kerem-kenet.md`](kerem-kenet.md) |
-| Notes of Mete Özdoğan, Kağan Konuk | **pending**: [#312], [#314] |
+| Notes of Kağan Konuk ([#314]) | [`kagan-konuk.md`](kagan-konuk.md) |
+| Notes of Mete Özdoğan | **pending**: [#312] |
 | Register of AI mistakes ([#310]) | [`mistakes.md`](mistakes.md) |
 | Evidence of AI use beyond autocomplete ([#311]) | [`evidence.md`][evidence] (in [#318]) |
 | AI assisted pull requests | `gh pr list --repo metezd/OmniLog --label ai-assisted --state all` |
