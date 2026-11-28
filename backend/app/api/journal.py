@@ -4,7 +4,7 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
+from app.api.deps import WRITE_LIMIT, get_current_user
 from app.api.pagination import Page, diary_page, lists_page
 from app.core.database import get_db
 from app.models.entities import User
@@ -27,7 +27,12 @@ router = APIRouter(tags=["Journal"])
 
 
 # ---------------------------------------------------------------- US-06: Custom lists
-@router.post("/lists", response_model=CustomListResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/lists",
+    response_model=CustomListResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[WRITE_LIMIT],
+)
 def create_custom_list(
     payload: CustomListCreate,
     db: Session = Depends(get_db),
@@ -67,7 +72,7 @@ def get_custom_list(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
 
 
-@router.post("/lists/{list_id}/items", response_model=CustomListItemResponse)
+@router.post("/lists/{list_id}/items", response_model=CustomListItemResponse, dependencies=[WRITE_LIMIT])
 def add_item_to_list(
     list_id: int,
     payload: CustomListItemCreate,
@@ -85,7 +90,11 @@ def add_item_to_list(
     return item
 
 
-@router.delete("/lists/{list_id}/items/{media_item_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/lists/{list_id}/items/{media_item_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[WRITE_LIMIT],
+)
 def remove_item_from_list(
     list_id: int,
     media_item_id: int,
@@ -99,7 +108,7 @@ def remove_item_from_list(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
 
 
-@router.delete("/lists/{list_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/lists/{list_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[WRITE_LIMIT])
 def delete_custom_list(
     list_id: int,
     db: Session = Depends(get_db),

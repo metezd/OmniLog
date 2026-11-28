@@ -56,6 +56,7 @@ All notable changes to this project are written in this file. The format follows
 
 ### Security
 
+- The writes of one user to the library, the chapters and the lists share one rate limit, `RATE_LIMIT_WRITES` (default `120/minute`). Before, one account could send 800 writes in 5 seconds, each with a diary row (#431).
 - The failed logins of one account are limited from any address (`RATE_LIMIT_LOGIN_ACCOUNT`, default `20/hour`). Over the limit, the login of that account answers 429 with `Retry-After` until the window ends, also for the right password. The key is a hash of the username or email, and unknown accounts are counted the same way (#391).
 - `GET /catalog/{id}` has a per-user limit, `RATE_LIMIT_DETAILS` (default `60/minute`), because opening a title that was not loaded yet calls IGDB or TMDB and OpenAI. A test checks that the embedding of a title is saved once and that later opens do not call OpenAI (#390).
 - "Log out" ends the token at the backend with the new `POST /auth/logout`, so a copied token stops working at once instead of 90 minutes later. Every token has a `jti` claim, and the ended ones are kept in the new table `revoked_tokens` (migration 0014) until they would expire. Other tokens of the same user keep working. Tokens without `jti` are refused, so every user logs in once again after the update (#378).

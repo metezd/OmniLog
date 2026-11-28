@@ -3,6 +3,8 @@
 A fake clock decides the time window, so a test can let a window end without waiting. The tests
 run against Redis when it is up, and every test also has a version where Redis is down.
 """
+import re
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -373,3 +375,80 @@ def test_the_key_of_an_account_holds_no_name_or_email(limits_on, monkeypatch):
 
 def test_the_default_of_the_account_limit():
     assert config.RATE_LIMIT_LOGIN_ACCOUNT == (20, 3600)
+
+
+# ------------------------------------------------------------------------------------ writes (#431)
+def test_writes_share_one_limit_per_user(limits_on, monkeypatch):
+    """Before #431 one user could send 800 writes in 5 seconds. The writes now share one limit."""
+    monkeypatch.setattr(config, "RATE_LIMIT_WRITES", (3, 60))
+    client = client_at("10.0.7.1")
+    headers = register_and_login(client, new_credentials())
+    entry = add_to_library(client, headers, create_media(client, headers)["id"])  # write 1
+
+    assert client.post("/lists", json={"name": "one"}, headers=headers).status_code == 201  # 2
+    assert client.patch(f"/library/{entry['id']}", json={"rating": 7}, headers=headers).status_code == 200  # 3
+    assert_limited(client.post("/lists", json={"name": "two"}, headers=headers), retry_after=60)
+    assert_limited(client.delete(f"/library/{entry['id']}", headers=headers), retry_after=60)
+
+    FakeClock.now += 60
+    assert client.post("/lists", json={"name": "two"}, headers=headers).status_code == 201
+
+
+def test_reads_are_not_counted_as_writes(limits_on, monkeypatch):
+    monkeypatch.setattr(config, "RATE_LIMIT_WRITES", (1, 60))
+    client = client_at("10.0.7.2")
+    headers = register_and_login(client, new_credentials())
+
+    for path in ("/library", "/lists", "/diary", "/stats", "/library", "/lists"):
+        assert client.get(path, headers=headers).status_code == 200
+    assert client.post("/lists", json={"name": "after reads"}, headers=headers).status_code == 201
+
+
+def test_the_write_limit_of_one_user_does_not_block_another(limits_on, monkeypatch):
+    monkeypatch.setattr(config, "RATE_LIMIT_WRITES", (1, 60))
+    client = client_at("10.0.7.3")
+    first = register_and_login(client, new_credentials())
+    second = register_and_login(client, new_credentials())
+
+    client.post("/lists", json={"name": "a"}, headers=first)
+    assert client.post("/lists", json={"name": "b"}, headers=first).status_code == 429
+    assert client.post("/lists", json={"name": "a"}, headers=second).status_code == 201
+
+
+def test_a_write_without_a_token_is_401_and_not_counted(limits_on, monkeypatch):
+    monkeypatch.setattr(config, "RATE_LIMIT_WRITES", (1, 60))
+    client = client_at("10.0.7.4")
+    headers = register_and_login(client, new_credentials())
+
+    for _ in range(3):
+        assert client.post("/lists", json={"name": "x"}).status_code == 401
+    assert client.post("/lists", json={"name": "x"}, headers=headers).status_code == 201
+
+
+@pytest.mark.parametrize(
+    ("method", "path"),
+    [
+        ("POST", "/library"), ("PATCH", "/library/{id}"), ("DELETE", "/library/{id}"),
+        ("POST", "/library/{id}/playtime"), ("PUT", "/library/{id}/chapters/{id}/rating"),
+        ("POST", "/library/{id}/chapters/{id}/playtime"), ("PUT", "/library/{id}/chapters/{id}/decision"),
+        ("POST", "/lists"), ("POST", "/lists/{id}/items"), ("DELETE", "/lists/{id}/items/{id}"),
+        ("DELETE", "/lists/{id}"),
+    ],
+)
+def test_every_write_route_has_the_write_limit(method, path):
+    from app.api import chapters, journal, library
+    from app.api.deps import WRITE_LIMIT
+
+    # The routers themselves: app.routes holds the included routers, not their routes
+    all_routes = library.router.routes + chapters.router.routes + journal.router.routes
+    routes = [
+        route for route in all_routes
+        if getattr(route, "methods", None) and method in route.methods
+        and re.sub(r"\{[^}]+\}", "{id}", route.path) == path
+    ]
+    assert routes, f"{method} {path} not found"
+    assert any(dep is WRITE_LIMIT for dep in routes[0].dependencies)
+
+
+def test_the_default_write_limit():
+    assert config.RATE_LIMIT_WRITES == (120, 60)
