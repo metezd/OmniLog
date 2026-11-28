@@ -1292,17 +1292,33 @@ export default function GlobalAsciiBackground() {
         }
       }
 
-      ctx.font = "11px 'JetBrains Mono', Consolas, monospace";
-      ctx.fillStyle = "rgba(186, 208, 235, 0.55)";
-      const hudText = `omnilog.ascii  |  ${mode}.3d (x5)  |  theme: ${activePal.name.toLowerCase()}  |  fx: ${amb}  |  chars ${charCount}`;
-      ctx.fillText(hudText, 18, canvas.height - 22);
+      // A debug line for the developers only, never in a build that users see (#429)
+      if (process.env.NODE_ENV === "development") {
+        ctx.font = "11px 'JetBrains Mono', Consolas, monospace";
+        ctx.fillStyle = "rgba(186, 208, 235, 0.55)";
+        const hudText = `omnilog.ascii  |  ${mode}.3d (x5)  |  theme: ${activePal.name.toLowerCase()}  |  fx: ${amb}  |  chars ${charCount}`;
+        ctx.fillText(hudText, 18, canvas.height - 22);
+      }
 
+      // With "reduce motion" the first frame stays as a still picture (#429, WCAG 2.2.2 and 2.3.3)
+      if (!reducedMotion) animId = requestAnimationFrame(render);
+    };
+
+    // The operating system setting "reduce motion". The background follows it when it changes.
+    const motionQuery =
+      typeof window.matchMedia === "function" ? window.matchMedia("(prefers-reduced-motion: reduce)") : null;
+    let reducedMotion = motionQuery?.matches ?? false;
+    const onMotionChange = (event: MediaQueryListEvent) => {
+      reducedMotion = event.matches;
+      cancelAnimationFrame(animId);
       animId = requestAnimationFrame(render);
     };
+    motionQuery?.addEventListener("change", onMotionChange);
 
     animId = requestAnimationFrame(render);
 
     return () => {
+      motionQuery?.removeEventListener("change", onMotionChange);
       cancelAnimationFrame(animId);
       window.removeEventListener("resize", resize);
       window.removeEventListener("mousemove", onMove);
