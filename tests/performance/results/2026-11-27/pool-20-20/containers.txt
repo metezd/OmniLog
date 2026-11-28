@@ -1,0 +1,5 @@
+omnilog-perf-backend-1 cpu=0.31% mem=121.1MiB / 7.748GiB
+omnilog-perf-db-1 cpu=0.09% mem=78.39MiB / 7.748GiB
+omnilog-perf-frontend-1 cpu=0.00% mem=46.82MiB / 7.748GiB
+omnilog-perf-proxy-1 cpu=0.00% mem=54.11MiB / 7.748GiB
+omnilog-perf-redis-1 cpu=0.65% mem=9.801MiB / 7.748GiB

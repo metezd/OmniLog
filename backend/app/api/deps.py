@@ -117,3 +117,8 @@ def limit_per_user(name: str) -> Callable[[User], None]:
         rate_limit.check(name, f"user:{current_user.id}")
 
     return dependency
+
+
+# The shared limit of the write endpoints (RATE_LIMIT_WRITES, #431). get_current_user runs first, so
+# a call without a valid token gets 401 and is not counted.
+WRITE_LIMIT = Depends(limit_per_user("writes"))
