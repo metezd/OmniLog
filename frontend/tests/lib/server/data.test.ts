@@ -16,8 +16,11 @@ import {
 import { addItemToList, createList, deleteList, getDiary, getList, getLists, removeItemFromList } from "@/lib/server/journal";
 import {
   addToLibrary,
+  getFullLibrary,
   getLibrary,
   getLibraryEntry,
+  MAX_PAGES,
+  PAGE_SIZE,
   removeFromLibrary,
   removeLastTitlePlaytime,
   updateLibraryEntry,
@@ -91,6 +94,30 @@ describe("library", () => {
     expect(library).toHaveLength(1007);
     expect(library.at(-1)).toEqual({ id: 1007 });
     expect(seen).toEqual(["?limit=500&offset=0", "?limit=500&offset=500", "?limit=500&offset=1000"]);
+  });
+
+  it("stops at the safe maximum and says whether rows were left out (#448)", async () => {
+    const max = MAX_PAGES * PAGE_SIZE;
+    for (const [total, truncated] of [[max + 1, true], [max, false]] as const) {
+      const seen: string[] = [];
+      server.use(
+        http.get(`${BASE}/library`, ({ request }) => {
+          const url = new URL(request.url);
+          seen.push(url.search);
+          const limit = Number(url.searchParams.get("limit"));
+          const offset = Number(url.searchParams.get("offset"));
+          const size = Math.max(0, Math.min(limit, total - offset));
+          return HttpResponse.json(Array.from({ length: size }, (_, i) => ({ id: offset + i + 1 })));
+        }),
+      );
+
+      const library = await getFullLibrary();
+
+      expect(library.entries).toHaveLength(max);
+      expect(library.truncated).toBe(truncated);
+      expect(seen).toHaveLength(MAX_PAGES + 1);
+      expect(seen.at(-1)).toBe(`?limit=1&offset=${max}`);
+    }
   });
 
   it("reads the entry of one title, or null when it is not in the library", async () => {

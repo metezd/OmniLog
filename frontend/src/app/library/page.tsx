@@ -4,7 +4,7 @@ import LibraryEntryCard from "@/components/library/LibraryEntryCard";
 import EmptyState from "@/components/states/EmptyState";
 import ErrorState from "@/components/states/ErrorState";
 import { toErrorState } from "@/lib/server/error-state";
-import { getLibrary } from "@/lib/server/library";
+import { getFullLibrary, MAX_PAGES, PAGE_SIZE } from "@/lib/server/library";
 import type { LibraryEntry } from "@/types/api";
 
 export const metadata: Metadata = {
@@ -15,8 +15,9 @@ export const metadata: Metadata = {
 // the next step of the screen.
 export default async function LibraryPage() {
   let entries: LibraryEntry[];
+  let truncated = false;
   try {
-    entries = await getLibrary();
+    ({ entries, truncated } = await getFullLibrary());
   } catch (error) {
     const state = toErrorState(error);
     return (
@@ -28,6 +29,16 @@ export default async function LibraryPage() {
 
   return (
     <Shell>
+      {truncated && (
+        <p
+          role="note"
+          className="rounded-xl border border-amber-400/40 bg-amber-400/10 px-4 py-2 text-xs text-amber-100"
+        >
+          Your library has more than {(MAX_PAGES * PAGE_SIZE).toLocaleString("en-US")} titles. Only
+          the first {entries.length.toLocaleString("en-US")} are shown here, oldest first. Open a
+          title from search to change its entry.
+        </p>
+      )}
       {entries.length === 0 ? (
         <EmptyState title="Your library is empty" message="Titles that you add will show up here." />
       ) : (
