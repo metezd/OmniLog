@@ -213,3 +213,32 @@ def test_delete_account_with_a_wrong_password_is_403(client, db):
 )
 def test_every_account_route_needs_a_login(client, method, path, body):
     assert client.request(method, path, json=body).status_code == 401
+
+
+# ---------------------------------------------------------------- passwords that bcrypt cannot read
+def test_a_current_password_over_72_bytes_is_403(client):
+    """A password that bcrypt cannot read can never be the current one."""
+    credentials = register(client)
+    headers = session(client, credentials)
+
+    response = client.put(
+        "/auth/password",
+        json={"current_password": "\U0001F600" * 19, "new_password": NEW_PASSWORD},
+        headers=headers,
+    )
+
+    assert response.status_code == 403
+
+
+def test_a_new_password_over_72_bytes_is_422(client):
+    credentials = register(client)
+    headers = session(client, credentials)
+
+    response = client.put(
+        "/auth/password",
+        json={"current_password": credentials["password"], "new_password": "".join(chr(0x1F600 + 2 * i) for i in range(19))},
+        headers=headers,
+    )
+
+    assert response.status_code == 422
+    assert "72 bytes" in response.json()["detail"][0]["msg"]
