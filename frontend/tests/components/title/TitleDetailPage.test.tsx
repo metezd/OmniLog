@@ -4,14 +4,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import TitleDetailPage from "@/app/title/[id]/page";
 import { BackendError } from "@/lib/server/backend";
 import { getTitleDetails } from "@/lib/server/catalog";
-import { getChapterProgress } from "@/lib/server/chapters";
+import { getAllChapterProgress } from "@/lib/server/chapters";
 import { getLibraryEntry } from "@/lib/server/library";
 import { getReview } from "@/lib/server/reviews";
 import type { LibraryEntry, MediaDetail } from "@/types/api";
 
 vi.mock("@/lib/server/catalog", () => ({ getTitleDetails: vi.fn() }));
 vi.mock("@/lib/server/library", () => ({ getLibraryEntry: vi.fn() }));
-vi.mock("@/lib/server/chapters", () => ({ getChapterProgress: vi.fn() }));
+vi.mock("@/lib/server/chapters", () => ({ getAllChapterProgress: vi.fn() }));
 vi.mock("@/lib/server/reviews", () => ({ getReview: vi.fn() }));
 vi.mock("@/lib/actions/library", () => ({
   addToLibraryAction: vi.fn(),
@@ -29,7 +29,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
 const catalogMock = vi.mocked(getTitleDetails);
 const libraryMock = vi.mocked(getLibraryEntry);
-const progressMock = vi.mocked(getChapterProgress);
+const progressMock = vi.mocked(getAllChapterProgress);
 const reviewMock = vi.mocked(getReview);
 
 function makeDetail(overrides: Partial<MediaDetail> = {}): MediaDetail {
@@ -86,22 +86,15 @@ async function renderTitle(id = "42") {
 describe("TitleDetailPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // A title without logged chapters: the one progress request answers an empty list (#419)
+    progressMock.mockResolvedValue([]);
   });
 
   it("asks only for the library entry of its own title (#418)", async () => {
     catalogMock.mockResolvedValue(makeDetail());
     libraryMock.mockResolvedValue(makeEntry(42));
     reviewMock.mockResolvedValue(null);
-    progressMock.mockResolvedValue({
-      library_entry_id: 10,
-      chapter_id: 101,
-      rating: null,
-      playtime_minutes: 0,
-      updated_at: null,
-      choice: null,
-      decided_at: null,
-      decisions: [],
-    });
+    progressMock.mockResolvedValue([]);
 
     await renderTitle("42");
 
@@ -158,7 +151,7 @@ describe("TitleDetailPage", () => {
     );
     libraryMock.mockResolvedValue(makeEntry(7));
     reviewMock.mockResolvedValue(null);
-    progressMock.mockResolvedValue({
+    progressMock.mockResolvedValue([{
       library_entry_id: 10,
       chapter_id: 201,
       rating: 5,
@@ -167,9 +160,13 @@ describe("TitleDetailPage", () => {
       choice: null,
       decided_at: null,
       decisions: [],
-    });
+    }]);
 
     await renderTitle("7");
+
+    // One request for the progress of all episodes (#419), not one per episode
+    expect(progressMock).toHaveBeenCalledTimes(1);
+    expect(progressMock).toHaveBeenCalledWith(makeEntry(7).id);
 
     expect(screen.getByRole("heading", { name: "Your Library Status" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /Your Journal Review/i })).toBeInTheDocument();
@@ -207,7 +204,7 @@ describe("TitleDetailPage", () => {
     catalogMock.mockResolvedValue(makeDetail());
     libraryMock.mockResolvedValue({ ...makeEntry(42), playtime_minutes: 90 });
     reviewMock.mockResolvedValue(null);
-    progressMock.mockResolvedValue({
+    progressMock.mockResolvedValue([{
       library_entry_id: 10,
       chapter_id: 101,
       rating: null,
@@ -216,7 +213,7 @@ describe("TitleDetailPage", () => {
       choice: null,
       decided_at: null,
       decisions: [],
-    });
+    }]);
 
     await renderTitle("42");
 

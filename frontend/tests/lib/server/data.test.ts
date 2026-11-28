@@ -3,7 +3,7 @@ import { http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getTitleDetails, searchCatalog } from "@/lib/server/catalog";
-import { getChapterProgress, logPlaytime, rateChapter, recordDecision } from "@/lib/server/chapters";
+import { getAllChapterProgress, getChapterProgress, logPlaytime, rateChapter, recordDecision } from "@/lib/server/chapters";
 import { addItemToList, createList, deleteList, getDiary, getList, getLists, removeItemFromList } from "@/lib/server/journal";
 import { addToLibrary, getLibrary, getLibraryEntry, removeFromLibrary, updateLibraryEntry } from "@/lib/server/library";
 import { getRecommendations } from "@/lib/server/recommendations";
@@ -166,6 +166,12 @@ describe("chapters", () => {
     const { seen } = fakeBackend();
     await logPlaytime(3, 8, 90);
     expect(seen[0]).toMatchObject({ method: "POST", path: "/library/3/chapters/8/playtime", body: { minutes: 90 } });
+  });
+
+  it("reads the progress of all chapters of an entry in one call (#419)", async () => {
+    const { seen } = fakeBackend([]);
+    await getAllChapterProgress(3);
+    expect(seen.map((s) => [s.method, s.path])).toEqual([["GET", "/library/3/chapters"]]);
   });
 
   it("records a decision, and sends the decision point only when it is given", async () => {
