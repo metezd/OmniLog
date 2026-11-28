@@ -5,12 +5,12 @@ import TitleDetailPage from "@/app/title/[id]/page";
 import { BackendError } from "@/lib/server/backend";
 import { getTitleDetails } from "@/lib/server/catalog";
 import { getChapterProgress } from "@/lib/server/chapters";
-import { getLibrary } from "@/lib/server/library";
+import { getLibraryEntry } from "@/lib/server/library";
 import { getReview } from "@/lib/server/reviews";
 import type { LibraryEntry, MediaDetail } from "@/types/api";
 
 vi.mock("@/lib/server/catalog", () => ({ getTitleDetails: vi.fn() }));
-vi.mock("@/lib/server/library", () => ({ getLibrary: vi.fn() }));
+vi.mock("@/lib/server/library", () => ({ getLibraryEntry: vi.fn() }));
 vi.mock("@/lib/server/chapters", () => ({ getChapterProgress: vi.fn() }));
 vi.mock("@/lib/server/reviews", () => ({ getReview: vi.fn() }));
 vi.mock("@/lib/actions/library", () => ({
@@ -31,7 +31,7 @@ vi.mock("@/lib/actions/chapters", () => ({
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
 const catalogMock = vi.mocked(getTitleDetails);
-const libraryMock = vi.mocked(getLibrary);
+const libraryMock = vi.mocked(getLibraryEntry);
 const progressMock = vi.mocked(getChapterProgress);
 const reviewMock = vi.mocked(getReview);
 
@@ -91,9 +91,30 @@ describe("TitleDetailPage", () => {
     vi.clearAllMocks();
   });
 
+  it("asks only for the library entry of its own title (#418)", async () => {
+    catalogMock.mockResolvedValue(makeDetail());
+    libraryMock.mockResolvedValue(makeEntry(42));
+    reviewMock.mockResolvedValue(null);
+    progressMock.mockResolvedValue({
+      library_entry_id: 10,
+      chapter_id: 101,
+      rating: null,
+      playtime_minutes: 0,
+      updated_at: null,
+      choice: null,
+      decided_at: null,
+      decisions: [],
+    });
+
+    await renderTitle("42");
+
+    expect(libraryMock).toHaveBeenCalledWith(42);
+    expect(screen.queryByRole("button", { name: /add to library/i })).not.toBeInTheDocument();
+  });
+
   it("renders header details, chapters and Add to Library button when title is not in library", async () => {
     catalogMock.mockResolvedValue(makeDetail());
-    libraryMock.mockResolvedValue([]);
+    libraryMock.mockResolvedValue(null);
 
     await renderTitle("42");
 
@@ -138,7 +159,7 @@ describe("TitleDetailPage", () => {
         ],
       }),
     );
-    libraryMock.mockResolvedValue([makeEntry(7)]);
+    libraryMock.mockResolvedValue(makeEntry(7));
     reviewMock.mockResolvedValue(null);
     progressMock.mockResolvedValue({
       library_entry_id: 10,
@@ -174,7 +195,7 @@ describe("TitleDetailPage", () => {
         chapters: [],
       }),
     );
-    libraryMock.mockResolvedValue([]);
+    libraryMock.mockResolvedValue(null);
 
     await renderTitle("42");
 
@@ -187,7 +208,7 @@ describe("TitleDetailPage", () => {
 
   it("shows the playtime card of a game with the title and chapter minutes together (#413)", async () => {
     catalogMock.mockResolvedValue(makeDetail());
-    libraryMock.mockResolvedValue([{ ...makeEntry(42), playtime_minutes: 90 }]);
+    libraryMock.mockResolvedValue({ ...makeEntry(42), playtime_minutes: 90 });
     reviewMock.mockResolvedValue(null);
     progressMock.mockResolvedValue({
       library_entry_id: 10,
@@ -209,7 +230,7 @@ describe("TitleDetailPage", () => {
 
   it("calls it watch time for a movie and shows no card for a series (#413)", async () => {
     catalogMock.mockResolvedValue(makeDetail({ media_type: "MOVIE", chapters: [] }));
-    libraryMock.mockResolvedValue([makeEntry(42)]);
+    libraryMock.mockResolvedValue(makeEntry(42));
     reviewMock.mockResolvedValue(null);
 
     await renderTitle("42");
@@ -228,14 +249,14 @@ describe("TitleDetailPage", () => {
 
   it("shows not_found ErrorState when backend returns 404", async () => {
     catalogMock.mockRejectedValueOnce(new BackendError(404, "Title not found"));
-    libraryMock.mockResolvedValueOnce([]);
+    libraryMock.mockResolvedValueOnce(null);
     await renderTitle("999");
     expect(screen.getByRole("alert")).toHaveTextContent("We could not find what you were looking for.");
   });
 
   it("renders a saved review with spoiler warning when the title is in the library", async () => {
     catalogMock.mockResolvedValue(makeDetail({ seasons: [], chapters: [] }));
-    libraryMock.mockResolvedValue([makeEntry(42)]);
+    libraryMock.mockResolvedValue(makeEntry(42));
     reviewMock.mockResolvedValue({
       id: 5,
       library_entry_id: 10,
@@ -255,7 +276,7 @@ describe("TitleDetailPage", () => {
 
   it("shows not_found ErrorState when fetching the review fails with 404 for a missing library entry", async () => {
     catalogMock.mockResolvedValue(makeDetail({ seasons: [], chapters: [] }));
-    libraryMock.mockResolvedValue([makeEntry(42)]);
+    libraryMock.mockResolvedValue(makeEntry(42));
     reviewMock.mockRejectedValueOnce(new BackendError(404, "Library entry not found"));
 
     await renderTitle("42");

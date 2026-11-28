@@ -77,5 +77,3 @@ services:
           type: web
           name: omnilog-api
           envVarKey: FRONTEND_PROXY_SECRET
-      - key: NEXT_PUBLIC_API_URL
-        sync: false

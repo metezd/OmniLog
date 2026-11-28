@@ -67,12 +67,12 @@ flowchart LR
 | 2.0 | User and Journal Management | 2 | US-02 to US-07, NFR-03 | Accounts, login, library, custom lists and activity diary |
 | 3.0 | Catalog Aggregation | 3 | US-08, US-09, NFR-01, NFR-04 | Search and details of titles. Fetches, normalizes, caches and stores outside data. The manual sync is the command `python -m app.sync` |
 | 4.0 | Episodic and Decision Logging | 4 | US-10 to US-12 | Chapter ratings, playtime and branching decisions |
-| 5.0 | AI Engine | 5 | US-13, US-14 | Recommendations by genre, reviews and spoiler detection. Embeddings are not built |
+| 5.0 | AI Engine | 5 | US-13, US-14 | Recommendations by the embeddings of the liked titles, with popularity as the fallback, reviews and spoiler detection |
 | 6.0 | Analytics | 6 | US-15 | Personal statistics |
 
 ### Data stores
 
-All stores live in one PostgreSQL database, except the cache. The split below is logical. D8 and D10 have no tables yet and `external_sources` is not built either. The tables are listed in [../data/er-diagram.md](../data/er-diagram.md).
+All stores live in one PostgreSQL database, except the cache. The split below is logical. D8 has `media_embeddings` (migration 0012) but no `user_taste_vectors`, D10 has no table yet, and `external_sources` is not built either. The tables are listed in [../data/er-diagram.md](../data/er-diagram.md).
 
 | ID | Data store | Main tables or keys |
 |---|---|---|
@@ -83,7 +83,7 @@ All stores live in one PostgreSQL database, except the cache. The split below is
 | D5 | Catalog (Persistent DB) | `media_items`, `genres`, `media_item_genres`, `seasons`, `chapters`, `decision_points`, `decision_options` |
 | D6 | Episodic Log | `chapter_progress`, `playtime_logs`, `user_decisions` |
 | D7 | Reviews | `reviews` |
-| D8 | Vector Store | `media_embeddings`, `user_taste_vectors`. **Not built** |
+| D8 | Vector Store | `media_embeddings` (**implemented**, migration 0012). `user_taste_vectors` is **not built** |
 | D9 | Redis Cache | Keys that start with `omni:` (search, title details and statistics) |
 | D10 | Sync Job Log | `sync_job_logs`. **Not built** |
 
@@ -163,7 +163,7 @@ flowchart TB
 |---|---|---|---|
 | F-01 | 1.0 | 2.0, 3.0, 4.0, 5.0, 6.0 | The request and the id of the logged-in user |
 | F-02 | 2.0 | D5 | Check that a title exists before it is added to a library or list. Nothing loads its details at this point |
-| F-03 | 3.0 | 5.0 | Not built. A new or changed title that needs an embedding |
+| F-03 | 3.0 | 5.0 | Implemented. A title whose details were opened gets an embedding after the answer (#382) |
 | F-04 | 2.0, 4.0, 5.0 | D4 | A diary event for each user action |
 | F-05 | 2.0, 4.0 | D9 | Delete the cached statistics of the user after a change (library entries, chapter ratings, playtime, decisions, list items and lists) |
 
@@ -192,7 +192,7 @@ Protected paths are `/auth/me`, `/library` (with the chapter, decision and revie
 | D5 Catalog | Shared normalized catalog | One record for each (media type, external id) |
 | D6 Episodic Log | Chapter data of users | One progress row for each library entry and chapter. The playtime total is the sum of the entries |
 | D7 Reviews | Reviews and spoiler flags | One review for each library entry |
-| D8 Vector Store | Not built | The design has one vector for each title and model |
+| D8 Vector Store | Partly built | `media_embeddings` holds one vector for each title and model. `user_taste_vectors` is not built |
 | D9 Redis Cache | Fast reads | A record is stale when its TTL has ended. Statistics are also deleted when the user changes data. If Redis is down, an in-process cache is used |
 | D10 Sync Job Log | Not built | The design has a row for each sync job |
 

@@ -73,16 +73,33 @@ const ACTION_LABELS: Record<string, { label: string; badgeClass: string }> = {
   },
 };
 
-export default async function DiaryPage() {
+/** Events per page of the diary. The backend allows up to 500. */
+const DIARY_PAGE_SIZE = 100;
+
+type DiaryPageProps = { searchParams?: Promise<{ page?: string | string[] }> };
+
+/** The page number from the address, 1 when it is missing or not a whole number from 1 up. */
+function pageNumber(value: string | string[] | undefined): number {
+  const text = Array.isArray(value) ? value[0] : value;
+  const page = Number(text);
+  return Number.isInteger(page) && page >= 1 && page <= 100_000 ? page : 1;
+}
+
+export default async function DiaryPage({ searchParams }: DiaryPageProps) {
+  const params = searchParams ? await searchParams : {};
+  const page = pageNumber(params.page);
   let entries: DiaryEntry[] = [];
+  let hasOlder = false;
   const titleByMediaId = new Map<number, string>();
 
   try {
+    // One event more than the page shows tells whether an older page exists (#418)
     const [diary, library] = await Promise.all([
-      getDiary(),
+      getDiary({ limit: DIARY_PAGE_SIZE + 1, offset: (page - 1) * DIARY_PAGE_SIZE }),
       getLibrary().catch(() => []),
     ]);
-    entries = diary;
+    hasOlder = diary.length > DIARY_PAGE_SIZE;
+    entries = diary.slice(0, DIARY_PAGE_SIZE);
     library.forEach((entry) => {
       titleByMediaId.set(entry.media_item_id, entry.media_item.title);
     });
@@ -99,7 +116,7 @@ export default async function DiaryPage() {
 
   return (
     <Shell>
-      {entries.length === 0 ? (
+      {entries.length === 0 && page === 1 ? (
         <EmptyState
           title="Your activity diary is empty"
           message="Every library addition, chapter rating, logged playtime, and narrative decision will be recorded here chronologically."
@@ -145,9 +162,35 @@ export default async function DiaryPage() {
               </div>
             );
           })}
+          <DiaryPager page={page} hasOlder={hasOlder} />
         </div>
       )}
     </Shell>
+  );
+}
+
+function DiaryPager({ page, hasOlder }: { page: number; hasOlder: boolean }) {
+  if (page === 1 && !hasOlder) return null;
+  const linkClass =
+    "rounded-full border border-white/15 px-4 py-1.5 text-xs font-semibold text-slate-200 transition-colors hover:border-cyan-300/60 hover:text-cyan-200";
+  return (
+    <nav aria-label="Diary pages" className="flex items-center justify-between pt-2">
+      {page > 1 ? (
+        <Link href={page === 2 ? "/diary" : `/diary?page=${page - 1}`} className={linkClass}>
+          Newer events
+        </Link>
+      ) : (
+        <span />
+      )}
+      <span className="text-xs text-slate-400">Page {page}</span>
+      {hasOlder ? (
+        <Link href={`/diary?page=${page + 1}`} className={linkClass}>
+          Older events
+        </Link>
+      ) : (
+        <span />
+      )}
+    </nav>
   );
 }
 

@@ -6,6 +6,7 @@ import time
 from dataclasses import dataclass, replace
 from datetime import date, datetime, timezone
 from typing import Any, Callable, Optional
+from urllib.parse import urlsplit
 
 import requests
 
@@ -36,6 +37,32 @@ DEFAULT_EPISODE_RUNTIME_MINUTES = 45
 
 # Replaced in tests, so retries do not really wait
 sleep = time.sleep
+
+# When every try of a call to a host ended without an answer (a timeout or no connection), the
+# host is not called again for EXTERNAL_API_COOLDOWN_SECONDS (#428). Without this, every open of a
+# title that was never loaded waited for all tries again (up to 4 x 8 seconds) while IGDB or TMDB
+# was down. An answer such as 503 or 429 comes back at once, so it is only tried again as before.
+_pause_lock = threading.Lock()
+_paused_until: dict[str, float] = {}
+
+
+def reset_pauses() -> None:
+    """Forget the failures of the outside hosts. Used by the tests."""
+    with _pause_lock:
+        _paused_until.clear()
+
+
+def _pause(host: str) -> None:
+    if config.EXTERNAL_API_COOLDOWN_SECONDS <= 0:
+        return
+    with _pause_lock:
+        _paused_until[host] = time.monotonic() + config.EXTERNAL_API_COOLDOWN_SECONDS
+    logger.warning("%s is not called for %s seconds after a failure", host, config.EXTERNAL_API_COOLDOWN_SECONDS)
+
+
+def _is_paused(host: str) -> bool:
+    with _pause_lock:
+        return time.monotonic() < _paused_until.get(host, 0.0)
 
 # A call that would wait longer than this for its turn in a RequestLimiter fails at once
 _MAX_LIMITER_WAIT_SECONDS = 5.0
@@ -147,8 +174,13 @@ def request_with_retry(
 
     With a limiter, every try (a retry too) waits for its turn first.
     """
+    host = urlsplit(url).netloc.lower()
+    if _is_paused(host):
+        raise ExternalServiceError(f"{source} failed a moment ago and is not called for now")
+
     tries = max(config.EXTERNAL_API_MAX_RETRIES, 0) + 1
     reason = f"{source} did not answer"
+    answered = False
 
     for attempt in range(tries):
         retry_after = None
@@ -163,6 +195,7 @@ def request_with_retry(
             )
         except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as exc:
             reason = f"{source} request failed ({exc.__class__.__name__})"
+            answered = False
         except requests.exceptions.RequestException as exc:
             # Not a temporary problem, so a retry would not help
             raise ExternalServiceError(
@@ -173,10 +206,13 @@ def request_with_retry(
                 return response
             reason = f"{source} answered {response.status_code}"
             retry_after = _retry_after_seconds(response)
+            answered = True
 
         if attempt < tries - 1:
             sleep(_delay_seconds(attempt, retry_after))
 
+    if not answered:
+        _pause(host)
     raise ExternalServiceError(reason)
 
 

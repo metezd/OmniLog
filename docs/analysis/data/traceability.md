@@ -24,7 +24,7 @@ Analysis status values: draft, reviewed, accepted. Implementation status values:
 | US-10 | 4 | Must | UC-EP4-01 | 4.1, 4.2 | `chapter_progress`, `chapters` | `PUT /library/{id}/chapters/{chapter_id}/rating` | behavior/dfd-epic4-episodic.md | accepted | Implemented |
 | US-11 | 4 | Should | UC-EP4-02 | 4.1, 4.3, 4.5 | `chapter_progress`, `playtime_logs` | `POST .../playtime`, `GET .../chapters/{chapter_id}` | behavior/dfd-epic4-episodic.md | accepted | Implemented |
 | US-12 | 4 | Should | UC-EP4-03 | 4.1, 4.4, 4.5 | `decision_points`, `decision_options`, `user_decisions` | `PUT .../decision` | behavior/dfd-epic4-episodic.md | accepted | Implemented. The decision points of games come from the seed file |
-| US-13 | 5 | Should | UC-EP5-01, UC-EP5-02 | 5.3 (5.1 and 5.2 are not built) | `user_libraries`, `media_items`, `genres`. The design also has `media_embeddings` and `user_taste_vectors`, which are not built | `GET /recommendations` | behavior/dfd-epic5-ai.md | accepted | Partly implemented. It ranks by genre. No embeddings |
+| US-13 | 5 | Should | UC-EP5-01, UC-EP5-02 | 5.1 to 5.3 | `user_libraries`, `media_items`, `genres`, `media_embeddings`. `user_taste_vectors` of the design is not built | `GET /recommendations` | behavior/dfd-epic5-ai.md | accepted | Implemented. It ranks by the embeddings of the liked titles, with popularity as the fallback |
 | US-14 | 5 | Could | UC-EP5-03 | 5.4, 5.5 | `reviews`, `diary_entries` | `POST /library/{id}/review`, `GET /library/{id}/review` | behavior/dfd-epic5-ai.md | accepted | Implemented |
 | US-15 | 6 | Should | UC-EP6-01 | 6.1 to 6.5 | `user_libraries`, `media_items`, `genres`, `chapter_progress` | `GET /stats` | behavior/dfd-epic6-analytics.md | accepted | Implemented, with the Redis cache |
 | NFR-01 | All | - | - | 3.1, 3.2, 6.5 and D9 | Redis keys | `GET /catalog/search`, `GET /stats` | behavior/dfd-epic3-catalog.md | accepted | Implemented |
@@ -67,10 +67,10 @@ The business rules BR-10 to BR-13 are checked in the Epic 4 edge-case files, and
 | Check | Result |
 |---|---|
 | Every user story has a DFD process | Yes |
-| Every DFD process is used by at least one story | No. The processes 5.1 and 5.2 (embeddings) and 3.6 (sync) of the design are not built |
+| Every DFD process is used by at least one story | No. The process 3.6 (sync) of the design is not built |
 | Every table in the E-R diagram is read or written by a DFD process | No. `external_sources`, `sync_job_logs`, `media_embeddings` and `user_taste_vectors` are in the design only and have no table |
 | Every endpoint in the code appears in a DFD | Yes. `POST /media` and `GET /media/{id}` are helpers for the catalog and have no process of their own |
-| Every data store in Level 1 is used by a Level 2 document | Yes, except D8 and D10, which are not built |
+| Every data store in Level 1 is used by a Level 2 document | Yes, except D10, which is not built |
 | Every story has an acceptance test | Yes |
 | Every behavior of a story has a test | No. See the gaps for US-13 and US-14 in section 2 |
 
